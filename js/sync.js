@@ -63,6 +63,20 @@
       data.recipes = data.recipes.map(r => (remap.has(r.collectionId) ? { ...r, collectionId: remap.get(r.collectionId), updatedAt: now } : r));
     }
 
+    // Gleiche Rezepte (auch mit anderem Namen), die auf zwei Geräten getrennt eingegeben wurden:
+    // das neue, dem Server noch unbekannte nur behalten, wenn es kein Doppel eines Server-Rezepts ist
+    const D = (typeof window !== 'undefined') && window.RecipeDupes;
+    if (D) {
+      const serverRecipes = data.recipes.filter(r => ns.r[r.id] && !ns.r[r.id].d);
+      data.recipes = data.recipes.filter(r => {
+        if (ns.r[r.id]) return true;
+        const twin = D.findDuplicate(r, serverRecipes);
+        if (!twin) return true;
+        if (r.favorite && !twin.favorite) { twin.favorite = true; twin.updatedAt = now; } // Favorit nicht verlieren
+        return false;
+      });
+    }
+
     // Beispielrezepte, die auf zwei Geräten getrennt geladen wurden, nur einmal behalten
     const remoteExampleTitles = new Set((remote.recipes || []).filter(r => !r.deleted && r.data && r.data.example).map(r => r.data.title.toLowerCase()));
     data.recipes = data.recipes.filter(r => !(r.example && !ns.r[r.id] && remoteExampleTitles.has(String(r.title).toLowerCase())));

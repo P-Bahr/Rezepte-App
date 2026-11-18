@@ -866,6 +866,21 @@
       if (f) { e.preventDefault(); imageSection.useFile(f); }
     });
 
+    // Hinweis auf ein schon vorhandenes, gleiches Rezept (auch mit anderem Namen)
+    const dupBox = h('div', { class: 'notice', id: 'dupNotice', hidden: true, role: 'alert' });
+    err.after(dupBox);
+    let allowDuplicate = false;
+    function showDuplicate(dup) {
+      dupBox.textContent = '';
+      dupBox.append(
+        h('p', null, 'Dieses Rezept gibt es schon: ', h('b', { text: '„' + dup.title + '“' }), '. Zutaten und Zubereitung sind fast gleich.'),
+        h('div', { class: 'notice-actions' },
+          h('button', { type: 'button', class: 'btn', onclick: () => { allowDuplicate = true; dupBox.hidden = true; form.requestSubmit(); } }, 'Trotzdem speichern'),
+          h('button', { type: 'button', class: 'btn btn-primary', onclick: () => openDetail(dup.id) }, 'Vorhandenes öffnen')));
+      dupBox.hidden = false;
+      dupBox.scrollIntoView({ block: 'nearest' });
+    }
+
     let saving = false;
     form.addEventListener('submit', async e => {
       e.preventDefault();
@@ -889,6 +904,11 @@
       if (u === 'Blech') { if (!(n('fSizeL') > 0 && n('fSizeW') > 0)) return fail('Bitte die Blechgröße in cm eintragen, z. B. 30 × 40.', 'fSizeL'); formSize = F.formatSize(u, { l: n('fSizeL'), w: n('fSizeW') }); }
       if (u === 'Gläser') formSize = F.formatSize(u, { ml: n('fSizeG') });
       if (u === 'Kastenform') { if (!(n('fSizeK') > 0)) return fail('Bitte die Länge der Kastenform in cm eintragen, z. B. 30.', 'fSizeK'); formSize = F.formatSize(u, { len: n('fSizeK') }); }
+      // Gleiches Rezept schon vorhanden? (nur bei neuen Rezepten)
+      if (!id && !allowDuplicate) {
+        const dup = window.RecipeDupes.findDuplicate({ title: val('fTitle'), ingredients: ingRows.lines(), steps: lines('fSteps').filter(x => x.trim()) }, Store.recipes());
+        if (dup) return showDuplicate(dup);
+      }
       let imageId = v.imageId || '';
       try {
         saving = true;

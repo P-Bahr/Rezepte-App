@@ -1,6 +1,6 @@
 // Prüft das Zusammenführen beim Online-Abgleich (ohne Netz): node tests/sync.test.js
 global.window = {};
-require('../js/sync.js');
+for (const f of ['search', 'scale', 'dupes', 'sync']) require('../js/' + f + '.js');
 const { merge, pending } = window.RecipeSync;
 let fail = 0;
 const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else console.log('ok  ', m); };
@@ -57,5 +57,12 @@ ok(m.data.recipes.map(r => r.id).sort().join() === 'own,x2', 'Doppeltes Beispiel
 snap = { user: 'u', r: { a: { u: '7', d: false } }, c: { c1: { u: '2026-01-01', d: false } }, img: {} };
 p = pending({ recipes: [R('a', 'A', '7')], collections: [C1] }, snap);
 ok(!p.upserts.recipes.length && !p.upserts.collections.length && !p.deletes.recipes.length, 'Abgeglichen: nichts offen');
+
+// 11. Gleiches Rezept mit anderem Namen auf zwei Geräten getrennt eingegeben -> nur einmal, Favorit bleibt
+const T1 = R('t1', 'Tiramisu', '1', { ingredients: ['500 g Mascarpone', '4 Eier', '80 g Zucker', '200 g Löffelbiskuits', '300 ml Espresso'], steps: ['Schichten und kühlen.'] });
+const T2 = R('t2', 'Omas Tiramisu', '2', { favorite: true, ingredients: ['Mascarpone 500g', 'Eier 4', 'Zucker 80 g', 'Löffelbiskuits 200g', 'Espresso 300 ml'], steps: ['Schichten und kühlen.'] });
+const B1 = R('b1', 'Bananenbrot', '1', { ingredients: ['3 Bananen', '250 g Mehl', '2 Eier', '120 g Zucker'], steps: ['Backen.'] });
+m = merge({ recipes: [T2, B1], collections: [C1] }, { recipes: [row(T1)], collections: [row(C1)] }, empty, 'jetzt');
+ok(m.data.recipes.map(r => r.id).sort().join() === 'b1,t1' && m.data.recipes.find(r => r.id === 't1').favorite === true, 'Gleiches Rezept mit anderem Namen nur einmal, Favorit übernommen');
 
 if (fail) { console.log(fail + ' Fehler'); process.exit(1); } else console.log('Alle Abgleich-Regeln ok');

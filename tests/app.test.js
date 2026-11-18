@@ -145,6 +145,26 @@ const OUT = process.argv[2] || '.';
   assert((await titles()).join() === 'Tiramisu' && await p.isVisible('.tile .fav-badge'), 'Favoriten-Filter zeigt nur Favoriten, Kachel mit Stern');
   await p.click('.chip-fav');
   assert(await p.locator('.tile').count() === 25, 'Favoriten-Filter wieder aus');
+  // Doppeltes Rezept mit anderem Namen wird erkannt
+  await p.click('#btnNew');
+  await p.fill('#fTitle', 'Omas Kaffee-Dessert');
+  await p.selectOption('#fCollection', { label: 'Alltag' });
+  await p.fill('#fIngredients', 'Mascarpone 250g\n2 Eier\nZucker 40 g\nLöffelbiskuits 100g\nEspresso 150 ml\n1 EL Kakao');
+  await p.fill('#fSteps', 'Eier trennen und Eigelb mit Zucker schaumig rühren.\nEiweiß steif schlagen und unterheben.\nBiskuits in Espresso tauchen, schichten, kühlen.');
+  const before = await p.evaluate(() => Store.recipes().length);
+  await p.click('dialog button[type=submit]'); await p.waitForTimeout(200);
+  assert(await p.isVisible('#dupNotice:has-text("„Tiramisu“")') && await p.evaluate(() => Store.recipes().length) === before, 'Gleiches Rezept mit anderem Namen erkannt, nicht doppelt gespeichert');
+  await p.click('#dupNotice >> text=Vorhandenes öffnen'); await p.waitForTimeout(300);
+  assert(await p.isVisible('dialog h2:has-text("Tiramisu")'), 'Vorhandenes Rezept geöffnet');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  await p.click('#btnNew');
+  await p.fill('#fTitle', 'Tiramisu-Variante');
+  await p.selectOption('#fCollection', { label: 'Alltag' });
+  await p.fill('#fIngredients', 'Mascarpone 250g\n2 Eier\nZucker 40 g\nLöffelbiskuits 100g\nEspresso 150 ml');
+  await p.click('dialog button[type=submit]'); await p.waitForTimeout(200);
+  await p.click('#dupNotice >> text=Trotzdem speichern'); await p.waitForTimeout(400);
+  assert(await p.isVisible('dialog h2:has-text("Tiramisu-Variante")') && await p.evaluate(() => Store.recipes().length) === before + 1, 'Trotzdem speichern legt es an');
+  await p.click('dialog >> text=Löschen'); await p.click('text=Ja, löschen'); await p.waitForTimeout(300);
   // Vorschläge unter Rezeptart, Hauptzutat, Zubereitung
   await p.fill('#q', 'linsensuppe'); await p.click('.tile'); await p.waitForTimeout(200); await p.click('text=Bearbeiten');
   const sug = id => p.$$eval('#' + id + ' + .suggest .chip', e => e.map(x => x.textContent));

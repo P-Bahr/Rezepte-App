@@ -19,6 +19,7 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Gläser mit Glasgröße (150 ml bis 1 l), im Rezept umstellbar, Mengen nach Inhalt
 - Fachbegriffe (blanchieren, ablöschen, Ober-/Unterhitze …) antippen für eine kurze Erklärung; Alltagswörter wie EL werden nicht erklärt
 - Zutaten als Text in beliebiger Reihenfolge („Mehl 200g“, „Eier 4“, „eine Prise Salz“); Vorschau zeigt die Erkennung, gespeichert wird einheitlich („200 g Mehl“)
+- Doppelte Rezepte (auch mit anderem Namen oder für andere Personenzahl) werden erkannt: beim Speichern Rückfrage, beim Abgleich automatisch nur einmal
 - Favoriten: Stern im Rezept, fester Chip „★ Favoriten“ ganz vorn
 - Foto aufnehmen oder auswählen (verkleinert, im Bildspeicher des Geräts), alternativ Bild-Adresse
 - Beim Bearbeiten: antippbare Vorschläge für Rezeptart, Hauptzutat und Zubereitung aus den eigenen Rezepten
@@ -56,6 +57,7 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/config.js` | Zugangsdaten für den Online-Speicher |
 | `supabase/einrichtung.sql` | Datenbank-Einrichtung (einmal in Supabase ausführen) |
 | `js/vendor/supabase.js` | Supabase-Bibliothek 2.45.4 (MIT-Lizenz) |
+| `js/dupes.js` | Doppelte Rezepte erkennen |
 | `js/images.js` | Fotos verkleinern und im Bildspeicher (IndexedDB) ablegen |
 | `js/app.js` | Bedienoberfläche |
 | `js/examples.js` | Beispielrezepte |
