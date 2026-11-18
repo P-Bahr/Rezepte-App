@@ -11,8 +11,12 @@
   const METRIC = ['g', 'kg', 'mg', 'ml', 'l', 'cl', 'dl'];
   const UNIT = '(g|kg|mg|ml|l|cl|dl)';
 
+  // Maßeinheiten, die zusammen mit der Zahl hervorgehoben werden
+  const KNOWN_UNITS = new Set(['g', 'kg', 'mg', 'ml', 'l', 'cl', 'dl', 'el', 'tl', 'msp', 'pck', 'päckchen', 'packung', 'prise', 'prisen',
+    'dose', 'dosen', 'bund', 'becher', 'tasse', 'tassen', 'glas', 'gläser', 'stück', 'stk', 'scheibe', 'scheiben', 'zehe', 'zehen',
+    'handvoll', 'spritzer', 'schuss', 'zweig', 'zweige', 'blatt', 'blätter', 'tropfen', 'würfel', 'liter', 'gramm', 'kilogramm', 'tüte', 'beutel', 'flasche', 'stange', 'stangen', 'knolle', 'kopf']);
   // Menge am Anfang: optional "ca."/"etwa", Zahl oder Bereich, optional Einheit
-  const LEAD = new RegExp('^(\\s*(?:ca\\.?\\s*|etwa\\s+|circa\\s+)?)(' + NUM + ')(?:\\s*[-–]\\s*(' + NUM + '))?(\\s*)([A-Za-zÄÖÜäöüß]+\\.?)?', 'i');
+  const LEAD = new RegExp('^(\\s*(?:ca\\.?\\s*|etwa\\s+|circa\\s+)?)(' + NUM + ')(?:\\s*[-–]\\s*(' + NUM + '))?(\\s*)([A-Za-zÄÖÜäöüß]+\\.?(?=\\s|,|$))?', 'i');
   const PAREN = new RegExp('(\\()([^)]*?)(' + NUM + ')\\s*' + UNIT + '\\b', 'gi');
 
   function parseNum(s) {
@@ -82,7 +86,11 @@
     let rest = text;
 
     if (m && !isNaN(parseNum(m[2]))) {
-      const unitWord = m[5] || '';
+      // Nur echte Maßeinheiten gehören zur Menge, "Eier" oder "Bio-" nicht
+      const known = m[5] && KNOWN_UNITS.has(m[5].replace(/\.$/, '').toLowerCase());
+      const unitWord = known ? m[5] : '';
+      const consumed = known ? m[0].length : m[0].length - (m[5] || '').length - m[4].length;
+      const gap = known ? m[4] : '';
       const unitClean = unitWord.replace(/\.$/, '');
       const isMetric = METRIC.includes(unitClean.toLowerCase());
       const a = parseNum(m[2]) * factor;
@@ -101,10 +109,10 @@
       } else {
         amountText = formatCount(a) + (b != null && !isNaN(b) ? '–' + formatCount(b) : '');
       }
-      const amount = amountText + m[4] + unitOut;
+      const amount = amountText + gap + unitOut;
       if (m[1]) parts.push({ t: m[1], amount: false });
-      parts.push({ t: factor === 1 ? text.slice(m[1].length, m[0].length) : amount, amount: true });
-      rest = text.slice(m[0].length);
+      parts.push({ t: factor === 1 ? text.slice(m[1].length, consumed) : amount, amount: true });
+      rest = text.slice(consumed);
     }
 
     // Gewichte/Volumen in Klammern

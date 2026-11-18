@@ -23,17 +23,24 @@ window.EXAMPLE_RECIPES = [
   },
   {
     title: 'Schokoladen-Brownies', collection: 'Backen & Süßes', course: 'Dessert', mainIngredient: 'Schokolade', method: 'Backen',
-    servings: '12 Stück', totalTime: '45 Min.',
+    servings: '12 Stück', formSize: '20 × 30 cm', totalTime: '45 Min.',
     ingredients: ['200 g Zartbitterschokolade', '150 g Butter', '200 g Zucker', '3 Eier', '100 g Mehl', '1 Prise Salz'],
     steps: ['Schokolade und Butter schmelzen.', 'Zucker und Eier unterrühren, dann Mehl und Salz.', 'In eine Form geben und bei 180 °C 25 Minuten backen.'],
     notes: 'Lieber etwas zu kurz backen, dann bleiben sie saftig.'
   },
   {
     title: 'Apfelkuchen vom Blech', collection: 'Backen & Süßes', course: 'Gebäck', mainIngredient: 'Äpfel', method: 'Backen',
-    servings: '1 Blech', totalTime: '1 Std. 15 Min.',
+    servings: '1 Blech', formSize: '30 × 40 cm', totalTime: '1 Std. 15 Min.',
     ingredients: ['1 kg Äpfel', '250 g Butter', '250 g Zucker', '5 Eier', '400 g Mehl', '1 Pck. Backpulver', 'Zimt'],
     steps: ['Butter, Zucker und Eier schaumig rühren.', 'Mehl und Backpulver unterheben, Teig aufs Blech streichen.', 'Äpfel in Spalten darauflegen, mit Zimt bestreuen, bei 180 °C 40 Minuten backen.'],
     notes: ''
+  },
+  {
+    title: 'Käsekuchen ohne Boden', collection: 'Backen & Süßes', course: 'Gebäck', mainIngredient: 'Quark', method: 'Backen',
+    servings: '1 Springform', formSize: 'Ø 26 cm', totalTime: '1 Std. 20 Min.',
+    ingredients: ['1 kg Magerquark', '200 g Zucker', '4 Eier', '1 Pck. Vanillepuddingpulver', '125 g weiche Butter', '1 Bio-Zitrone'],
+    steps: ['Ofen auf 175 °C Ober-/Unterhitze vorheizen, Form fetten.', 'Alle Zutaten glatt rühren.', 'In die Form füllen und 60 Minuten backen, im ausgeschalteten Ofen abkühlen lassen.'],
+    notes: 'Für ein Blech die Menge verdoppeln. Dazu passt der Apfelkuchen, wenn viele Gäste kommen.'
   },
   {
     title: 'Tomaten-Mozzarella-Salat', collection: 'Schnell & einfach', course: 'Vorspeise', mainIngredient: 'Tomaten', method: 'Roh / ohne Kochen',
@@ -47,10 +54,10 @@ window.EXAMPLE_RECIPES = [
     servings: '4', totalTime: '50 Min.',
     ingredients: ['1 kg festkochende Kartoffeln', '3 EL Öl', '1 TL Paprikapulver', 'Rosmarin', 'Salz'],
     steps: ['Kartoffeln vierteln und mit Öl und Gewürzen mischen.', 'Auf einem Blech bei 220 °C 40 Minuten backen, einmal wenden.'],
-    notes: ''
+    notes: 'Passt gut zu Lachs mit Honig-Senf-Kruste oder zur Hähnchenbrust.'
   },
   {
-    title: 'Lachs mit Honig-Senf-Kruste', collection: 'Für Gäste', course: 'Hauptgericht', mainIngredient: 'Lachs', method: 'Backen',
+    title: 'Lachs mit Honig-Senf-Kruste', collection: 'Alltag', course: 'Hauptgericht', mainIngredient: 'Lachs', method: 'Backen',
     servings: '4', totalTime: '30 Min.',
     ingredients: ['4 Lachsfilets', '2 EL Honig', '2 EL Dijon-Senf', '1 Bund Dill', '1 Zitrone'],
     steps: ['Honig, Senf und gehackten Dill verrühren.', 'Auf den Lachs streichen.', 'Bei 200 °C 15 Minuten im Ofen garen.'],

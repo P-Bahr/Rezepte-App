@@ -19,7 +19,8 @@
     query: '',
     filters: { collectionId: new Set(), course: new Set(), mainIngredient: new Set(), method: new Set() },
     mode: null,          // 'detail' | 'edit' | 'collections' | null
-    openedByApp: false   // wurde das Rezeptfenster per Antippen geöffnet (dann schließt "Zurück" es)
+    depth: 0,            // wie viele Rezepte nacheinander per Antippen geöffnet wurden (für "Zurück")
+    pushing: false       // gerade öffnet die App selbst ein Rezept
   };
 
   // ---------- kleine Helfer ----------
@@ -267,7 +268,7 @@
 
   function closeDialog() {
     if (hashId()) {
-      if (state.openedByApp) { state.openedByApp = false; history.back(); return; } // hashchange schließt
+      if (state.depth > 0) { const d = state.depth; state.depth = 0; history.go(-d); return; } // hashchange schließt
       clearHash();
     }
     hideDialog();
@@ -280,17 +281,22 @@
   function syncFromHash() {
     const id = hashId();
     if (id) {
+      // Ohne eigenes Öffnen ist das die Zurück-Taste (z. B. vom verlinkten Rezept zurück)
+      if (!state.pushing && state.depth > 0) state.depth--;
+      state.pushing = false;
       if (Store.recipe(id)) { if (!(state.mode === 'detail' && body.dataset.id === id)) renderDetail(id); }
       else { clearHash(); hideDialog(); toast('Dieses Rezept gibt es nicht mehr.'); }
-    } else if (state.mode === 'detail') {
-      state.openedByApp = false;
-      hideDialog();
+    } else {
+      state.depth = 0;
+      state.pushing = false;
+      if (state.mode === 'detail') hideDialog();
     }
   }
 
   function openDetail(id) {
     if (hashId() === id) { renderDetail(id); return; }
-    state.openedByApp = true;
+    state.depth++;
+    state.pushing = true;
     location.hash = 'rezept-' + encodeURIComponent(id); // hashchange zeigt das Rezept
   }
 
@@ -322,7 +328,7 @@
       r.ingredients.length ? ingredientsSection(r) : null,
       r.steps.length ? h('section', null, h('h3', { text: 'Zubereitung' }),
         h('ol', null, r.steps.map(s => h('li', { text: s })))) : null,
-      r.notes ? h('section', null, h('h3', { text: 'Notizen' }), h('p', { class: 'notes', text: r.notes })) : null,
+      r.notes ? notesSection(r) : null,
       src ? h('p', { class: 'source' }, 'Quelle: ', h('a', { href: src, target: '_blank', rel: 'noopener noreferrer', text: src })) : null
     );
 
@@ -351,46 +357,93 @@
       head(r.title, closeDialog), h('div', { class: 'dlg-scroll' }, content), foot));
   }
 
-  // ---------- Zutaten mit Personen-Regler ----------
+  // ---------- Notizen mit Links zu passenden Rezepten ----------
+  function notesSection(r) {
+    const links = window.RecipeLinks.findLinks(r, Store.recipes());
+    const p = h('p', { class: 'notes' });
+    let pos = 0;
+    for (const l of links) {
+      if (l.start > pos) p.append(r.notes.slice(pos, l.start));
+      p.append(h('a', {
+        href: '#rezept-' + encodeURIComponent(l.id), class: 'recipe-link',
+        onclick: e => { e.preventDefault(); openDetail(l.id); }
+      }, r.notes.slice(l.start, l.end)));
+      pos = l.end;
+    }
+    if (pos < r.notes.length) p.append(r.notes.slice(pos));
+
+    const ids = [...new Set(links.map(l => l.id))];
+    return h('section', null, h('h3', { text: 'Notizen' }), p,
+      ids.length ? h('div', { class: 'related' }, h('span', { class: 'related-label', text: 'Passt dazu:' }),
+        ids.map(id => h('button', { type: 'button', class: 'btn', onclick: () => openDetail(id) }, Store.recipe(id).title))) : null);
+  }
+
+  // ---------- Zutaten mit Regler für Personen und Formgröße ----------
+  const ROUND = /(?:Ø|ø|Durchmesser)\s*(\d+(?:[.,]\d+)?)\s*cm|(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*(?:Ø|ø)|(\d+)er\b/i;
+  function roundDiameter(size) {
+    const m = String(size || '').match(ROUND);
+    if (!m) return null;
+    const d = parseFloat((m[1] || m[2] || m[3]).replace(',', '.'));
+    return d >= 8 && d <= 50 ? d : null;
+  }
+
+  function stepper(label, onMinus, onPlus) {
+    const value = h('span', { class: 'stepper-value', 'aria-live': 'polite' });
+    const minus = h('button', { type: 'button', class: 'icon-btn', 'aria-label': label + ': weniger', onclick: onMinus }, '−');
+    const plus = h('button', { type: 'button', class: 'icon-btn', 'aria-label': label + ': mehr', onclick: onPlus }, '+');
+    return { el: h('div', { class: 'stepper', role: 'group', 'aria-label': label }, minus, value, plus), value, minus, plus };
+  }
+
   function ingredientsSection(r) {
     const Sc = window.RecipeScale;
     const base = r.servings;
     const unit = r.servingsUnit || '';
+    const size = (r.formSize || '').trim();
+    const d0 = roundDiameter(size);
     const section = h('section', { class: 'ingredients' });
-    if (!base) {
-      section.append(h('h3', { text: 'Zutaten' }),
-        h('ul', null, r.ingredients.map(i => h('li', { text: i }))),
-        h('p', { class: 'hint', text: 'Zum Umrechnen auf andere Personenzahlen: Tippe auf „Bearbeiten“ und trage ein, für wie viele Personen das Rezept ist.' }));
-      return section;
-    }
-    // Personen-Rezepte starten immer bei 4, andere (Blech, Stück) bei ihrer eigenen Menge
-    let target = Sc.isPersons(unit) ? 4 : base;
-    const value = h('span', { class: 'stepper-value', 'aria-live': 'polite' });
-    const minus = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Weniger', onclick: () => change(-1) }, '−');
-    const plus = h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Mehr', onclick: () => change(1) }, '+');
-    const note = h('p', { class: 'hint' });
     const list = h('ul');
 
-    function change(dir) {
-      if (dir > 0) target = Math.floor(target + 1e-9) + 1;
-      else target = Math.max(1, Math.ceil(target - 1e-9) - 1);
-      update();
-    }
+    // Personen-Rezepte starten immer bei 4, andere (Blech, Stück) bei ihrer eigenen Menge
+    let target = base ? (Sc.isPersons(unit) ? 4 : base) : null;
+    let d = d0;
+
+    const count = base ? stepper('Menge', () => {
+      target = Math.max(1, Math.ceil(target - 1e-9) - 1); update();
+    }, () => {
+      target = Math.floor(target + 1e-9) + 1; update();
+    }) : null;
+    // Runde Form: Durchmesser in 2-cm-Schritten, Mengen nach Fläche umgerechnet
+    const dia = d0 ? stepper('Formgröße', () => { d = Math.max(12, d - 2); update(); }, () => { d = Math.min(40, d + 2); update(); }) : null;
+
     function update() {
-      const factor = target / base;
-      value.textContent = Sc.servingsLabel(target, unit);
-      minus.disabled = target <= 1;
-      note.textContent = Math.abs(factor - 1) < 1e-9 ? 'Mengen wie im Originalrezept.' : 'Umgerechnet. Das Originalrezept ist für ' + Sc.servingsLabel(base, unit) + '.';
+      let factor = 1;
+      if (count) {
+        factor *= target / base;
+        count.value.textContent = Sc.servingsLabel(target, unit);
+        count.minus.disabled = target <= 1;
+      }
+      if (dia) {
+        factor *= (d * d) / (d0 * d0);
+        dia.value.textContent = 'Ø ' + Sc.formatCount(d) + ' cm';
+        dia.minus.disabled = d <= 12;
+        dia.plus.disabled = d >= 40;
+      }
       list.textContent = '';
       for (const line of r.ingredients) {
         list.append(h('li', null, Sc.scaleIngredient(line, factor).map(p => p.amount ? h('b', { text: p.t }) : p.t)));
       }
     }
     update();
-    section.append(
-      h('div', { class: 'ing-head' }, h('h3', { text: 'Zutaten' }),
-        h('div', { class: 'stepper', role: 'group', 'aria-label': 'Menge' }, minus, value, plus)),
-      note, list);
+
+    const controls = h('div', { class: 'ing-controls' });
+    if (count) controls.append(count.el);
+    if (dia) controls.append(h('div', { class: 'form-size' }, h('span', { class: 'form-size-label', text: 'Form' }), dia.el));
+    else if (size) controls.append(h('div', { class: 'form-size' }, h('span', { class: 'form-size-label', text: 'Größe' }), h('b', { text: size })));
+
+    section.append(h('div', { class: 'ing-head' }, h('h3', { text: 'Zutaten' }), controls), list);
+    if (!base && !d0) {
+      section.append(h('p', { class: 'hint', text: 'Zum Umrechnen: Tippe auf „Bearbeiten“ und trage ein, für wie viele Personen das Rezept ist.' }));
+    }
     return section;
   }
 
@@ -442,7 +495,8 @@
         field('Zubereitung', inp('fMethod', v.method, { list: 'dlMethod', placeholder: 'z. B. Backen' }))),
       h('div', { class: 'row3' },
         field('Rezept ist für', inp('fServings', v.servings ? window.RecipeScale.formatCount(v.servings) : '', { inputmode: 'decimal', placeholder: 'z. B. 4' })),
-        field('Einheit', inp('fServUnit', v.servingsUnit || (v.servings ? 'Personen' : ''), { list: 'dlUnit', placeholder: 'Personen' }), 'Meist „Personen“. Auch möglich: Stück, Blech, Gläser.'),
+        field('Einheit', inp('fServUnit', v.servingsUnit || (v.servings ? 'Personen' : ''), { list: 'dlUnit', placeholder: 'Personen' }), 'Meist „Personen“. Auch möglich: Stück, Blech, Springform.'),
+        field('Form- oder Blechgröße', inp('fFormSize', v.formSize, { placeholder: 'z. B. Ø 26 cm oder 30 × 40 cm' }), 'Nur bei Kuchen, Aufläufen usw. Bei runden Formen mit Ø rechnet die App auch auf andere Größen um.'),
         field('Zeit', inp('fTime', v.totalTime, { placeholder: 'z. B. 30 Min.' }))),
       field('Zutaten', ta('fIngredients', v.ingredients.join('\n'), 8), 'Eine Zutat pro Zeile, mit den Mengen aus dem Originalrezept. Die App rechnet sie für andere Personenzahlen um.'),
       field('Zubereitung (Schritte)', ta('fSteps', v.steps.join('\n'), 8), 'Ein Schritt pro Zeile.'),
@@ -452,7 +506,7 @@
       datalist('dlCourse', COURSES, 'course'),
       datalist('dlMain', [], 'mainIngredient'),
       datalist('dlMethod', METHODS, 'method'),
-      datalist('dlUnit', ['Personen', 'Stück', 'Blech', 'Gläser', 'Portionen'], 'servingsUnit'));
+      datalist('dlUnit', ['Personen', 'Stück', 'Blech', 'Springform', 'Kastenform', 'Auflaufform', 'Gläser'], 'servingsUnit'));
 
     const cancel = () => { if (id && Store.recipe(id)) renderDetail(id); else closeDialog(); };
 
@@ -474,7 +528,7 @@
         const saved = Store.saveRecipe({
           id: id || undefined, title: val('fTitle'), collectionId,
           course: val('fCourse'), mainIngredient: val('fMain'), method: val('fMethod'),
-          servings: val('fServings'), servingsUnit: val('fServUnit'), totalTime: val('fTime'),
+          servings: val('fServings'), servingsUnit: val('fServUnit'), formSize: val('fFormSize'), totalTime: val('fTime'),
           ingredients: lines('fIngredients'), steps: lines('fSteps'), notes: val('fNotes'),
           imageUrl: val('fImage'), sourceUrl: val('fSource')
         });

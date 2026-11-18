@@ -74,6 +74,7 @@
         method: clean(input.method),
         servings: parsedServ.servings,
         servingsUnit: clean(input.servingsUnit) || parsedServ.unit,
+        formSize: clean(input.formSize),
         totalTime: clean(input.totalTime),
         ingredients: cleanList(input.ingredients),
         steps: cleanList(input.steps),

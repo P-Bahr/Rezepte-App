@@ -10,6 +10,8 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Filterchips für Sammlung, Rezeptart, Hauptzutat und Zubereitung, mit Trefferzahl
 - Rezept öffnet sich als Fenster über der Übersicht, Suche und Filter bleiben erhalten
 - Personen-Regler im Rezept: startet bei 4 Personen, rechnet alle Mengen um (z. B. „1 kg“ für 2 → „500 g“ für 1)
+- Blech- und Formgröße; bei runden Formen (Ø) zweiter Regler, der nach Fläche umrechnet
+- Notizen verlinken andere eigene Rezepte, die dort erwähnt werden („Dazu passen die Ofenkartoffeln“)
 - Rezepte anlegen, bearbeiten und löschen; Sammlungen anlegen, umbenennen und löschen
 - Speichern **nur auf diesem Gerät** (vorläufig)
 
@@ -31,6 +33,7 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/store.js` | Datenspeicher; hier wird später die Online-Datenbank angeschlossen |
 | `js/search.js` | Suchlogik |
 | `js/scale.js` | Mengen auf andere Personenzahlen umrechnen |
+| `js/links.js` | Erwähnte Rezepte in Notizen finden |
 | `js/app.js` | Bedienoberfläche |
 | `js/examples.js` | Beispielrezepte |
 | `tests/app.test.js` | Automatischer Test im Browser |

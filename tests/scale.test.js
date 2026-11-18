@@ -21,3 +21,9 @@ for (const [v, n, u] of [['4', 4, ''], ['12 Stück', 12, 'Stück'], ['für 6 Per
   if (p.servings !== n || p.unit !== u) { fail++; console.log('FEHLER parseServings', v, JSON.stringify(p)); }
 }
 if (fail) { console.log(fail + ' Fehler'); process.exit(1); } else console.log('Alle Umrechnungen ok');
+// Hervorhebung: nur Zahl und echte Einheit
+const bold = (l, f) => S.scaleIngredient(l, f).filter(p => p.amount).map(p => p.t).join('');
+for (const [l, f, exp] of [['1 Bio-Zitrone', 1, '1'], ['4 Eier', 0.5, '2'], ['200 g Mehl', 2, '400 g'], ['1 Pck. Backpulver', 1, '1 Pck.'], ['2 EL Öl', 1.5, '3 EL'], ['1 kg Äpfel', 0.5, '500 g']]) {
+  if (bold(l, f) !== exp) { console.log('FEHLER fett', l, '→', JSON.stringify(bold(l, f))); process.exitCode = 1; }
+  else console.log('ok   fett', l, '→', bold(l, f));
+}
