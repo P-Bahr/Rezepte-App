@@ -58,6 +58,27 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <!--APP-END-->
+<script>
+/* Fehleranzeige: zeigt unerwartete Fehler sichtbar an, damit man sie melden kann */
+(function () {
+  function show(msg) {
+    try {
+      var el = document.getElementById('errorReport');
+      if (!el) {
+        el = document.createElement('div');
+        el.id = 'errorReport';
+        el.setAttribute('role', 'alert');
+        el.style.cssText = 'position:fixed;left:8px;right:8px;bottom:calc(8px + env(safe-area-inset-bottom,0px));z-index:2147483647;background:#b3261e;color:#fff;padding:12px 14px;border-radius:12px;font:15px/1.4 -apple-system,system-ui,sans-serif;white-space:pre-wrap;word-break:break-word';
+        el.addEventListener('click', function () { el.remove(); });
+        (document.body || document.documentElement).appendChild(el);
+      }
+      el.textContent = 'Fehler (bitte Bildschirmfoto an Claude, Tippen schließt):\n' + msg + '\n' + navigator.userAgent;
+    } catch (e) { /* nichts */ }
+  }
+  window.addEventListener('error', function (e) { show((e.message || 'Fehler') + (e.filename ? ' – ' + e.filename.split('/').pop() + ':' + e.lineno : '')); });
+  window.addEventListener('unhandledrejection', function (e) { show('Promise: ' + (e.reason && (e.reason.message || e.reason) || 'unbekannt')); });
+})();
+</script>
 <script src="js/vendor/supabase.js"></script>
 <script src="js/config.js"></script>
 <script src="js/search.js"></script>
