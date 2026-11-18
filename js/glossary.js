@@ -6,7 +6,7 @@
   // [Muster, Begriff, Erklärung]. \p{L}* erlaubt Wortformen (blanchieren, blanchiert …).
   const TERMS = [
     // Ofen: wofür man welche Einstellung nimmt
-    [/Ober-\s*\/\s*Unterhitze/iu, 'Ober-/Unterhitze', 'Die richtige Wahl für Kuchen, Brot und Aufläufe: Die Hitze kommt sanft von oben und unten, der Teig geht gleichmäßig auf und bräunt schön, ohne auszutrocknen. Nachteil: Es geht nur ein Blech auf einmal.'],
+    [/Ober-\s*\/\s*Unterhitze/iu, 'Ober-/Unterhitze', 'Die richtige Wahl für Kuchen, Brot und Aufläufe: Die Hitze kommt sanft von oben und unten, der Teig geht gleichmäßig auf und bräunt schön, ohne auszutrocknen.'],
     [/(?<![\p{L}])Umluft(?![\p{L}])/iu, 'Umluft', 'Sinnvoll, wenn mehrere Bleche gleichzeitig in den Ofen sollen (z. B. Plätzchen) oder etwas rundum knusprig werden soll (Pommes, Hähnchen). Trocknet Kuchen eher aus. Etwa 20 °C weniger als bei Ober-/Unterhitze einstellen.'],
     // Garmethoden
     [/(?<![\p{L}])blanchier\p{L}*/iu, 'blanchieren', 'Kurz (1–3 Minuten) in kochendes Salzwasser geben und danach sofort in Eiswasser. Gemüse bleibt so knackig und behält seine Farbe.'],

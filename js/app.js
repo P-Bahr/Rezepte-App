@@ -255,6 +255,7 @@
 
   function hideDialog() {
     if (dlg.open) dlg.close();
+    if (slideReset) resetSlide();
     document.body.classList.remove('modal-open');
     state.mode = null;
   }
@@ -283,32 +284,61 @@
   dlg.addEventListener('cancel', e => { e.preventDefault(); if (state.mode === 'detail') closeDetail(); else if (state.mode !== 'edit') closeDialog(); });
   dlg.addEventListener('click', e => { if (e.target === dlg && state.mode === 'detail') closeDetail(); });
 
-  // Wischen vom linken Rand = zurück (wie in iOS-Apps)
+  // Wischen vom linken Rand = zurück (wie in iOS-Apps).
+  // Im Browser hat Safari dafür eine eigene Geste mit eigener Animation; dort bewegt
+  // die App nichts selbst. Nur als Home-Bildschirm-App (ohne eingebaute Geste) gleitet
+  // das Rezept mit dem Finger und beim Loslassen ganz nach rechts hinaus.
+  const standalone = () => window.navigator.standalone === true ||
+    (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
   let swipe = null;
   let lastHashChange = 0;
+  let slideReset = null;
   window.addEventListener('hashchange', () => { lastHashChange = Date.now(); });
+  function resetSlide() {
+    clearTimeout(slideReset);
+    slideReset = null;
+    dlg.style.transition = 'none';
+    dlg.style.transform = '';
+    requestAnimationFrame(() => { dlg.style.transition = ''; });
+  }
   document.addEventListener('touchstart', e => {
     if (!dlg.open || state.mode !== 'detail' || e.touches.length !== 1) { swipe = null; return; }
     const t = e.touches[0];
-    swipe = t.clientX <= 30 ? { x: t.clientX, y: t.clientY, start: Date.now(), dx: 0 } : null;
+    swipe = t.clientX <= 30 ? { x: t.clientX, y: t.clientY, start: Date.now(), dx: 0, own: standalone() } : null;
   }, { passive: true });
   document.addEventListener('touchmove', e => {
     if (!swipe) return;
     const t = e.touches[0];
     swipe.dx = t.clientX - swipe.x;
-    if (Math.abs(t.clientY - swipe.y) > Math.max(40, swipe.dx)) { swipe = null; dlg.style.transform = ''; return; }
-    if (swipe.dx > 0) dlg.style.transform = 'translateX(' + swipe.dx + 'px)';
+    if (Math.abs(t.clientY - swipe.y) > Math.max(40, swipe.dx)) {
+      if (swipe.own) { dlg.style.transition = 'transform .15s ease'; dlg.style.transform = ''; }
+      swipe = null;
+      return;
+    }
+    if (swipe.own && swipe.dx > 0) { dlg.style.transition = 'none'; dlg.style.transform = 'translateX(' + swipe.dx + 'px)'; }
   }, { passive: true });
   const endSwipe = cancelled => {
     if (!swipe) return;
     const s = swipe;
     swipe = null;
-    dlg.style.transition = 'transform .15s ease';
-    dlg.style.transform = '';
-    setTimeout(() => { dlg.style.transition = ''; }, 200);
-    if (cancelled || s.dx < 80) return;
-    // Falls der Browser selbst schon zurückgegangen ist, nicht doppelt zurück
-    setTimeout(() => { if (lastHashChange < s.start && state.mode === 'detail') closeDetail(); }, 250);
+    const done = !cancelled && s.dx >= 80;
+    if (!s.own) {
+      // Browser: Falls Safari nicht schon selbst zurückgegangen ist, jetzt zurück – ohne Animation
+      if (done) setTimeout(() => { if (lastHashChange < s.start && state.mode === 'detail') closeDetail(); }, 300);
+      return;
+    }
+    if (!done) {
+      dlg.style.transition = 'transform .15s ease';
+      dlg.style.transform = '';
+      return;
+    }
+    // Ganz nach rechts hinausgleiten, dann zurück; danach Position ohne Animation zurücksetzen
+    dlg.style.transition = 'transform .18s ease-out';
+    dlg.style.transform = 'translateX(100%)';
+    setTimeout(() => {
+      if (state.mode === 'detail') closeDetail();
+      slideReset = setTimeout(resetSlide, 600); // Sicherheitsnetz
+    }, 180);
   };
   document.addEventListener('touchend', () => endSwipe(false));
   document.addEventListener('touchcancel', () => endSwipe(true));
@@ -320,8 +350,10 @@
       // Ohne eigenes Öffnen ist das die Zurück-Taste (z. B. vom verlinkten Rezept zurück)
       if (!state.pushing && state.depth > 0) state.depth--;
       state.pushing = false;
-      if (Store.recipe(id)) { if (!(state.mode === 'detail' && body.dataset.id === id)) renderDetail(id); }
-      else { clearHash(); hideDialog(); toast('Dieses Rezept gibt es nicht mehr.'); }
+      if (Store.recipe(id)) {
+        if (!(state.mode === 'detail' && body.dataset.id === id)) renderDetail(id);
+        if (slideReset) resetSlide();
+      } else { clearHash(); hideDialog(); toast('Dieses Rezept gibt es nicht mehr.'); }
     } else {
       state.depth = 0;
       state.pushing = false;

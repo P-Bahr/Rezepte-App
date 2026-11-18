@@ -221,6 +221,31 @@ const OUT = process.argv[2] || '.';
   assert(await pp.isVisible('dialog[open] h2:has-text("Käsekuchen")'), 'Wischen vom Rand: zurück zum ursprünglichen Rezept');
   await swipeRight();
   assert(!(await pp.isVisible('dialog[open]')) && await pp.inputValue('#q') === 'kasekuchen', 'Wischen vom Rand: zurück zur Übersicht, Suche erhalten');
+  // Als Home-Bildschirm-App (eigene Wischgeste): Rezept gleitet hinaus, ohne zurückzuspringen
+  const st = await b.newContext({ ...devices['iPhone 13'] });
+  await st.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
+  const sp = await st.newPage(); sp.on('pageerror', e => errs.push(e.message));
+  await sp.goto(URL); await sp.click('button:has-text("Beispielrezepte laden")');
+  await sp.fill('#q', 'kasekuchen'); await sp.locator('.tile').first().click(); await sp.waitForTimeout(300);
+  await sp.click('.related .btn'); await sp.waitForTimeout(300);
+  const track = await sp.evaluate(async () => {
+    const dlg = document.querySelector('#dlg'); const seen = [];
+    const fire = (type, x) => {
+      const t = new Touch({ identifier: 1, target: document.body, clientX: x, clientY: 400 });
+      document.dispatchEvent(new TouchEvent(type, { touches: type === 'touchend' ? [] : [t], changedTouches: [t], bubbles: true }));
+    };
+    fire('touchstart', 5); for (let x = 20; x <= 200; x += 30) fire('touchmove', x);
+    seen.push(dlg.style.transform);
+    fire('touchend', 200);
+    for (let i = 0; i < 4; i++) { await new Promise(r => setTimeout(r, 40)); seen.push(dlg.style.transform + '|' + document.querySelector('#dlgTitle').textContent); }
+    await new Promise(r => setTimeout(r, 500));
+    seen.push(dlg.style.transform + '|' + document.querySelector('#dlgTitle').textContent);
+    return seen;
+  });
+  assert(track[0].startsWith('translateX(') && track.slice(1, 4).every(x => x.startsWith('translateX(100%)|Apfelkuchen')),
+    'App-Modus: Rezept folgt dem Finger und gleitet ohne Zurückspringen hinaus: ' + track.join(' / '));
+  assert(track[5] === '|Käsekuchen ohne Boden', 'App-Modus: danach vorheriges Rezept an normaler Position: ' + track[5]);
+  await st.close();
   await pp.fill('#q', '');
   await pp.locator('.tile').first().click(); await pp.waitForTimeout(200);
   await pp.screenshot({ path: OUT + '/phone-detail.png' });
