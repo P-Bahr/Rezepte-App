@@ -108,7 +108,25 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .chip .n { font-size: 14px; opacity: .7; font-variant-numeric: tabular-nums; }
 .chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
 
-.status { display: flex; align-items: center; gap: 12px; min-height: var(--touch); color: var(--muted); font-size: 15px; }
+.status { display: flex; align-items: center; gap: 12px; min-height: var(--touch); color: var(--muted); font-size: 15px; flex-wrap: wrap; }
+.filter-toggle { font-size: 16px; padding: 0 14px; }
+.filter-toggle .chev { display: inline-block; transition: transform .15s ease; transform: rotate(-90deg); }
+.filter-toggle.open .chev { transform: none; }
+.filter-toggle .badge {
+  min-width: 24px; height: 24px; padding: 0 7px; border-radius: 12px; font-size: 14px; font-weight: 700;
+  display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: var(--accent-fg);
+}
+@media (prefers-reduced-motion: reduce) { .filter-toggle .chev { transition: none; } }
+.sort { margin-left: auto; }
+.sort select {
+  min-height: var(--touch); padding: 0 12px; border: 1px solid var(--line); border-radius: 10px;
+  background: var(--surface); color: var(--fg); font-size: 16px;
+}
+.facet-tools { display: flex; justify-content: flex-end; }
+.facet-move { display: flex; align-items: center; gap: 4px; width: auto; flex-wrap: wrap; }
+.facet.arranging .facet-label { width: auto; min-width: 108px; }
+.facet-move .icon-btn { width: var(--touch); height: var(--touch); font-size: 16px; }
+.facet-move .icon-btn:disabled { opacity: .3; cursor: not-allowed; }
 
 /* Buttons */
 .btn {
@@ -317,7 +335,7 @@ dialog::backdrop { background: rgba(10, 20, 15, .45); }
 @media (max-width: 600px) {
   .top { display: contents; }
   .titlebar { padding-top: 12px; }
-  .filters { margin-top: 8px; }
+  .filters { margin-top: 4px; }
   .searchbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); padding-block: 6px; }
   .searchbar .clear { top: 50%; }
   .facet { flex-direction: column; align-items: stretch; gap: 2px; }

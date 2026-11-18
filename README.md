@@ -7,7 +7,8 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 **Schritt 1 (Grundgerüst):** fertig zum Ausprobieren
 - Übersicht aller Rezepte als Kacheln
 - Suche, die Umlaute, Wortteile und kleine Tippfehler verzeiht („hahnchen“ findet „Hähnchenbrust“, „brownis“ findet „Brownies“)
-- Filterchips für Sammlung, Rezeptart, Hauptzutat und Zubereitung, mit Trefferzahl
+- Filterchips für Sammlung, Rezeptart, Hauptzutat und Zubereitung, mit Trefferzahl; einklappbar, Reihenfolge der Filterzeilen frei anordnen
+- Sortieren: A–Z, Neueste, Schnellste
 - Rezept öffnet sich als Fenster über der Übersicht, Suche und Filter bleiben erhalten
 - Personen-Regler im Rezept: startet bei 4 Personen, rechnet alle Mengen um (z. B. „1 kg“ für 2 → „500 g“ für 1)
 - Einheit als Auswahl: Personen, Stück, Gläser, Blech, Springform, Kastenform; Größenfeld nur bei Formen

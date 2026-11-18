@@ -100,6 +100,38 @@
     return true;
   }
 
+  // ---------- Sortieren ----------
+  const SORTS = { name: 'A–Z', neu: 'Neueste', schnell: 'Schnellste' };
+  let sortBy = 'name';
+  try { const v = localStorage.getItem('rezepte.sortierung'); if (SORTS[v]) sortBy = v; } catch (e) { /* egal */ }
+  function minutes(r) { const t = window.RecipeTime.estimateMinutes(r); return t ? t.minutes + (t.overnight ? 720 : 0) : Infinity; }
+  function sortResults(results) {
+    const byName = (a, b) => a.r.title.localeCompare(b.r.title, 'de');
+    if (sortBy === 'neu') results.sort((a, b) => String(b.r.createdAt).localeCompare(String(a.r.createdAt)) || byName(a, b));
+    else if (sortBy === 'schnell') results.sort((a, b) => minutes(a.r) - minutes(b.r) || byName(a, b));
+    // Bei "Name" und laufender Suche stehen die besten Treffer oben
+    else if (state.query.trim()) results.sort((a, b) => b.sc - a.sc || byName(a, b));
+    else results.sort(byName);
+  }
+
+  // ---------- Reihenfolge der Filterzeilen ----------
+  let facetOrder = FACETS.map(f => f.key);
+  try {
+    const v = JSON.parse(localStorage.getItem('rezepte.filterReihenfolge') || 'null');
+    if (Array.isArray(v) && v.length === facetOrder.length && facetOrder.every(k => v.includes(k))) facetOrder = v;
+  } catch (e) { /* egal */ }
+  let arranging = false;
+  function moveFacet(key, dir) {
+    const i = facetOrder.indexOf(key);
+    const j = i + dir;
+    if (j < 0 || j >= facetOrder.length) return;
+    [facetOrder[i], facetOrder[j]] = [facetOrder[j], facetOrder[i]];
+    try { localStorage.setItem('rezepte.filterReihenfolge', JSON.stringify(facetOrder)); } catch (e) { /* egal */ }
+    render();
+    const btn = document.querySelector('.facet[data-key="' + key + '"] .move-' + (dir < 0 ? 'up' : 'down'));
+    if (btn && !btn.disabled) btn.focus();
+  }
+
   function render() {
     const all = Store.recipes();
     // Filter, die es nicht mehr gibt (z. B. gelöschte Sammlung), stillschweigend entfernen
@@ -110,8 +142,7 @@
     const scored = [];
     all.forEach((r, i) => { if (scores[i] > 0) scored.push({ r, sc: scores[i] }); });
     const results = scored.filter(x => passesFilters(x.r));
-    if (state.query.trim()) results.sort((a, b) => b.sc - a.sc || a.r.title.localeCompare(b.r.title, 'de'));
-    else results.sort((a, b) => a.r.title.localeCompare(b.r.title, 'de'));
+    sortResults(results);
 
     renderFilters(scored.map(x => x.r));
     renderGrid(results.map(x => x.r), all.length);
@@ -119,6 +150,10 @@
     const active = state.query.trim() || state.favOnly || FACETS.some(f => state.filters[f.key].size);
     $('#count').textContent = results.length === 1 ? '1 Rezept' : results.length + ' Rezepte';
     $('#btnReset').hidden = !active;
+    // Anzahl aktiver Filter am Filter-Knopf (wichtig, wenn zugeklappt)
+    const nActive = (state.favOnly ? 1 : 0) + FACETS.reduce((n, f) => n + state.filters[f.key].size, 0);
+    $('#filterBadge').textContent = nActive ? String(nActive) : '';
+    $('#filterBadge').hidden = !nActive;
     $('#qClear').hidden = !state.query;
     $('#storageWarning').hidden = Store.storageOk;
     rememberView();
@@ -130,7 +165,8 @@
     box.querySelectorAll('.chips').forEach(c => { scrollPos[c.dataset.key] = c.scrollLeft; });
     box.textContent = '';
 
-    for (const f of FACETS) {
+    const ordered = facetOrder.map(k => FACETS.find(f => f.key === k));
+    for (const f of ordered) {
       // Anzahl je Wert, unter Berücksichtigung der Suche und der anderen Filter
       const counts = new Map();
       const labels = new Map();
@@ -148,7 +184,7 @@
         }
       }
       let values = [...labels.keys()].filter(v => counts.get(v) || state.filters[f.key].has(v));
-      if (!values.length && f.key !== 'collectionId') continue;
+      if (!values.length && f.key !== 'collectionId' && !arranging) continue;
 
       const orderIdx = v => {
         if (!f.order) return 999;
@@ -180,9 +216,18 @@
           onclick: () => { state.favOnly = !state.favOnly; render(); }
         }, h('span', { class: 'star', 'aria-hidden': 'true', text: '★' }), 'Favoriten', h('span', { class: 'n', text: String(favCount) })));
       }
-      box.append(h('div', { class: 'facet' }, h('span', { class: 'facet-label', text: f.label }), chips));
+      const pos = facetOrder.indexOf(f.key);
+      const label = arranging
+        ? h('span', { class: 'facet-label facet-move' }, f.label,
+            h('button', { type: 'button', class: 'icon-btn move-up', 'aria-label': f.label + ' nach oben', disabled: pos === 0, onclick: () => moveFacet(f.key, -1) }, '▲'),
+            h('button', { type: 'button', class: 'icon-btn move-down', 'aria-label': f.label + ' nach unten', disabled: pos === facetOrder.length - 1, onclick: () => moveFacet(f.key, 1) }, '▼'))
+        : h('span', { class: 'facet-label', text: f.label });
+      box.append(h('div', { class: 'facet' + (arranging ? ' arranging' : ''), 'data-key': f.key }, label, chips));
       if (scrollPos[f.key]) chips.scrollLeft = scrollPos[f.key];
     }
+    box.append(h('div', { class: 'facet-tools' }, h('button', {
+      type: 'button', class: 'btn-link', id: 'btnArrange', onclick: () => { arranging = !arranging; render(); }
+    }, arranging ? 'Fertig' : 'Reihenfolge ändern')));
   }
 
   function placeholder(title) {
@@ -972,6 +1017,25 @@
   q.addEventListener('input', () => { state.query = q.value; render(); });
   $('#qClear').addEventListener('click', () => { state.query = ''; q.value = ''; render(); q.focus(); });
   $('#btnReset').addEventListener('click', resetAll);
+  const sortSel = $('#sort');
+  Object.keys(SORTS).forEach(k => sortSel.append(h('option', { value: k, text: SORTS[k], selected: k === sortBy })));
+  sortSel.addEventListener('change', () => {
+    sortBy = sortSel.value;
+    try { localStorage.setItem('rezepte.sortierung', sortBy); } catch (e) { /* egal */ }
+    render();
+  });
+
+  // Filter auf- und zuklappen; Zustand wird gemerkt (Handy: anfangs zu, iPad: offen)
+  function setFiltersOpen(open) {
+    $('#filters').hidden = !open;
+    $('#btnFilter').setAttribute('aria-expanded', open ? 'true' : 'false');
+    $('#btnFilter').classList.toggle('open', open);
+    try { localStorage.setItem('rezepte.filterOffen', open ? '1' : '0'); } catch (e) { /* egal */ }
+  }
+  let filtersOpen = window.innerWidth > 600;
+  try { const v = localStorage.getItem('rezepte.filterOffen'); if (v !== null) filtersOpen = v === '1'; } catch (e) { /* egal */ }
+  setFiltersOpen(filtersOpen);
+  $('#btnFilter').addEventListener('click', () => setFiltersOpen($('#filters').hidden));
   $('#btnNew').addEventListener('click', () => openEdit(null));
   $('#btnCollections').addEventListener('click', openCollections);
 

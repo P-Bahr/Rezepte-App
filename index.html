@@ -30,11 +30,15 @@
       <input type="search" id="q" placeholder="Suchen: Name, Zutat, Sammlung …" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
       <button type="button" class="clear" id="qClear" aria-label="Suche leeren" hidden>×</button>
     </div>
-    <div class="filters" id="filters"></div>
     <div class="status">
+      <button type="button" class="btn filter-toggle" id="btnFilter" aria-expanded="true" aria-controls="filters">
+        <span class="chev" aria-hidden="true">▾</span> Filter <span class="badge" id="filterBadge" hidden></span>
+      </button>
       <span id="count" aria-live="polite"></span>
-      <button type="button" class="btn-link" id="btnReset" hidden>Filter zurücksetzen</button>
+      <button type="button" class="btn-link" id="btnReset" hidden>Zurücksetzen</button>
+      <label class="sort"><span class="visually-hidden">Sortieren</span><select id="sort" aria-label="Rezepte sortieren"></select></label>
     </div>
+    <div class="filters" id="filters"></div>
   </header>
 
   <div class="banner" id="storageWarning" hidden>Achtung: Dieses Gerät erlaubt gerade kein dauerhaftes Speichern (zum Beispiel im privaten Fenster). Neue Rezepte gehen beim Schließen verloren.</div>
