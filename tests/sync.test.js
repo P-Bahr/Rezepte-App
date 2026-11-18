@@ -1,7 +1,7 @@
 // Prüft das Zusammenführen beim Online-Abgleich (ohne Netz): node tests/sync.test.js
 global.window = {};
 for (const f of ['search', 'scale', 'dupes', 'sync']) require('../js/' + f + '.js');
-const { merge, pending } = window.RecipeSync;
+const { merge, pending, describe } = window.RecipeSync;
 let fail = 0;
 const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else console.log('ok  ', m); };
 
@@ -26,9 +26,22 @@ let snap = { user: 'u', r: { a: { u: '1', d: false } }, c: { c1: { u: '2026-01-0
 m = merge({ recipes: [R('a', 'A alt', '1')], collections: [C1] }, { recipes: [row(R('a', 'A neu', '2'))], collections: [row(C1)] }, snap);
 ok(titles(m.data) === 'A neu', 'Neuere Änderung vom Server gewinnt');
 
-// 4. Lokal neuer -> behalten und hochladen
+// 4. Nur hier geändert -> behalten und hochladen
+m = merge({ recipes: [R('a', 'A lokal', '3')], collections: [C1] }, { recipes: [row(R('a', 'A', '1'))], collections: [row(C1)] }, snap);
+ok(titles(m.data) === 'A lokal' && pending(m.data, m.snap).upserts.recipes.length === 1 && !m.conflicts.length, 'Nur hier geändert: bleibt und wird hochgeladen');
+
+// 4b. Auf beiden Geräten geändert -> Konflikt, nichts wird vorschnell hochgeladen
 m = merge({ recipes: [R('a', 'A lokal', '3')], collections: [C1] }, { recipes: [row(R('a', 'A server', '2'))], collections: [row(C1)] }, snap);
-ok(titles(m.data) === 'A lokal' && pending(m.data, m.snap).upserts.recipes.length === 1, 'Neuere lokale Änderung bleibt und wird hochgeladen');
+ok(m.conflicts.length === 1 && m.conflicts[0].local.title === 'A lokal' && m.conflicts[0].remote.data.title === 'A server', 'Beide geändert -> Konflikt mit beiden Versionen');
+ok(titles(m.data) === 'A lokal' && pending(m.data, m.snap, new Set(['a'])).upserts.recipes.length === 0, 'Bis zur Entscheidung: lokale Version sichtbar, aber nicht hochgeladen');
+
+// 4c. Beide gleich geändert -> kein Konflikt
+m = merge({ recipes: [R('a', 'Gleich', '3')], collections: [C1] }, { recipes: [row(R('a', 'Gleich', '2'))], collections: [row(C1)] }, snap);
+ok(!m.conflicts.length, 'Auf beiden Geräten gleich geändert -> kein Konflikt');
+
+// 4d. Nur auf dem Server geändert, aber mit älterer Uhrzeit (z. B. falsch gehende Uhr) -> trotzdem übernehmen
+m = merge({ recipes: [R('a', 'A', '1')], collections: [C1] }, { recipes: [row(R('a', 'A vom anderen Gerät', '0'))], collections: [row(C1)] }, snap);
+ok(titles(m.data) === 'A vom anderen Gerät', 'Änderung vom anderen Gerät wird übernommen, auch wenn dessen Uhr nachgeht');
 
 // 5. Auf anderem Gerät gelöscht -> hier entfernen
 m = merge({ recipes: [R('a', 'A', '1')], collections: [C1] }, { recipes: [{ id: 'a', data: null, deleted: true, updated_at: '2' }], collections: [row(C1)] }, snap);
@@ -39,9 +52,19 @@ m = merge({ recipes: [], collections: [C1] }, { recipes: [row(R('a', 'A', '1'))]
 p = pending(m.data, m.snap);
 ok(m.data.recipes.length === 0 && p.deletes.recipes.join() === 'a', 'Hier gelöscht -> bleibt weg, Löschung wird hochgeladen');
 
-// 7. Gelöscht auf anderem Gerät, hier aber danach noch geändert -> behalten
+// 7. Auf anderem Gerät gelöscht, hier geändert -> Konflikt
 m = merge({ recipes: [R('a', 'A geändert', '5')], collections: [C1] }, { recipes: [{ id: 'a', data: null, deleted: true, updated_at: '4' }], collections: [row(C1)] }, snap);
-ok(titles(m.data) === 'A geändert' && pending(m.data, m.snap).upserts.recipes.length === 1, 'Nach dem Löschen woanders hier geändert -> bleibt');
+ok(m.conflicts.length === 1 && m.conflicts[0].remote.deleted && titles(m.data) === 'A geändert', 'Dort gelöscht, hier geändert -> Konflikt');
+
+// 7b. Hier gelöscht, auf anderem Gerät geändert -> Konflikt
+m = merge({ recipes: [], collections: [C1] }, { recipes: [row(R('a', 'A dort geändert', '4'))], collections: [row(C1)] }, snap);
+ok(m.conflicts.length === 1 && m.conflicts[0].local === null && m.data.recipes.length === 0, 'Hier gelöscht, dort geändert -> Konflikt');
+
+// 7c. Beschreibung der Unterschiede
+const dA = { title: 'Tiramisu', collectionId: 'c1', ingredients: ['500 g Mascarpone', '4 Eier'], steps: ['Schichten.'], notes: 'Mit Amaretto', favorite: true };
+const dB = { title: 'Tiramisu klassisch', collectionId: 'c1', ingredients: ['500 g Mascarpone', '4 Eier', '1 Prise Salz'], steps: ['Schichten.'], notes: 'Mit Amaretto' };
+const desc = describe(dA, dB, () => 'Alltag');
+ok(desc.map(d => d.label).join() === 'Name,Zutaten,Favorit' && desc[1].b === '+ 1 Prise Salz' && desc[1].a === 'nichts anderes', 'Unterschiede kurz beschrieben: ' + desc.map(d => d.label + ': ' + d.a + ' | ' + d.b).join(' / '));
 
 // 8. Gleichnamige Sammlungen werden zusammengelegt
 const C2 = { id: 'c2', name: 'alltag', updatedAt: '2026-01-02' };
@@ -64,5 +87,9 @@ const T2 = R('t2', 'Omas Tiramisu', '2', { favorite: true, ingredients: ['Mascar
 const B1 = R('b1', 'Bananenbrot', '1', { ingredients: ['3 Bananen', '250 g Mehl', '2 Eier', '120 g Zucker'], steps: ['Backen.'] });
 m = merge({ recipes: [T2, B1], collections: [C1] }, { recipes: [row(T1)], collections: [row(C1)] }, empty, 'jetzt');
 ok(m.data.recipes.map(r => r.id).sort().join() === 'b1,t1' && m.data.recipes.find(r => r.id === 't1').favorite === true, 'Gleiches Rezept mit anderem Namen nur einmal, Favorit übernommen');
+
+// 12. Bewusst behaltenes Doppel wird nicht aussortiert
+m = merge({ recipes: [{ ...T2, dupOk: true }], collections: [C1] }, { recipes: [row(T1)], collections: [row(C1)] }, empty);
+ok(m.data.recipes.map(r => r.id).sort().join() === 't1,t2', 'Bewusst behaltenes Doppel („Trotzdem speichern“, „Beide behalten“) bleibt');
 
 if (fail) { console.log(fail + ' Fehler'); process.exit(1); } else console.log('Alle Abgleich-Regeln ok');

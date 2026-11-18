@@ -93,6 +93,7 @@
         imageUrl: clean(input.imageUrl),
         sourceUrl: clean(input.sourceUrl),
         favorite: existing ? !!existing.favorite : !!input.favorite,
+        dupOk: existing ? !!existing.dupOk : !!input.dupOk, // bewusst als Doppel behalten (nicht aussortieren)
         example: existing ? !!existing.example : !!input.example, // Beispielrezept (lässt sich gesammelt entfernen)
         createdAt: existing ? existing.createdAt : now,
         updatedAt: now

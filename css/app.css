@@ -136,14 +136,29 @@ button, input, select, textarea { font: inherit; color: inherit; }
 }
 .sync-status[data-kind="ok"]::before { content: "✓ "; color: var(--accent); font-weight: 700; }
 .sync-status[data-kind="error"] { color: var(--danger); }
+dialog.auth {
+  width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border-radius: 0; box-shadow: none; color: var(--fg);
+}
+dialog.auth::backdrop { background: var(--bg); }
 .auth {
   position: fixed; inset: 0; z-index: 100; background: var(--bg); overflow-y: auto;
   display: flex; align-items: flex-start; justify-content: center;
   padding: calc(48px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 32px max(16px, env(safe-area-inset-left, 0px));
 }
-.auth-box { width: min(420px, 100%); }
+.auth-box { width: min(420px, 100%); margin: 0 auto; }
 .auth-box h2 { margin: 0; font-size: 28px; }
 .auth-box p { margin: 0; }
+
+/* Konflikt-Fenster */
+.conflict .auth-box { width: min(760px, 100%); }
+.conflict-sides { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+.conflict .side { display: grid; gap: 8px; align-content: start; padding: 14px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); }
+.conflict .side h3 { margin: 0; font-size: 18px; }
+.conflict .when { color: var(--muted); font-size: 15px; }
+.conflict dl { margin: 0; display: grid; gap: 2px; }
+.conflict dt { font-size: 14px; font-weight: 600; color: var(--muted); margin-top: 6px; }
+.conflict dd { margin: 0; white-space: pre-line; overflow-wrap: anywhere; }
+.conflict .gone { color: var(--danger); }
 
 /* Buttons */
 .btn {

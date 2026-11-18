@@ -28,7 +28,7 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Notizen zeigen erwähnte eigene Rezepte als „Passt dazu ›“-Knopf („Dazu passen die Ofenkartoffeln“); × und Wischen vom linken Rand führen zum vorherigen Rezept zurück
 - Rezepte anlegen, bearbeiten und löschen; Sammlungen anlegen, umbenennen und löschen
 - 25 Beispielrezepte; unter „Sammlungen“ hinzufügen oder alle auf einmal entfernen
-- Online-Abgleich (Supabase): Anmeldung mit E-Mail und Passwort, Rezepte, Sammlungen und Fotos auf allen Geräten; funktioniert auch offline und gleicht später ab
+- Online-Abgleich (Supabase): Anmeldung mit E-Mail und Passwort, Rezepte, Sammlungen und Fotos auf allen Geräten; funktioniert auch offline und gleicht später ab; wurde ein Rezept auf zwei Geräten geändert, zeigt ein Fenster beide Versionen zur Auswahl
 
 **Als Nächstes:**
 2. KI erkennt Rezeptart, Hauptzutat und Zubereitung automatisch

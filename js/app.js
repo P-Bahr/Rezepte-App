@@ -927,7 +927,7 @@
           course: val('fCourse'), mainIngredient: val('fMain'), method: val('fMethod'),
           servings: val('fServings'), servingsUnit: unitSel.value, formSize,
           ingredients: ingRows.lines(), steps: lines('fSteps'), notes: val('fNotes'),
-          imageId, imageUrl: val('fImage'), sourceUrl: val('fSource')
+          imageId, imageUrl: val('fImage'), sourceUrl: val('fSource'), dupOk: allowDuplicate
         });
         // Altes Foto aufräumen, wenn es ersetzt oder entfernt wurde
         if (v.imageId && v.imageId !== imageId) window.RecipeImages.remove(v.imageId);

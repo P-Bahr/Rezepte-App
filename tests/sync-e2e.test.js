@@ -40,7 +40,8 @@ function handle(op, a) {
 
 const FAKE_CLIENT = `
 window.supabase = { createClient() {
-  const call = (op, args) => window.__srv(op, JSON.stringify(args)).then(JSON.parse);
+  // Ohne Internet schlägt jeder Aufruf fehl wie beim echten Server
+  const call = (op, args) => navigator.onLine ? window.__srv(op, JSON.stringify(args)).then(JSON.parse) : Promise.reject(new TypeError('Failed to fetch'));
   let session = JSON.parse(localStorage.getItem('fake.session') || 'null');
   const listeners = [];
   const emit = () => listeners.forEach(f => f(session ? 'SIGNED_IN' : 'SIGNED_OUT', session));
@@ -141,31 +142,71 @@ const titles = p => p.$$eval('.tile-title', e => e.map(x => x.textContent));
   await syncNow(A);
   assert(!(await A.evaluate(() => Store.recipes().some(r => r.title === 'Mango-Lassi'))), 'Gerät A: auf B gelöschtes Rezept ist weg');
 
-  // Gleiches Rezept auf beiden Geräten geändert -> neuere Änderung gewinnt
-  const rename = async (p, t) => p.evaluate(t => { const r = Store.recipes().find(x => x.title.startsWith('Tiramisu')); Store.saveRecipe({ ...r, title: t }); }, t);
-  await A.evaluate(() => { window.__pause = true; });
-  await rename(A, 'Tiramisu von A');
-  await A.waitForTimeout(50);
-  await rename(B, 'Tiramisu von B');
-  await B.waitForTimeout(1500); await synced(B);
-  await A.waitForTimeout(1500); await syncNow(A);
-  await syncNow(B);
-  const tA = await A.evaluate(() => Store.recipes().find(x => x.title.startsWith('Tiramisu')).title);
-  const tB = await B.evaluate(() => Store.recipes().find(x => x.title.startsWith('Tiramisu')).title);
-  assert(tA === 'Tiramisu von B' && tB === 'Tiramisu von B', 'Gleichzeitig geändert: neuere Änderung gewinnt auf beiden Geräten (' + tA + ' / ' + tB + ')');
-
   // Offline ändern, später abgleichen
   await A.context().setOffline(true);
   await A.evaluate(() => { const r = Store.recipes().find(x => x.title === 'Linsensuppe'); Store.saveRecipe({ ...r, notes: 'Offline geändert' }); });
   await A.waitForTimeout(1500);
+  await A.waitForFunction(() => document.getElementById('syncStatus').textContent.startsWith('Offline'));
+  assert(true, 'Ohne Internet: Status „Offline – wird später abgeglichen“');
   await A.context().setOffline(false);
   await syncNow(A); await syncNow(B);
   assert(await B.evaluate(() => Store.recipes().find(x => x.title === 'Linsensuppe').notes === 'Offline geändert'), 'Offline gemachte Änderung kommt später an');
 
+  // Konflikt: dasselbe Rezept auf beiden Geräten offline geändert
+  const edit = (p, find, change) => p.evaluate(([f, c]) => { const r = Store.recipes().find(x => x.title.startsWith(f)); Store.saveRecipe({ ...r, ...c }); }, [find, change]);
+  const conflictRound = async (find, changeA, changeB) => {
+    await A.context().setOffline(true); await B.context().setOffline(true);
+    await edit(A, find, changeA); await A.waitForTimeout(100);
+    await edit(B, find, changeB); await B.waitForTimeout(100);
+    await B.context().setOffline(false); await syncNow(B);
+    await A.context().setOffline(false); await syncNow(A);
+    await A.waitForSelector('.conflict');
+  };
+  await conflictRound('Tiramisu', { title: 'Tiramisu von A' }, { title: 'Tiramisu von B', notes: 'Mit Amaretto' });
+  const sides = await A.$$eval('.conflict .side', e => e.map(x => x.innerText));
+  assert(await A.isVisible('.conflict h2:has-text("Rezept auf zwei Geräten geändert")'), 'Konflikt-Fenster erscheint');
+  assert(sides[0].includes('Dieses Gerät') && sides[0].includes('Tiramisu von A') && sides[1].includes('Anderes Gerät') && sides[1].includes('Tiramisu von B') && sides[1].includes('Mit Amaretto'), 'Fenster zeigt beide Versionen mit Unterschieden');
+  assert(/geändert heute \d\d:\d\d/.test(sides[0]), 'Fenster zeigt, wann geändert wurde');
+  assert(server.rows.recipes.get('user-0|' + await A.evaluate(() => Store.recipes().find(x => x.title.startsWith('Tiramisu')).id)).data.title === 'Tiramisu von B', 'Vor der Entscheidung wird nichts überschrieben');
+  await A.click('.conflict [data-choice=remote]');
+  await A.waitForSelector('.conflict', { state: 'detached' });
+  await A.waitForTimeout(300); await syncNow(A); await syncNow(B);
+  const t1 = await A.evaluate(() => Store.recipes().find(x => x.title.startsWith('Tiramisu')).title);
+  const t1b = await B.evaluate(() => Store.recipes().find(x => x.title.startsWith('Tiramisu')).title);
+  assert(t1 === 'Tiramisu von B' && t1b === 'Tiramisu von B', '„Anderes Gerät“ gewählt: beide Geräte haben diese Version');
+
+  await conflictRound('Tiramisu', { title: 'Tiramisu A2' }, { title: 'Tiramisu B2' });
+  await A.click('.conflict [data-choice=local]');
+  await A.waitForSelector('.conflict', { state: 'detached' });
+  await A.waitForTimeout(300); await syncNow(A); await syncNow(B);
+  const t2 = await B.evaluate(() => Store.recipes().filter(x => x.title.startsWith('Tiramisu')).map(x => x.title).join());
+  assert(t2 === 'Tiramisu A2', '„Dieses Gerät“ gewählt: Version von A kommt auch auf B an (' + t2 + ')');
+  assert(!(await B.isVisible('.conflict')), 'Auf B danach kein weiteres Konflikt-Fenster');
+
+  await conflictRound('Tiramisu', { title: 'Tiramisu A3' }, { title: 'Tiramisu B3' });
+  await A.click('.conflict [data-choice=both]');
+  await A.waitForSelector('.conflict', { state: 'detached' });
+  await A.waitForTimeout(300); await syncNow(A); await syncNow(B);
+  const t3 = await B.evaluate(() => Store.recipes().filter(x => x.title.startsWith('Tiramisu')).map(x => x.title).sort().join());
+  assert(t3 === 'Tiramisu A3 (Kopie),Tiramisu B3', '„Beide behalten“: beide Versionen auf beiden Geräten (' + t3 + ')');
+
+  // Hier gelöscht, dort geändert
+  await A.context().setOffline(true); await B.context().setOffline(true);
+  await A.evaluate(() => Store.deleteRecipe(Store.recipes().find(x => x.title === 'Hefezopf').id));
+  await edit(B, 'Hefezopf', { notes: 'Mit Rosinen' });
+  await B.context().setOffline(false); await syncNow(B);
+  await A.context().setOffline(false); await syncNow(A);
+  await A.waitForSelector('.conflict');
+  assert((await A.$$eval('.conflict .side', e => e.map(x => x.innerText)))[0].includes('gelöscht'), 'Löschen gegen Ändern: Fenster zeigt „gelöscht“');
+  await A.click('.conflict [data-choice=remote]');
+  await A.waitForSelector('.conflict', { state: 'detached' });
+  await A.waitForTimeout(300); await syncNow(A);
+  assert(await A.evaluate(() => Store.recipes().some(x => x.title === 'Hefezopf' && x.notes === 'Mit Rosinen')), 'Geänderte Version wiederhergestellt');
+
   // Neu laden: angemeldet bleiben, Daten da
   await A.reload(); await synced(A);
-  assert(!(await A.isVisible('.auth')) && (await titles(A)).length === 25, 'Nach Neuladen angemeldet, 25 Rezepte');
-  assert(server.rows.recipes.size === 26, 'Server: 26 Einträge (25 + gelöschter Vermerk)');
+  assert(!(await A.isVisible('.auth')) && (await titles(A)).length === 26, 'Nach Neuladen angemeldet, 26 Rezepte');
+  assert(server.rows.recipes.size === 27, 'Server: 27 Einträge (26 + gelöschter Vermerk)');
 
   // Abmelden
   if (await A.isVisible('dialog[open]')) { await A.click('dialog .icon-btn[aria-label=Schließen]'); await A.waitForTimeout(300); }
