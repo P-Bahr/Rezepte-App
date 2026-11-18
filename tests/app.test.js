@@ -5,6 +5,9 @@ const OUT = process.argv[2] || '.';
 (async () => {
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: 1024, height: 1366 } });
+  // Diese Tests prüfen die App ohne Online-Speicher (der hat eigene Tests)
+  const noCloud = c => c.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.APP_CONFIG = { supabaseUrl: '', supabaseKey: '' };" }));
+  await noCloud(ctx);
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.goto(URL);
@@ -314,6 +317,7 @@ const OUT = process.argv[2] || '.';
   await p.fill('#q', '');
   await p.screenshot({ path: OUT + '/ipad.png' });
   const ph = await b.newContext({ ...devices['iPhone 13'] });
+  await noCloud(ph);
   const pp = await ph.newPage(); pp.on('pageerror', e => errs.push(e.message));
   await pp.goto(URL); await pp.click('button:has-text("Beispielrezepte laden")');
   assert(!(await pp.isVisible('#filters')), 'Handy: Filter anfangs zugeklappt');
@@ -338,6 +342,7 @@ const OUT = process.argv[2] || '.';
   assert(!(await pp.isVisible('dialog[open]')) && await pp.inputValue('#q') === 'kasekuchen', 'Wischen vom Rand: zurück zur Übersicht, Suche erhalten');
   // Als Home-Bildschirm-App (eigene Wischgeste): Rezept gleitet hinaus, ohne zurückzuspringen
   const st = await b.newContext({ ...devices['iPhone 13'] });
+  await noCloud(st);
   await st.addInitScript(() => Object.defineProperty(navigator, 'standalone', { get: () => true }));
   const sp = await st.newPage(); sp.on('pageerror', e => errs.push(e.message));
   await sp.goto(URL); await sp.click('button:has-text("Beispielrezepte laden")');
