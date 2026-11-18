@@ -533,11 +533,37 @@
   }
 
   // ---------- Formular: neu / bearbeiten ----------
-  function datalist(id, base, key) {
-    const seen = new Map();
-    base.forEach(v => seen.set(facetKey(v), v));
-    Store.recipes().forEach(r => { if (r[key] && !seen.has(facetKey(r[key]))) seen.set(facetKey(r[key]), r[key]); });
-    return h('datalist', { id }, [...seen.values()].map(v => h('option', { value: v })));
+  /* Eingabefeld mit antippbaren Vorschlägen darunter: zuerst Werte aus den
+     eigenen Rezepten (häufigste zuerst), dann die üblichen Standardwerte.
+     Beim Tippen wird gefiltert. */
+  function suggestField(label, id, value, placeholder, key, defaults) {
+    const counts = new Map();
+    const names = new Map();
+    for (const r of Store.recipes()) {
+      const v = (r[key] || '').trim();
+      if (!v) continue;
+      const k = facetKey(v);
+      counts.set(k, (counts.get(k) || 0) + 1);
+      if (!names.has(k)) names.set(k, v);
+    }
+    const own = [...counts.keys()].sort((a, b) => counts.get(b) - counts.get(a) || names.get(a).localeCompare(names.get(b), 'de'));
+    const all = own.map(k => names.get(k)).concat(defaults.filter(d => !names.has(facetKey(d))));
+
+    const input = h('input', { id, type: 'text', value: value || '', placeholder, autocomplete: 'off', autocorrect: 'off' });
+    const box = h('div', { class: 'suggest', role: 'group', 'aria-label': 'Vorschläge für ' + label });
+    let typing = false; // erst filtern, wenn selbst getippt wird
+    function show() {
+      const q = facetKey(input.value);
+      box.textContent = '';
+      const hits = all.filter(v => facetKey(v) !== q && (!typing || !q || facetKey(v).includes(q))).slice(0, 12);
+      hits.forEach(v => box.append(h('button', {
+        type: 'button', class: 'chip', onclick: () => { input.value = v; typing = false; show(); }
+      }, v)));
+      box.hidden = !hits.length;
+    }
+    input.addEventListener('input', () => { typing = true; show(); });
+    show();
+    return h('div', { class: 'field' }, h('label', { for: id, text: label }), input, box);
   }
 
   function field(label, input, hint) {
@@ -600,9 +626,9 @@
       field('Sammlung', sel, 'Jedes Rezept liegt in genau einer Sammlung.'),
       newColField,
       h('div', { class: 'row3' },
-        field('Rezeptart', inp('fCourse', v.course, { list: 'dlCourse', placeholder: 'z. B. Hauptgericht' })),
-        field('Hauptzutat', inp('fMain', v.mainIngredient, { list: 'dlMain', placeholder: 'z. B. Hähnchen' })),
-        field('Zubereitung', inp('fMethod', v.method, { list: 'dlMethod', placeholder: 'z. B. Backen' }))),
+        suggestField('Rezeptart', 'fCourse', v.course, 'z. B. Hauptgericht', 'course', COURSES),
+        suggestField('Hauptzutat', 'fMain', v.mainIngredient, 'z. B. Hähnchen', 'mainIngredient', []),
+        suggestField('Zubereitung', 'fMethod', v.method, 'z. B. Backen', 'method', METHODS)),
       h('div', { class: 'row3' },
         field('Rezept ist für', inp('fServings', v.servings ? window.RecipeScale.formatCount(v.servings) : '', { inputmode: 'decimal', placeholder: 'z. B. 4' })),
         field('Einheit', unitSel),
@@ -615,9 +641,7 @@
       field('Notizen', ta('fNotes', v.notes, 3)),
       field('Bild-Adresse (optional)', inp('fImage', v.imageUrl, { type: 'url', inputmode: 'url', placeholder: 'https://…' })),
       field('Quelle (optional)', inp('fSource', v.sourceUrl, { type: 'url', inputmode: 'url', placeholder: 'https://…' })),
-      datalist('dlCourse', COURSES, 'course'),
-      datalist('dlMain', [], 'mainIngredient'),
-      datalist('dlMethod', METHODS, 'method'));
+    );
     syncSize();
 
     // Zeit live aus den Schritten berechnen

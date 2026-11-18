@@ -16,7 +16,8 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - „Bio“ wird aus Zutaten entfernt
 - Eier immer als ganze Zahl
 - Gläser mit Glasgröße (150 ml bis 1 l), im Rezept umstellbar, Mengen nach Inhalt
-- Fachbegriffe (blanchieren, EL, Ober-/Unterhitze …) antippen für eine kurze Erklärung
+- Fachbegriffe (blanchieren, ablöschen, Ober-/Unterhitze …) antippen für eine kurze Erklärung; Alltagswörter wie EL werden nicht erklärt
+- Beim Bearbeiten: antippbare Vorschläge für Rezeptart, Hauptzutat und Zubereitung aus den eigenen Rezepten
 - Alternativen für ausgefallene Zutaten („Dijon-Senf → mittelscharfer Senf“)
 - Leere Sammlung nach dem Verschieben direkt löschbar
 - Notizen zeigen erwähnte eigene Rezepte als „Passt dazu ›“-Knopf („Dazu passen die Ofenkartoffeln“); × und Wischen vom linken Rand führen zum vorherigen Rezept zurück

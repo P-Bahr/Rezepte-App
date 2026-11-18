@@ -93,6 +93,18 @@ const OUT = process.argv[2] || '.';
   await p.fill('#q', 'ofengemuse'); await p.click('.tile'); await p.waitForTimeout(200);
   assert(await p.locator('dialog .related').count() === 0, 'Keine falschen Links (Ofengemüse)');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  // Vorschläge unter Rezeptart, Hauptzutat, Zubereitung
+  await p.fill('#q', 'linsensuppe'); await p.click('.tile'); await p.waitForTimeout(200); await p.click('text=Bearbeiten');
+  const sug = id => p.$$eval('#' + id + ' + .suggest .chip', e => e.map(x => x.textContent));
+  assert((await sug('fCourse'))[0] === 'Hauptgericht', 'Häufigste eigene Rezeptart zuerst: ' + (await sug('fCourse')).slice(0, 3).join(', '));
+  assert(!(await sug('fCourse')).includes('Suppe'), 'Aktueller Wert nicht doppelt vorgeschlagen');
+  await p.fill('#fCourse', 'des');
+  assert((await sug('fCourse')).join() === 'Dessert', 'Beim Tippen gefiltert: ' + (await sug('fCourse')).join());
+  await p.click('#fCourse + .suggest .chip:has-text("Dessert")');
+  assert(await p.inputValue('#fCourse') === 'Dessert', 'Vorschlag antippen übernimmt ihn');
+  assert((await sug('fMain')).includes('Kartoffeln') && (await sug('fMethod')).includes('Backen'), 'Vorschläge auch bei Hauptzutat und Zubereitung');
+  await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(100);
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
   // Formular: Einheit als Auswahl, Größe nur bei Formen
   await p.fill('#q', 'kasekuchen'); await p.click('.tile'); await p.waitForTimeout(200); await p.click('text=Bearbeiten');
   const opts = await p.$$eval('#fServUnit option', e => e.map(x => x.textContent));
@@ -109,9 +121,9 @@ const OUT = process.argv[2] || '.';
   assert(await p.textContent('.stepper-value') === 'Ø 24 cm', 'Neue Springformgröße gespeichert');
   // Fachbegriffe
   const terms = await p.$$eval('dialog .term', e => e.map(x => x.textContent));
-  assert(terms.includes('Pck.') && terms.includes('Ober-/Unterhitze') && terms.includes('vorheizen'), 'Begriffe markiert: ' + terms.join(', '));
-  await p.click('dialog .term:has-text("Pck.")');
-  assert(await p.isVisible('.explain:has-text("Päckchen")'), 'Antippen erklärt den Begriff');
+  assert(terms.join() === 'Ober-/Unterhitze', 'Nur besondere Begriffe markiert (kein Pck., vorheizen): ' + terms.join(', '));
+  await p.click('dialog .term:has-text("Ober-/Unterhitze")');
+  assert(await p.isVisible('.explain:has-text("Kuchen, Brot und Aufläufe")'), 'Erklärung sagt, wofür man es nimmt');
   await p.click('.explain >> text=Verstanden');
   assert(!(await p.isVisible('.explain')), 'Erklärung schließt sich');
   const hit = await p.$eval('dialog .term', t => { const r = t.getBoundingClientRect(); const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2 - 18); return el === t; });
