@@ -1,5 +1,8 @@
 # Rezepte-App
 
+**App:** https://p-bahr.github.io/Rezepte-App/ (GitHub Pages aus dem Zweig `claude/recipe-app-ipad-mobile-7qk12y`)
+**Online-Speicher:** Supabase-Projekt `raokoztpgowlsmfmmcbd` – eingerichtet, Abgleich zwischen Handy und iPad läuft, neue Konten gesperrt.
+
 Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf den Home-Bildschirm legt.
 
 ## Stand
@@ -30,7 +33,12 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - 25 Beispielrezepte; unter „Sammlungen“ hinzufügen oder alle auf einmal entfernen
 - Online-Abgleich (Supabase): Anmeldung mit E-Mail und Passwort, Rezepte, Sammlungen und Fotos auf allen Geräten; funktioniert auch offline und gleicht später ab; wurde ein Rezept auf zwei Geräten geändert, zeigt ein Fenster beide Versionen zur Auswahl
 
-**Als Nächstes:**
+**Als Nächstes (Import + KI):**
+- Import-Funktion als Supabase Edge Function (kein weiteres Konto nötig); liest Webseiten, später TikTok/Instagram/Pinterest
+- Dafür nötig: ein Claude-API-Schlüssel (console.anthropic.com), sicher als Geheimnis in Supabase hinterlegt, nie in der App
+- Doppelte-Rezepte-Prüfung (js/dupes.js) auch beim Import anwenden
+
+**Plan:**
 2. KI erkennt Rezeptart, Hauptzutat und Zubereitung automatisch
 3. Import von Webseiten
 4. Import aus TikTok, Instagram und Pinterest über das Teilen-Menü (per Apple-Kurzbefehl)
