@@ -225,11 +225,20 @@ dialog::backdrop { background: rgba(10, 20, 15, .45); }
 .notice-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
 .time-out { min-height: var(--touch); display: flex; align-items: center; font-weight: 600; }
 
+/* Springform/Blech-Umschalter und Größen */
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.seg { min-height: var(--touch); padding: 0 16px; border: 0; background: var(--surface); cursor: pointer; font-size: 16px; }
+.seg + .seg { border-left: 1px solid var(--line); }
+.seg[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.size-info { min-height: var(--touch); display: flex; align-items: center; font-weight: 600; }
+.size-row { display: flex; align-items: center; gap: 8px; }
+.field .size-row input.num { width: 5.5em; flex: none; text-align: center; }
+
 /* Notizen mit Links */
-.recipe-link { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .related { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .related-label { font-size: 15px; color: var(--muted); }
 .related .btn { color: var(--accent); font-weight: 600; }
+.related .chev { font-size: 22px; line-height: 1; margin-left: 4px; }
 
 /* Formular */
 .form { display: grid; gap: 16px; }

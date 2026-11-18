@@ -22,11 +22,11 @@
         if (parsed && Array.isArray(parsed.recipes) && Array.isArray(parsed.collections)) data = parsed;
       }
       // Ältere Einträge: Portionen als Text ("12 Stück") -> Zahl + Einheit
-      data.recipes = data.recipes.map(r => ({ ...r, ingredients: (r.ingredients || []).map(cleanIngredient).filter(Boolean) }));
+      data.recipes = data.recipes.map(r => ({ ...r, ingredients: (r.ingredients || []).map(cleanIngredient).filter(Boolean), method: cleanMethod(r.method) }));
       data.recipes = data.recipes.map(r => {
-        if (typeof r.servings === 'number' || r.servings === null) return r;
+        if (typeof r.servings === 'number' || r.servings === null) return { ...r, servingsUnit: window.RecipeForms.normalizeUnit(r.servingsUnit) };
         const p = window.RecipeScale.parseServings(r.servings);
-        return { ...r, servings: p.servings, servingsUnit: r.servingsUnit || p.unit };
+        return { ...r, servings: p.servings, servingsUnit: window.RecipeForms.normalizeUnit(r.servingsUnit || p.unit) };
       });
     } catch (e) {
       storageOk = false;
@@ -51,6 +51,8 @@
   function cleanIngredient(text) {
     return clean(String(text || '').replace(/(^|[\s(])bio(?:-|\s+)(?=\p{L})/giu, '$1').replace(/\s{2,}/g, ' '));
   }
+  // Alte Bezeichnung umbenennen
+  function cleanMethod(m) { return /^roh\s*\/\s*ohne kochen$/i.test(clean(m)) ? 'Kalt zubereitet' : clean(m); }
   function cleanList(list) { return (list || []).map(clean).filter(Boolean); }
 
   const Store = {
@@ -76,9 +78,9 @@
         collectionId: input.collectionId,
         course: clean(input.course),
         mainIngredient: clean(input.mainIngredient),
-        method: clean(input.method),
+        method: cleanMethod(input.method),
         servings: parsedServ.servings,
-        servingsUnit: clean(input.servingsUnit) || parsedServ.unit,
+        servingsUnit: window.RecipeForms.normalizeUnit(clean(input.servingsUnit) || parsedServ.unit),
         formSize: clean(input.formSize),
         totalTime: clean(input.totalTime),
         ingredients: cleanList(input.ingredients).map(cleanIngredient).filter(Boolean),

@@ -7,7 +7,7 @@
   const $ = sel => document.querySelector(sel);
 
   const COURSES = ['Frühstück', 'Vorspeise', 'Suppe', 'Salat', 'Hauptgericht', 'Beilage', 'Dessert', 'Gebäck', 'Snack', 'Getränk', 'Sauce & Dip'];
-  const METHODS = ['Backen', 'Braten', 'Kochen', 'Grillen', 'Dünsten', 'Schmoren', 'Frittieren', 'Heißluftfritteuse', 'Roh / ohne Kochen'];
+  const METHODS = ['Backen', 'Braten', 'Kochen', 'Grillen', 'Dünsten', 'Schmoren', 'Frittieren', 'Heißluftfritteuse', 'Kalt zubereitet'];
   const FACETS = [
     { key: 'collectionId', label: 'Sammlung' },
     { key: 'course', label: 'Rezeptart', order: COURSES },
@@ -409,36 +409,16 @@
       head(r.title, closeDetail), h('div', { class: 'dlg-scroll' }, content), foot));
   }
 
-  // ---------- Notizen mit Links zu passenden Rezepten ----------
+  // ---------- Notizen, darunter passende eigene Rezepte ----------
   function notesSection(r) {
-    const links = window.RecipeLinks.findLinks(r, Store.recipes());
-    const p = h('p', { class: 'notes' });
-    let pos = 0;
-    for (const l of links) {
-      if (l.start > pos) p.append(r.notes.slice(pos, l.start));
-      p.append(h('a', {
-        href: '#rezept-' + encodeURIComponent(l.id), class: 'recipe-link',
-        onclick: e => { e.preventDefault(); openDetail(l.id); }
-      }, r.notes.slice(l.start, l.end)));
-      pos = l.end;
-    }
-    if (pos < r.notes.length) p.append(r.notes.slice(pos));
-
-    const ids = [...new Set(links.map(l => l.id))];
-    return h('section', null, h('h3', { text: 'Notizen' }), p,
+    const ids = [...new Set(window.RecipeLinks.findLinks(r, Store.recipes()).map(l => l.id))].filter(id => Store.recipe(id));
+    return h('section', null, h('h3', { text: 'Notizen' }), h('p', { class: 'notes', text: r.notes }),
       ids.length ? h('div', { class: 'related' }, h('span', { class: 'related-label', text: 'Passt dazu:' }),
-        ids.map(id => h('button', { type: 'button', class: 'btn', onclick: () => openDetail(id) }, Store.recipe(id).title))) : null);
+        ids.map(id => h('button', { type: 'button', class: 'btn related-btn', onclick: () => openDetail(id) },
+          Store.recipe(id).title, h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })))) : null);
   }
 
-  // ---------- Zutaten mit Regler für Personen und Formgröße ----------
-  const ROUND = /(?:Ø|ø|Durchmesser)\s*(\d+(?:[.,]\d+)?)\s*cm|(\d+(?:[.,]\d+)?)\s*(?:cm)?\s*(?:Ø|ø)|(\d+)er\b/i;
-  function roundDiameter(size) {
-    const m = String(size || '').match(ROUND);
-    if (!m) return null;
-    const d = parseFloat((m[1] || m[2] || m[3]).replace(',', '.'));
-    return d >= 8 && d <= 50 ? d : null;
-  }
-
+  // ---------- Zutaten mit Reglern ----------
   function stepper(label, onMinus, onPlus) {
     const value = h('span', { class: 'stepper-value', 'aria-live': 'polite' });
     const minus = h('button', { type: 'button', class: 'icon-btn', 'aria-label': label + ': weniger', onclick: onMinus }, '−');
@@ -448,54 +428,66 @@
 
   function ingredientsSection(r) {
     const Sc = window.RecipeScale;
+    const F = window.RecipeForms;
     const base = r.servings;
-    const unit = r.servingsUnit || '';
-    const size = (r.formSize || '').trim();
-    const d0 = roundDiameter(size);
+    const unit = F.normalizeUnit(r.servingsUnit);
     const section = h('section', { class: 'ingredients' });
     const list = h('ul');
+    const controls = h('div', { class: 'ing-controls' });
+    let factor = () => 1;
+    let refresh = () => {};
 
-    // Personen-Rezepte starten immer bei 4, andere (Blech, Stück) bei ihrer eigenen Menge
-    let target = base ? (Sc.isPersons(unit) ? 4 : base) : null;
-    let d = d0;
-
-    const count = base ? stepper('Menge', () => {
-      target = Math.max(1, Math.ceil(target - 1e-9) - 1); update();
-    }, () => {
-      target = Math.floor(target + 1e-9) + 1; update();
-    }) : null;
-    // Runde Form: Durchmesser in 2-cm-Schritten, Mengen nach Fläche umgerechnet
-    const dia = d0 ? stepper('Formgröße', () => { d = Math.max(12, d - 2); update(); }, () => { d = Math.min(32, d + 2); update(); }) : null;
-
-    function update() {
-      let factor = 1;
-      if (count) {
-        factor *= target / base;
-        count.value.textContent = Sc.servingsLabel(target, unit);
-        count.minus.disabled = target <= 1;
-      }
-      if (dia) {
-        factor *= (d * d) / (d0 * d0);
+    if (base && F.switchable(unit)) {
+      // Kuchen: zwischen Springform und Blech wechseln, Mengen nach Bodenfläche
+      const baseSize = F.parseSize(unit, r.formSize);
+      const baseArea = F.area(unit, baseSize) * base;
+      let cur = unit;
+      let d = unit === 'Springform' ? baseSize.d : F.DEFAULTS.Springform.d;
+      const blech = unit === 'Blech' ? baseSize : F.DEFAULTS.Blech;
+      const seg = h('div', { class: 'segmented', role: 'group', 'aria-label': 'Backform' });
+      const segBtns = ['Springform', 'Blech'].map(u => h('button', {
+        type: 'button', class: 'seg', 'aria-pressed': 'false', onclick: () => { cur = u; update(); }
+      }, u));
+      seg.append(...segBtns);
+      const dia = stepper('Durchmesser', () => { d = Math.max(12, d - 2); update(); }, () => { d = Math.min(32, d + 2); update(); });
+      const blechInfo = h('span', { class: 'size-info' });
+      controls.append(seg, dia.el, blechInfo);
+      factor = () => (cur === 'Springform' ? F.area('Springform', { d }) : F.area('Blech', blech)) / baseArea;
+      refresh = () => {
+        segBtns.forEach(b => b.setAttribute('aria-pressed', b.textContent === cur ? 'true' : 'false'));
+        dia.el.hidden = cur !== 'Springform';
+        blechInfo.hidden = cur !== 'Blech';
         dia.value.textContent = 'Ø ' + Sc.formatCount(d) + ' cm';
         dia.minus.disabled = d <= 12;
         dia.plus.disabled = d >= 32;
-      }
+        blechInfo.textContent = 'Blech ' + F.formatSize('Blech', blech);
+      };
+    } else if (base) {
+      // Personen starten immer bei 4, Stück/Kastenform bei ihrer eigenen Menge
+      let target = unit === 'Personen' ? 4 : base;
+      const count = stepper('Menge', () => { target = Math.max(1, Math.ceil(target - 1e-9) - 1); update(); },
+        () => { target = Math.floor(target + 1e-9) + 1; update(); });
+      controls.append(count.el);
+      if (unit === 'Kastenform') controls.append(h('span', { class: 'size-info', text: 'Kastenform ' + F.formatSize('Kastenform', F.parseSize('Kastenform', r.formSize)) }));
+      factor = () => target / base;
+      refresh = () => {
+        count.value.textContent = Sc.servingsLabel(target, unit);
+        count.minus.disabled = target <= 1;
+      };
+    }
+
+    function update() {
+      refresh();
+      const f = factor();
       list.textContent = '';
       for (const line of r.ingredients) {
-        list.append(h('li', null, Sc.scaleIngredient(line, factor).map(p => p.amount ? h('b', { text: p.t }) : p.t)));
+        list.append(h('li', null, Sc.scaleIngredient(line, f).map(p => p.amount ? h('b', { text: p.t }) : p.t)));
       }
     }
     update();
 
-    const controls = h('div', { class: 'ing-controls' });
-    if (count) controls.append(count.el);
-    if (dia) controls.append(h('div', { class: 'form-size' }, h('span', { class: 'form-size-label', text: 'Form' }), dia.el));
-    else if (size) controls.append(h('div', { class: 'form-size' }, h('span', { class: 'form-size-label', text: 'Größe' }), h('b', { text: size })));
-
     section.append(h('div', { class: 'ing-head' }, h('h3', { text: 'Zutaten' }), controls), list);
-    if (!base && !d0) {
-      section.append(h('p', { class: 'hint', text: 'Zum Umrechnen: Tippe auf „Bearbeiten“ und trage ein, für wie viele Personen das Rezept ist.' }));
-    }
+    if (!base) section.append(h('p', { class: 'hint', text: 'Zum Umrechnen: Tippe auf „Bearbeiten“ und trage ein, für wie viele Personen das Rezept ist.' }));
     return section;
   }
 
@@ -514,7 +506,7 @@
 
   function openEdit(id) {
     const r = id ? Store.recipe(id) : null;
-    const v = r || { title: '', collectionId: '', course: '', mainIngredient: '', method: '', servings: 4, servingsUnit: 'Personen', totalTime: '', ingredients: [], steps: [], notes: '', imageUrl: '', sourceUrl: '' };
+    const v = r || { title: '', collectionId: '', course: '', mainIngredient: '', method: '', servings: 4, servingsUnit: 'Personen', formSize: '', totalTime: '', ingredients: [], steps: [], notes: '', imageUrl: '', sourceUrl: '' };
     const cols = Store.collections();
     body.dataset.id = id || '';
 
@@ -533,6 +525,25 @@
     sel.addEventListener('change', () => { newColField.hidden = sel.value !== '__new'; if (sel.value === '__new') newCol.focus(); });
 
     const err = h('div', { class: 'form-error', role: 'alert', hidden: true });
+
+    // Einheit: genau fünf Möglichkeiten (plus eine eventuell ältere, eigene Angabe)
+    const F = window.RecipeForms;
+    const curUnit = F.normalizeUnit(v.servingsUnit);
+    const unitOptions = F.UNITS.includes(curUnit) ? F.UNITS : F.UNITS.concat(curUnit);
+    const unitSel = h('select', { id: 'fServUnit' }, unitOptions.map(u => h('option', { value: u, text: u, selected: u === curUnit })));
+    const sizeOf = u => F.parseSize(u, F.normalizeUnit(v.servingsUnit) === u ? v.formSize : '');
+    const numInp = (fid, value, label) => h('input', { id: fid, type: 'text', inputmode: 'decimal', value: String(value).replace('.', ','), 'aria-label': label, class: 'num' });
+    const sizeRow = (label, inputs, hint) => h('div', { class: 'field' }, h('span', { class: 'label', text: label }), h('div', { class: 'size-row' }, inputs), hint ? h('span', { class: 'hint', text: hint }) : null);
+    const sizeSpring = sizeRow('Durchmesser der Springform', [numInp('fSizeD', sizeOf('Springform').d, 'Durchmesser in cm'), ' cm']);
+    const sizeBlech = sizeRow('Größe des Blechs', [numInp('fSizeL', sizeOf('Blech').l, 'Länge in cm'), ' × ', numInp('fSizeW', sizeOf('Blech').w, 'Breite in cm'), ' cm'], 'Ein normales Backblech ist etwa 30 × 40 cm.');
+    const sizeKasten = sizeRow('Länge der Kastenform', [numInp('fSizeK', sizeOf('Kastenform').len, 'Länge in cm'), ' cm']);
+    function syncSize() {
+      sizeSpring.hidden = unitSel.value !== 'Springform';
+      sizeBlech.hidden = unitSel.value !== 'Blech';
+      sizeKasten.hidden = unitSel.value !== 'Kastenform';
+    }
+    unitSel.addEventListener('change', syncSize);
+
     const inp = (fid, value, extra) => h('input', Object.assign({ id: fid, type: 'text', value: value || '', autocomplete: 'off' }, extra || {}));
     const ta = (fid, value, rows) => { const t = h('textarea', { id: fid, rows: rows || 6 }); t.value = value || ''; return t; };
 
@@ -547,8 +558,8 @@
         field('Zubereitung', inp('fMethod', v.method, { list: 'dlMethod', placeholder: 'z. B. Backen' }))),
       h('div', { class: 'row3' },
         field('Rezept ist für', inp('fServings', v.servings ? window.RecipeScale.formatCount(v.servings) : '', { inputmode: 'decimal', placeholder: 'z. B. 4' })),
-        field('Einheit', inp('fServUnit', v.servingsUnit || (v.servings ? 'Personen' : ''), { list: 'dlUnit', placeholder: 'Personen' }), 'Meist „Personen“. Auch möglich: Stück, Blech, Springform.'),
-        field('Form- oder Blechgröße', inp('fFormSize', v.formSize, { placeholder: 'z. B. Ø 26 cm oder 30 × 40 cm' }), 'Nur bei Kuchen, Aufläufen usw. Bei runden Formen mit Ø rechnet die App auch auf andere Größen um.'),
+        field('Einheit', unitSel),
+        sizeSpring, sizeBlech, sizeKasten,
         h('div', { class: 'field' }, h('span', { class: 'label', text: 'Zeit' }),
           h('output', { id: 'fTimeOut', class: 'time-out', for: 'fSteps fIngredients' }),
           h('span', { class: 'hint', text: 'Wird aus den Schritten berechnet.' }))),
@@ -559,8 +570,8 @@
       field('Quelle (optional)', inp('fSource', v.sourceUrl, { type: 'url', inputmode: 'url', placeholder: 'https://…' })),
       datalist('dlCourse', COURSES, 'course'),
       datalist('dlMain', [], 'mainIngredient'),
-      datalist('dlMethod', METHODS, 'method'),
-      datalist('dlUnit', ['Personen', 'Stück', 'Blech', 'Springform', 'Kastenform', 'Auflaufform', 'Gläser'], 'servingsUnit'));
+      datalist('dlMethod', METHODS, 'method'));
+    syncSize();
 
     // Zeit live aus den Schritten berechnen
     const timeOut = form.querySelector('#fTimeOut');
@@ -587,13 +598,20 @@
       for (const [fid, name] of [['fImage', 'Bild-Adresse'], ['fSource', 'Quelle']]) {
         if (val(fid).trim() && !safeUrl(val(fid).trim())) return fail('Die ' + name + ' muss mit https:// beginnen.', fid);
       }
+      // Formgröße aus den passenden Feldern zusammensetzen
+      const n = fid => parseFloat(val(fid).replace(',', '.'));
+      let formSize = '';
+      const u = unitSel.value;
+      if (u === 'Springform') { if (!(n('fSizeD') > 0)) return fail('Bitte den Durchmesser der Springform in cm eintragen, z. B. 26.', 'fSizeD'); formSize = F.formatSize(u, { d: n('fSizeD') }); }
+      if (u === 'Blech') { if (!(n('fSizeL') > 0 && n('fSizeW') > 0)) return fail('Bitte die Blechgröße in cm eintragen, z. B. 30 × 40.', 'fSizeL'); formSize = F.formatSize(u, { l: n('fSizeL'), w: n('fSizeW') }); }
+      if (u === 'Kastenform') { if (!(n('fSizeK') > 0)) return fail('Bitte die Länge der Kastenform in cm eintragen, z. B. 30.', 'fSizeK'); formSize = F.formatSize(u, { len: n('fSizeK') }); }
       try {
         const collectionId = sel.value === '__new' ? Store.addCollection(newCol.value).id : sel.value;
         const oldCollection = r ? r.collectionId : null;
         const saved = Store.saveRecipe({
           id: id || undefined, title: val('fTitle'), collectionId,
           course: val('fCourse'), mainIngredient: val('fMain'), method: val('fMethod'),
-          servings: val('fServings'), servingsUnit: val('fServUnit'), formSize: val('fFormSize'),
+          servings: val('fServings'), servingsUnit: unitSel.value, formSize,
           ingredients: lines('fIngredients'), steps: lines('fSteps'), notes: val('fNotes'),
           imageUrl: val('fImage'), sourceUrl: val('fSource')
         });
