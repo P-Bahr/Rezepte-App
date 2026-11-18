@@ -86,6 +86,7 @@
         ingredients: cleanList(input.ingredients).map(cleanIngredient).filter(Boolean),
         steps: cleanList(input.steps),
         notes: clean(input.notes),
+        imageId: clean(input.imageId),
         imageUrl: clean(input.imageUrl),
         sourceUrl: clean(input.sourceUrl),
         createdAt: existing ? existing.createdAt : now,
@@ -98,9 +99,12 @@
     },
 
     deleteRecipe(id) {
+      const gone = this.recipe(id);
       const before = data.recipes;
       data.recipes = before.filter(r => r.id !== id);
       try { save(); } catch (e) { data.recipes = before; throw e; }
+      // Zugehöriges Foto aus dem Bildspeicher löschen
+      if (gone && gone.imageId && window.RecipeImages) window.RecipeImages.remove(gone.imageId);
     },
 
     addCollection(name) {

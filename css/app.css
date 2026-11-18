@@ -276,6 +276,26 @@ dialog::backdrop { background: rgba(10, 20, 15, .45); }
 .suggest { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none; padding-block: 2px; }
 .suggest::-webkit-scrollbar { display: none; }
 
+/* Foto im Formular */
+.pick-preview { width: 100%; max-width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); background: var(--tile-ph); }
+.pick-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.pick-btn { cursor: pointer; }
+.pick-url-label { font-size: 15px; color: var(--muted); margin-top: 6px; }
+
+/* Zutaten-Zeilen im Formular */
+.ing-rows { display: grid; gap: 10px; }
+.ing-row { display: grid; gap: 8px; align-items: center; grid-template-columns: 5.5em 7em minmax(0, 1fr) var(--touch); }
+.ing-row.invalid input, .ing-row.invalid select { border-color: var(--danger); }
+.field .ing-row input, .field .ing-row select { min-width: 0; }
+.ing-del { background: transparent; color: var(--muted); }
+@media (max-width: 600px) {
+  .ing-row { grid-template-columns: 5.5em minmax(0, 1fr) var(--touch); grid-template-areas: "amount unit del" "name name name"; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+  .ing-amount { grid-area: amount; }
+  .ing-unit { grid-area: unit; }
+  .ing-name { grid-area: name; }
+  .ing-del { grid-area: del; }
+}
+
 /* Sammlungen verwalten */
 .col-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .col-item { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }

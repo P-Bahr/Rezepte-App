@@ -162,5 +162,30 @@
     return num + ' ' + unit;
   }
 
-  window.RecipeScale = { parseNum, scaleIngredient, scaleText, parseServings, isPersons, servingsLabel, formatCount };
+  // Einheiten für die Auswahl im Formular ('' = Stück, ohne Einheit)
+  const FORM_UNITS = ['', 'g', 'kg', 'ml', 'l', 'EL', 'TL', 'Prise', 'Msp.', 'Pck.', 'Dose', 'Becher', 'Bund', 'Zehe', 'Scheibe', 'Stange', 'Glas', 'Tasse', 'Handvoll'];
+
+  // "200 g Mehl" -> { amount: '200', unit: 'g', name: 'Mehl' }; ohne Menge: { amount: '', unit: '', name: Zeile }
+  function parseIngredient(line) {
+    const text = String(line || '').trim();
+    const m = text.match(LEAD);
+    if (!m || isNaN(parseNum(m[2]))) return { amount: '', unit: '', name: text };
+    const known = m[5] && KNOWN_UNITS.has(m[5].replace(/\.$/, '').toLowerCase());
+    const consumed = known ? m[0].length : m[0].length - (m[5] || '').length - m[4].length;
+    let unit = known ? m[5] : '';
+    // Schreibweise an die Auswahl anpassen (el -> EL, pck -> Pck.)
+    const hit = FORM_UNITS.find(u => u && u.replace(/\.$/, '').toLowerCase() === unit.replace(/\.$/, '').toLowerCase());
+    if (hit) unit = hit;
+    return { amount: m[2].trim() + (m[3] ? '–' + m[3].trim() : ''), unit, name: text.slice(consumed).trim() };
+  }
+
+  // Ist die Mengenangabe gültig? Leer, Zahl, Bruch oder Bereich ("2–3")
+  function validAmount(a) {
+    a = String(a || '').trim();
+    if (!a) return true;
+    const parts = a.split(/\s*[-–]\s*/);
+    return parts.length <= 2 && parts.every(p => p && !isNaN(parseNum(p)));
+  }
+
+  window.RecipeScale = { FORM_UNITS, parseIngredient, validAmount, parseNum, scaleIngredient, scaleText, parseServings, isPersons, servingsLabel, formatCount };
 })();

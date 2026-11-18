@@ -178,16 +178,25 @@
     return h('div', { class: 'ph', 'aria-hidden': 'true', text: (title.trim()[0] || '?').toUpperCase() });
   }
 
+  // Zeigt eigenes Foto (Bildspeicher) oder Bild-Adresse; sonst Anfangsbuchstabe
+  function setImage(img, recipe, onFail) {
+    if (recipe.imageId) {
+      window.RecipeImages.url(recipe.imageId).then(u => { if (u) img.src = u; else onFail(); }).catch(onFail);
+    } else if (safeUrl(recipe.imageUrl)) {
+      img.src = safeUrl(recipe.imageUrl);
+    } else return false;
+    img.addEventListener('error', onFail);
+    return true;
+  }
+
   function imageBox(cls, recipe) {
     const box = h('div', { class: cls });
-    const url = safeUrl(recipe.imageUrl);
-    if (url) {
-      const img = h('img', { src: url, alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
-      img.addEventListener('error', () => { img.remove(); box.append(placeholder(recipe.title)); });
-      box.append(img);
-    } else box.append(placeholder(recipe.title));
+    const img = h('img', { alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
+    const fail = () => { if (img.isConnected) { img.remove(); box.append(placeholder(recipe.title)); } };
+    if (setImage(img, recipe, fail)) box.append(img); else box.append(placeholder(recipe.title));
     return box;
   }
+
 
   function renderGrid(list, total) {
     const grid = $('#grid');
@@ -420,9 +429,9 @@
           }, 'Sammlung löschen')));
     }
     const content = h('div', { class: 'detail' }, emptyNotice,
-      safeUrl(r.imageUrl) ? (() => {
-        const img = h('img', { class: 'detail-img', src: safeUrl(r.imageUrl), alt: '', referrerpolicy: 'no-referrer' });
-        img.addEventListener('error', () => img.remove());
+      (r.imageId || safeUrl(r.imageUrl)) ? (() => {
+        const img = h('img', { class: 'detail-img', alt: '', referrerpolicy: 'no-referrer' });
+        setImage(img, r, () => img.remove());
         return img;
       })() : null,
       tags.length ? h('div', { class: 'tags' }, tags.map(t => h('span', { class: 'tag', text: t }))) : null,
@@ -564,6 +573,140 @@
     return section;
   }
 
+  // ---------- Formular-Baustein: Foto ----------
+  function imagePicker(v) {
+    const preview = h('img', { class: 'pick-preview', alt: 'Foto des Rezepts' });
+    const status = h('span', { class: 'hint', 'aria-live': 'polite' });
+    const file = h('input', { type: 'file', id: 'fPhoto', accept: 'image/*', class: 'visually-hidden' });
+    const choose = h('label', { for: 'fPhoto', class: 'btn btn-primary pick-btn', role: 'button', tabindex: '0' }, 'Foto aufnehmen oder auswählen');
+    const remove = h('button', { type: 'button', class: 'btn btn-danger', id: 'fPhotoRemove' }, 'Foto entfernen');
+    const urlInput = h('input', { id: 'fImage', type: 'url', inputmode: 'url', placeholder: 'https://…', value: v.imageUrl || '', autocomplete: 'off' });
+    const el = h('div', { class: 'field pick' },
+      h('span', { class: 'label', text: 'Foto' }), preview,
+      h('div', { class: 'pick-actions' }, choose, file, remove), status,
+      h('label', { for: 'fImage', class: 'pick-url-label', text: 'Oder Bild-Adresse aus dem Internet' }), urlInput);
+    el.blob = null;
+    el.removed = false;
+    let objUrl = null;
+
+    function showPreview(src) {
+      preview.hidden = !src;
+      remove.hidden = !src;
+      if (src) preview.src = src; else preview.removeAttribute('src');
+    }
+    showPreview(null);
+    if (v.imageId) window.RecipeImages.url(v.imageId).then(u => { if (u && !el.blob && !el.removed) showPreview(u); }).catch(() => {});
+    else if (safeUrl(v.imageUrl)) showPreview(safeUrl(v.imageUrl));
+    preview.addEventListener('error', () => showPreview(null));
+
+    el.useFile = f => {
+      status.textContent = 'Foto wird vorbereitet …';
+      return window.RecipeImages.resize(f).then(blob => {
+        el.blob = blob;
+        el.removed = false;
+        if (objUrl) URL.revokeObjectURL(objUrl);
+        objUrl = URL.createObjectURL(blob);
+        showPreview(objUrl);
+        status.textContent = 'Foto übernommen. Es wird beim Speichern gesichert.';
+      }).catch(e => { status.textContent = e.message; });
+    };
+    file.addEventListener('change', () => { if (file.files[0]) el.useFile(file.files[0]); file.value = ''; });
+    choose.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); file.click(); } });
+    remove.addEventListener('click', () => {
+      el.blob = null; el.removed = true; urlInput.value = '';
+      showPreview(null);
+      status.textContent = 'Foto wird beim Speichern entfernt.';
+    });
+    return el;
+  }
+
+  // ---------- Formular-Baustein: Zutaten als Zeilen (Menge | Einheit | Zutat) ----------
+  let rowSeq = 0;
+  function ingredientRows(initial) {
+    const Sc = window.RecipeScale;
+    const list = h('div', { class: 'ing-rows' });
+    const api = { onChange: () => {} };
+
+    function makeRow(data) {
+      const n = ++rowSeq;
+      const d = data || { amount: '', unit: '', name: '' };
+      const units = Sc.FORM_UNITS.includes(d.unit) ? Sc.FORM_UNITS : Sc.FORM_UNITS.concat(d.unit);
+      const amount = h('input', { id: 'ingA' + n, class: 'ing-amount', type: 'text', inputmode: 'decimal', placeholder: 'Menge', value: d.amount, autocomplete: 'off', 'aria-label': 'Menge' });
+      const unit = h('select', { id: 'ingU' + n, class: 'ing-unit', 'aria-label': 'Einheit' },
+        units.map(u => h('option', { value: u, text: u || 'Stück', selected: u === d.unit })));
+      const name = h('input', { id: 'ingN' + n, class: 'ing-name', type: 'text', placeholder: 'Zutat, z. B. Mehl', value: d.name, autocomplete: 'off', 'aria-label': 'Zutat' });
+      const del = h('button', { type: 'button', class: 'icon-btn ing-del', 'aria-label': 'Zutat entfernen' }, '×');
+      const row = h('div', { class: 'ing-row' }, amount, unit, name, del);
+      row.fields = { amount, unit, name };
+      const changed = () => { row.classList.remove('invalid'); api.onChange(); };
+      [amount, name].forEach(i => i.addEventListener('input', changed));
+      unit.addEventListener('change', changed);
+      del.addEventListener('click', () => {
+        row.remove();
+        if (!list.children.length) list.append(makeRow());
+        api.onChange();
+      });
+      // Ganze Zutatenliste einfügen -> auf Zeilen verteilen
+      [amount, name].forEach(i => i.addEventListener('paste', e => {
+        const text = (e.clipboardData || window.clipboardData).getData('text');
+        const lines = String(text || '').split(/\r?\n/).map(x => x.replace(/^[-•*·\s]+/, '').trim()).filter(Boolean);
+        if (lines.length < 2) return;
+        e.preventDefault();
+        let after = row;
+        const empty = !amount.value.trim() && !name.value.trim();
+        lines.forEach((line, k) => {
+          const p = Sc.parseIngredient(line);
+          if (k === 0 && empty) { fill(row, p); return; }
+          const r = makeRow(p);
+          after.after(r);
+          after = r;
+        });
+        api.onChange();
+      }));
+      name.addEventListener('keydown', e => {
+        if (e.key !== 'Enter') return;
+        e.preventDefault();
+        const r = makeRow();
+        row.after(r);
+        r.fields.amount.focus();
+      });
+      return row;
+    }
+    function fill(row, p) {
+      const f = row.fields;
+      if (p.unit && ![...f.unit.options].some(o => o.value === p.unit)) f.unit.append(h('option', { value: p.unit, text: p.unit }));
+      f.amount.value = p.amount; f.unit.value = p.unit; f.name.value = p.name;
+    }
+
+    const parsed = (initial || []).map(l => Sc.parseIngredient(l));
+    (parsed.length ? parsed : [null, null, null]).forEach(p => list.append(makeRow(p)));
+    const add = h('button', { type: 'button', class: 'btn', onclick: () => { const r = makeRow(); list.append(r); r.fields.amount.focus(); } }, '+ Zutat hinzufügen');
+
+    api.el = h('div', { class: 'field' },
+      h('span', { class: 'label', text: 'Zutaten' }),
+      h('span', { class: 'hint', text: 'Menge als Zahl, z. B. 200, ½, 1,5 oder 2–3. Für Zutaten ohne Menge (z. B. Salz) das Mengenfeld leer lassen. Mengen wie im Originalrezept; die App rechnet sie um.' }),
+      list, add);
+    const rows = () => [...list.children];
+    api.lines = () => rows().map(r => {
+      const f = r.fields;
+      const a = f.amount.value.trim().replace(/\s*-\s*/, '–');
+      return [a, a ? f.unit.value : '', f.name.value.trim()].filter(Boolean).join(' ');
+    }).filter(l => l.trim());
+    api.check = () => {
+      for (const r of rows()) {
+        const f = r.fields;
+        const a = f.amount.value.trim(), nm = f.name.value.trim();
+        let msg = null, id = null;
+        if (a && !Sc.validAmount(a)) { msg = '„' + a + '“ ist keine Menge. Bitte eine Zahl eintragen, z. B. 200, ½, 1,5 oder 2–3, oder das Feld leer lassen.'; id = f.amount.id; }
+        else if (a && !nm) { msg = 'Bei der Menge „' + a + '“ fehlt die Zutat.'; id = f.name.id; }
+        else if (!a && f.unit.value && nm) { msg = 'Bei „' + nm + '“ fehlt die Menge für „' + f.unit.value + '“.'; id = f.amount.id; }
+        if (msg) { r.classList.add('invalid'); return { msg, id }; }
+      }
+      return null;
+    };
+    return api;
+  }
+
   // ---------- Formular: neu / bearbeiten ----------
   /* Eingabefeld mit antippbaren Vorschlägen darunter: zuerst Werte aus den
      eigenen Rezepten (häufigste zuerst), dann die üblichen Standardwerte.
@@ -649,12 +792,17 @@
     }
     unitSel.addEventListener('change', syncSize);
 
+    const imageSection = imagePicker(v);
+    const ingRows = ingredientRows(v.ingredients);
+    const ingredientsEditor = ingRows.el;
+
     const inp = (fid, value, extra) => h('input', Object.assign({ id: fid, type: 'text', value: value || '', autocomplete: 'off' }, extra || {}));
     const ta = (fid, value, rows) => { const t = h('textarea', { id: fid, rows: rows || 6 }); t.value = value || ''; return t; };
 
     const form = h('form', { class: 'form', id: 'recipeForm', novalidate: true },
       err,
       field('Name des Rezepts', inp('fTitle', v.title, { required: true })),
+      imageSection,
       field('Sammlung', sel, 'Jedes Rezept liegt in genau einer Sammlung.'),
       newColField,
       h('div', { class: 'row3' },
@@ -668,10 +816,9 @@
         h('div', { class: 'field' }, h('span', { class: 'label', text: 'Zeit' }),
           h('output', { id: 'fTimeOut', class: 'time-out', for: 'fSteps fIngredients' }),
           h('span', { class: 'hint', text: 'Wird aus den Schritten berechnet.' }))),
-      field('Zutaten', ta('fIngredients', v.ingredients.join('\n'), 8), 'Eine Zutat pro Zeile, mit den Mengen aus dem Originalrezept. Die App rechnet sie für andere Personenzahlen um.'),
+      ingredientsEditor,
       field('Zubereitung (Schritte)', ta('fSteps', v.steps.join('\n'), 8), 'Ein Schritt pro Zeile.'),
       field('Notizen', ta('fNotes', v.notes, 3)),
-      field('Bild-Adresse (optional)', inp('fImage', v.imageUrl, { type: 'url', inputmode: 'url', placeholder: 'https://…' })),
       field('Quelle (optional)', inp('fSource', v.sourceUrl, { type: 'url', inputmode: 'url', placeholder: 'https://…' })),
     );
     syncSize();
@@ -679,17 +826,25 @@
     // Zeit live aus den Schritten berechnen
     const timeOut = form.querySelector('#fTimeOut');
     const updateTime = () => {
-      const t = window.RecipeTime.label({ steps: form.querySelector('#fSteps').value.split('\n').filter(x => x.trim()), ingredients: form.querySelector('#fIngredients').value.split('\n').filter(x => x.trim()) });
+      const t = window.RecipeTime.label({ steps: form.querySelector('#fSteps').value.split('\n').filter(x => x.trim()), ingredients: ingRows.lines() });
       timeOut.textContent = t || 'Erscheint, sobald Schritte eingetragen sind';
     };
     form.querySelector('#fSteps').addEventListener('input', updateTime);
-    form.querySelector('#fIngredients').addEventListener('input', updateTime);
+    ingRows.onChange = updateTime;
     updateTime();
 
     const cancel = () => { if (id && Store.recipe(id)) renderDetail(id); else closeDialog(); };
 
-    form.addEventListener('submit', e => {
+    // Bild aus der Zwischenablage einfügen (z. B. lange auf ein Feld tippen -> Einfügen)
+    form.addEventListener('paste', e => {
+      const f = [...((e.clipboardData && e.clipboardData.files) || [])].find(x => /^image\//.test(x.type));
+      if (f) { e.preventDefault(); imageSection.useFile(f); }
+    });
+
+    let saving = false;
+    form.addEventListener('submit', async e => {
       e.preventDefault();
+      if (saving) return;
       err.hidden = true;
       const val = fid => form.querySelector('#' + fid).value;
       const lines = fid => val(fid).split('\n');
@@ -698,6 +853,8 @@
       if (!val('fTitle').trim()) return fail('Bitte gib dem Rezept einen Namen.', 'fTitle');
       if (!sel.value) return fail('Bitte wähle eine Sammlung aus.', 'fCollection');
       if (sel.value === '__new' && !newCol.value.trim()) return fail('Bitte gib der neuen Sammlung einen Namen.', 'fNewCollection');
+      const badRow = ingRows.check();
+      if (badRow) return fail(badRow.msg, badRow.id);
       for (const [fid, name] of [['fImage', 'Bild-Adresse'], ['fSource', 'Quelle']]) {
         if (val(fid).trim() && !safeUrl(val(fid).trim())) return fail('Die ' + name + ' muss mit https:// beginnen.', fid);
       }
@@ -709,6 +866,16 @@
       if (u === 'Blech') { if (!(n('fSizeL') > 0 && n('fSizeW') > 0)) return fail('Bitte die Blechgröße in cm eintragen, z. B. 30 × 40.', 'fSizeL'); formSize = F.formatSize(u, { l: n('fSizeL'), w: n('fSizeW') }); }
       if (u === 'Gläser') formSize = F.formatSize(u, { ml: n('fSizeG') });
       if (u === 'Kastenform') { if (!(n('fSizeK') > 0)) return fail('Bitte die Länge der Kastenform in cm eintragen, z. B. 30.', 'fSizeK'); formSize = F.formatSize(u, { len: n('fSizeK') }); }
+      let imageId = v.imageId || '';
+      try {
+        saving = true;
+        // Neues Foto zuerst in den Bildspeicher legen
+        if (imageSection.blob) imageId = await window.RecipeImages.save(imageSection.blob);
+        else if (imageSection.removed) imageId = '';
+      } catch (ex) {
+        saving = false;
+        return fail('Das Foto konnte nicht gespeichert werden. Ist der Speicher des Geräts voll?');
+      }
       try {
         const collectionId = sel.value === '__new' ? Store.addCollection(newCol.value).id : sel.value;
         const oldCollection = r ? r.collectionId : null;
@@ -716,16 +883,22 @@
           id: id || undefined, title: val('fTitle'), collectionId,
           course: val('fCourse'), mainIngredient: val('fMain'), method: val('fMethod'),
           servings: val('fServings'), servingsUnit: unitSel.value, formSize,
-          ingredients: lines('fIngredients'), steps: lines('fSteps'), notes: val('fNotes'),
-          imageUrl: val('fImage'), sourceUrl: val('fSource')
+          ingredients: ingRows.lines(), steps: lines('fSteps'), notes: val('fNotes'),
+          imageId, imageUrl: val('fImage'), sourceUrl: val('fSource')
         });
+        // Altes Foto aufräumen, wenn es ersetzt oder entfernt wurde
+        if (v.imageId && v.imageId !== imageId) window.RecipeImages.remove(v.imageId);
         toast('Gespeichert');
         state.emptyCollection = null;
         if (oldCollection && oldCollection !== saved.collectionId && Store.collection(oldCollection) &&
             !Store.recipes().some(x => x.collectionId === oldCollection)) state.emptyCollection = oldCollection;
         if (hashId() === saved.id) renderDetail(saved.id);
         else openDetail(saved.id);
-      } catch (ex) { fail(ex.message); }
+      } catch (ex) {
+        saving = false;
+        if (imageSection.blob && imageId && imageId !== v.imageId) window.RecipeImages.remove(imageId);
+        fail(ex.message);
+      }
     });
 
     const foot = h('div', { class: 'dlg-foot' },

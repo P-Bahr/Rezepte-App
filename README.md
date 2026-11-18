@@ -17,6 +17,8 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Eier immer als ganze Zahl
 - Gläser mit Glasgröße (150 ml bis 1 l), im Rezept umstellbar, Mengen nach Inhalt
 - Fachbegriffe (blanchieren, ablöschen, Ober-/Unterhitze …) antippen für eine kurze Erklärung; Alltagswörter wie EL werden nicht erklärt
+- Zutaten im Formular als Zeilen (Menge | Einheit | Zutat) mit Prüfung; eingefügte Listen werden auf Zeilen verteilt
+- Foto aufnehmen oder auswählen (verkleinert, im Bildspeicher des Geräts), alternativ Bild-Adresse
 - Beim Bearbeiten: antippbare Vorschläge für Rezeptart, Hauptzutat und Zubereitung aus den eigenen Rezepten
 - Alternativen für ausgefallene Zutaten („Dijon-Senf → mittelscharfer Senf“)
 - Leere Sammlung nach dem Verschieben direkt löschbar
@@ -48,6 +50,7 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/forms.js` | Einheiten, Backformen und ihre Flächen |
 | `js/substitutes.js` | Alternativen für ausgefallene Zutaten |
 | `js/glossary.js` | Erklärungen für Kochbegriffe |
+| `js/images.js` | Fotos verkleinern und im Bildspeicher (IndexedDB) ablegen |
 | `js/app.js` | Bedienoberfläche |
 | `js/examples.js` | Beispielrezepte |
 | `tests/app.test.js` | Automatischer Test im Browser |
