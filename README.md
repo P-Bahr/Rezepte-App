@@ -14,7 +14,9 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Kuchen: Umschalter Springform ↔ Blech und Durchmesser 12–32 cm, Mengen nach Bodenfläche
 - Zeit wird automatisch aus den Schritten geschätzt (Zeitangaben im Text + Arbeitsschritte wie Schneiden nach Menge)
 - „Bio“ wird aus Zutaten entfernt
-- Eier ohne Kommazahlen, bei krummen Mengen mit genauem Gewicht („2 Eier (genau: 96 g verquirlt)“)
+- Eier immer als ganze Zahl
+- Gläser mit Glasgröße (150 ml bis 1 l), im Rezept umstellbar, Mengen nach Inhalt
+- Fachbegriffe (blanchieren, EL, Ober-/Unterhitze …) antippen für eine kurze Erklärung
 - Alternativen für ausgefallene Zutaten („Dijon-Senf → mittelscharfer Senf“)
 - Leere Sammlung nach dem Verschieben direkt löschbar
 - Notizen zeigen erwähnte eigene Rezepte als „Passt dazu ›“-Knopf („Dazu passen die Ofenkartoffeln“); × und Wischen vom linken Rand führen zum vorherigen Rezept zurück
@@ -44,6 +46,7 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/time.js` | Zubereitungszeit schätzen |
 | `js/forms.js` | Einheiten, Backformen und ihre Flächen |
 | `js/substitutes.js` | Alternativen für ausgefallene Zutaten |
+| `js/glossary.js` | Erklärungen für Kochbegriffe |
 | `js/app.js` | Bedienoberfläche |
 | `js/examples.js` | Beispielrezepte |
 | `tests/app.test.js` | Automatischer Test im Browser |

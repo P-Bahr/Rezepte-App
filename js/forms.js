@@ -4,7 +4,12 @@
   'use strict';
 
   const UNITS = ['Personen', 'Stück', 'Gläser', 'Blech', 'Springform', 'Kastenform'];
-  const DEFAULTS = { Springform: { d: 26 }, Blech: { l: 30, w: 40 }, Kastenform: { len: 30 } };
+  const DEFAULTS = { Springform: { d: 26 }, Blech: { l: 30, w: 40 }, Kastenform: { len: 30 }, 'Gläser': { ml: 250 } };
+  // Gängige Glasgrößen mit Beschreibung
+  const GLASSES = [
+    [150, 'kleines Dessertglas'], [200, 'Trinkglas'], [250, 'Marmeladenglas'], [300, 'großes Trinkglas'],
+    [400, 'mittleres Schraubglas'], [500, 'großes Schraubglas'], [750, 'Einmachglas'], [1000, 'großes Einmachglas']
+  ];
 
   // Alte oder freie Angaben auf die fünf Einheiten abbilden
   function normalizeUnit(u) {
@@ -31,6 +36,12 @@
       const m = t.match(/(\d+(?:[.,]\d+)?)\s*[x×*]\s*(\d+(?:[.,]\d+)?)/i);
       return m ? { l: num(m[1]) || 30, w: num(m[2]) || 40 } : { ...DEFAULTS.Blech };
     }
+    if (unit === 'Gläser') {
+      const m = t.match(/(\d+(?:[.,]\d+)?)\s*(ml|l)\b/i);
+      if (!m) return { ...DEFAULTS['Gläser'] };
+      const v = num(m[1]);
+      return { ml: v ? (m[2].toLowerCase() === 'l' ? v * 1000 : v) : 250 };
+    }
     if (unit === 'Kastenform') {
       const m = t.match(/(\d+(?:[.,]\d+)?)/);
       return { len: (m && num(m[1])) || DEFAULTS.Kastenform.len };
@@ -45,6 +56,7 @@
     if (unit === 'Springform') return 'Ø ' + fmt(size.d) + ' cm';
     if (unit === 'Blech') return fmt(size.l) + ' × ' + fmt(size.w) + ' cm';
     if (unit === 'Kastenform') return fmt(size.len) + ' cm lang';
+    if (unit === 'Gläser') return size.ml >= 1000 ? fmt(size.ml / 1000) + ' l' : fmt(size.ml) + ' ml';
     return '';
   }
 
@@ -57,5 +69,5 @@
 
   const switchable = unit => unit === 'Springform' || unit === 'Blech';
 
-  window.RecipeForms = { UNITS, DEFAULTS, normalizeUnit, parseSize, formatSize, area, switchable };
+  window.RecipeForms = { UNITS, DEFAULTS, GLASSES, normalizeUnit, parseSize, formatSize, area, switchable };
 })();

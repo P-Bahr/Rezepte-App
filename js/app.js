@@ -342,7 +342,25 @@
       h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Schließen', onclick: onClose }, '×'));
   }
 
+  // ---------- Fachbegriffe: markieren und auf Antippen erklären ----------
+  let glossSeen = new Set();
+  function withTerms(text, seen) {
+    return window.RecipeGlossary.split(text, seen).map(part => part.term
+      ? h('button', { type: 'button', class: 'term', 'data-term': part.term, 'aria-haspopup': 'dialog', onclick: e => { e.stopPropagation(); explain(part.term, part.text); } }, part.t)
+      : part.t);
+  }
+  function explain(term, text) {
+    const old = body.querySelector('.explain');
+    if (old) old.remove();
+    const box = h('div', { class: 'explain', role: 'dialog', 'aria-label': 'Erklärung: ' + term },
+      h('div', { class: 'explain-text' }, h('b', { text: term }), h('p', { text: text })),
+      h('button', { type: 'button', class: 'btn btn-primary', onclick: () => box.remove() }, 'Verstanden'));
+    body.append(box);
+    box.querySelector('button').focus();
+  }
+
   function renderDetail(id) {
+    glossSeen = new Set();
     const r = Store.recipe(id);
     if (!r) return;
     body.dataset.id = id;
@@ -379,7 +397,7 @@
       h('div', { class: 'facts' }, facts),
       r.ingredients.length ? ingredientsSection(r) : null,
       r.steps.length ? h('section', null, h('h3', { text: 'Zubereitung' }),
-        h('ol', null, r.steps.map(s => h('li', { text: s })))) : null,
+        h('ol', null, r.steps.map(s => h('li', null, withTerms(s, glossSeen))))) : null,
       r.notes ? notesSection(r) : null,
       src ? h('p', { class: 'source' }, 'Quelle: ', h('a', { href: src, target: '_blank', rel: 'noopener noreferrer', text: src })) : null
     );
@@ -412,7 +430,7 @@
   // ---------- Notizen, darunter passende eigene Rezepte ----------
   function notesSection(r) {
     const ids = [...new Set(window.RecipeLinks.findLinks(r, Store.recipes()).map(l => l.id))].filter(id => Store.recipe(id));
-    return h('section', null, h('h3', { text: 'Notizen' }), h('p', { class: 'notes', text: r.notes }),
+    return h('section', null, h('h3', { text: 'Notizen' }), h('p', { class: 'notes' }, withTerms(r.notes, glossSeen)),
       ids.length ? h('div', { class: 'related' }, h('span', { class: 'related-label', text: 'Passt dazu:' }),
         ids.map(id => h('button', { type: 'button', class: 'btn related-btn', onclick: () => openDetail(id) },
           Store.recipe(id).title, h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })))) : null);
@@ -469,10 +487,28 @@
         () => { target = Math.floor(target + 1e-9) + 1; update(); });
       controls.append(count.el);
       if (unit === 'Kastenform') controls.append(h('span', { class: 'size-info', text: 'Kastenform ' + F.formatSize('Kastenform', F.parseSize('Kastenform', r.formSize)) }));
-      factor = () => target / base;
+      // Gläser: Glasgröße umstellbar, Mengen nach Gesamtinhalt
+      let glassFactor = () => 1;
+      let glassRefresh = () => {};
+      if (unit === 'Gläser') {
+        const sizes = F.GLASSES.map(g => g[0]);
+        const baseMl = F.parseSize('Gläser', r.formSize).ml;
+        if (!sizes.includes(baseMl)) { sizes.push(baseMl); sizes.sort((a, b) => a - b); }
+        let i = sizes.indexOf(baseMl);
+        const glass = stepper('Glasgröße', () => { i = Math.max(0, i - 1); update(); }, () => { i = Math.min(sizes.length - 1, i + 1); update(); });
+        controls.append(h('div', { class: 'form-size' }, h('span', { class: 'form-size-label', text: 'je Glas' }), glass.el));
+        glassFactor = () => sizes[i] / baseMl;
+        glassRefresh = () => {
+          glass.value.textContent = F.formatSize('Gläser', { ml: sizes[i] });
+          glass.minus.disabled = i === 0;
+          glass.plus.disabled = i === sizes.length - 1;
+        };
+      }
+      factor = () => target / base * glassFactor();
       refresh = () => {
         count.value.textContent = Sc.servingsLabel(target, unit);
         count.minus.disabled = target <= 1;
+        glassRefresh();
       };
     }
 
@@ -480,13 +516,16 @@
       refresh();
       const f = factor();
       list.textContent = '';
+      const ingSeen = new Set(); // jeder Begriff nur einmal markieren
       for (const line of r.ingredients) {
         const alt = window.RecipeSubstitutes.alternativeFor(line);
-        list.append(h('li', null, Sc.scaleIngredient(line, f).map(p => p.amount ? h('b', { text: p.t }) : p.t),
+        list.append(h('li', null, Sc.scaleIngredient(line, f).map(p => p.amount ? h('b', null, withTerms(p.t, ingSeen)) : withTerms(p.t, ingSeen)),
           alt ? h('span', { class: 'alt', text: 'Alternative: ' + alt }) : null));
       }
     }
     update();
+    // Begriffe aus den Zutaten in Schritten/Notizen nicht noch einmal markieren
+    list.querySelectorAll('.term').forEach(t => glossSeen.add(t.dataset.term));
 
     section.append(h('div', { class: 'ing-head' }, h('h3', { text: 'Zutaten' }), controls), list);
     if (!base) section.append(h('p', { class: 'hint', text: 'Zum Umrechnen: Tippe auf „Bearbeiten“ und trage ein, für wie viele Personen das Rezept ist.' }));
@@ -539,10 +578,16 @@
     const sizeSpring = sizeRow('Durchmesser der Springform', [numInp('fSizeD', sizeOf('Springform').d, 'Durchmesser in cm'), ' cm']);
     const sizeBlech = sizeRow('Größe des Blechs', [numInp('fSizeL', sizeOf('Blech').l, 'Länge in cm'), ' × ', numInp('fSizeW', sizeOf('Blech').w, 'Breite in cm'), ' cm'], 'Ein normales Backblech ist etwa 30 × 40 cm.');
     const sizeKasten = sizeRow('Länge der Kastenform', [numInp('fSizeK', sizeOf('Kastenform').len, 'Länge in cm'), ' cm']);
+    const glassMl = sizeOf('Gläser').ml;
+    const glassOpts = F.GLASSES.some(g => g[0] === glassMl) ? F.GLASSES : F.GLASSES.concat([[glassMl, 'eigene Größe']]);
+    const sizeGlass = field('Größe pro Glas', h('select', { id: 'fSizeG' },
+      glassOpts.map(([ml, name]) => h('option', { value: ml, text: F.formatSize('Gläser', { ml }) + ' – ' + name, selected: ml === glassMl }))),
+      'Steht meist auf dem Glasboden oder dem Etikett.');
     function syncSize() {
       sizeSpring.hidden = unitSel.value !== 'Springform';
       sizeBlech.hidden = unitSel.value !== 'Blech';
       sizeKasten.hidden = unitSel.value !== 'Kastenform';
+      sizeGlass.hidden = unitSel.value !== 'Gläser';
     }
     unitSel.addEventListener('change', syncSize);
 
@@ -561,7 +606,7 @@
       h('div', { class: 'row3' },
         field('Rezept ist für', inp('fServings', v.servings ? window.RecipeScale.formatCount(v.servings) : '', { inputmode: 'decimal', placeholder: 'z. B. 4' })),
         field('Einheit', unitSel),
-        sizeSpring, sizeBlech, sizeKasten,
+        sizeSpring, sizeBlech, sizeKasten, sizeGlass,
         h('div', { class: 'field' }, h('span', { class: 'label', text: 'Zeit' }),
           h('output', { id: 'fTimeOut', class: 'time-out', for: 'fSteps fIngredients' }),
           h('span', { class: 'hint', text: 'Wird aus den Schritten berechnet.' }))),
@@ -606,6 +651,7 @@
       const u = unitSel.value;
       if (u === 'Springform') { if (!(n('fSizeD') > 0)) return fail('Bitte den Durchmesser der Springform in cm eintragen, z. B. 26.', 'fSizeD'); formSize = F.formatSize(u, { d: n('fSizeD') }); }
       if (u === 'Blech') { if (!(n('fSizeL') > 0 && n('fSizeW') > 0)) return fail('Bitte die Blechgröße in cm eintragen, z. B. 30 × 40.', 'fSizeL'); formSize = F.formatSize(u, { l: n('fSizeL'), w: n('fSizeW') }); }
+      if (u === 'Gläser') formSize = F.formatSize(u, { ml: n('fSizeG') });
       if (u === 'Kastenform') { if (!(n('fSizeK') > 0)) return fail('Bitte die Länge der Kastenform in cm eintragen, z. B. 30.', 'fSizeK'); formSize = F.formatSize(u, { len: n('fSizeK') }); }
       try {
         const collectionId = sel.value === '__new' ? Store.addCollection(newCol.value).id : sel.value;
