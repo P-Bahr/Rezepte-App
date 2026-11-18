@@ -83,12 +83,14 @@
         servingsUnit: window.RecipeForms.normalizeUnit(clean(input.servingsUnit) || parsedServ.unit),
         formSize: clean(input.formSize),
         totalTime: clean(input.totalTime),
-        ingredients: cleanList(input.ingredients).map(cleanIngredient).filter(Boolean),
+        // Menge/Einheit nach vorn ("Mehl 200g" -> "200 g Mehl"), damit Umrechnen zuverlässig klappt
+        ingredients: cleanList(input.ingredients).map(l => cleanIngredient(window.RecipeScale.normalizeIngredient(l))).filter(Boolean),
         steps: cleanList(input.steps),
         notes: clean(input.notes),
         imageId: clean(input.imageId),
         imageUrl: clean(input.imageUrl),
         sourceUrl: clean(input.sourceUrl),
+        favorite: existing ? !!existing.favorite : !!input.favorite,
         example: existing ? !!existing.example : !!input.example, // Beispielrezept (lässt sich gesammelt entfernen)
         createdAt: existing ? existing.createdAt : now,
         updatedAt: now
@@ -97,6 +99,16 @@
       data.recipes = existing ? before.map(r => (r.id === recipe.id ? recipe : r)) : before.concat(recipe);
       try { save(); } catch (e) { data.recipes = before; throw e; }
       return recipe;
+    },
+
+    // Favorit an/aus (ändert nichts am Rezept selbst)
+    toggleFavorite(id) {
+      const r = this.recipe(id);
+      if (!r) return false;
+      const before = data.recipes;
+      data.recipes = before.map(x => (x.id === id ? { ...x, favorite: !x.favorite } : x));
+      try { save(); } catch (e) { data.recipes = before; throw e; }
+      return !r.favorite;
     },
 
     deleteRecipe(id) {

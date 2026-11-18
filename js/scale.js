@@ -15,7 +15,8 @@
   const KNOWN_UNITS = new Set(['g', 'kg', 'mg', 'ml', 'l', 'cl', 'dl', 'el', 'tl', 'msp', 'pck', 'päckchen', 'packung', 'prise', 'prisen',
     'dose', 'dosen', 'bund', 'becher', 'tasse', 'tassen', 'glas', 'gläser', 'stück', 'stk', 'scheibe', 'scheiben', 'zehe', 'zehen',
     'handvoll', 'spritzer', 'schuss', 'zweig', 'zweige', 'blatt', 'blätter', 'tropfen', 'würfel', 'liter', 'gramm', 'kilogramm', 'tüte', 'beutel', 'flasche', 'stange', 'stangen', 'knolle', 'kopf']);
-  const EGG = /^\s*(eier|ei|eigelbe|eigelb|eiweiße|eiweiß|eiweisse|eiweiss)(?![\p{L}])/iu;
+  // Eier irgendwo in der Zutat ("4 Eier", "4 sehr frische Eier", "2 Eier (Größe M)"), aber nicht "Ei-Nudeln"
+  const EGG = /(?<![\p{L}])(eier|ei|eigelbe|eigelb|eiweiße|eiweiß|eiweisse|eiweiss)(?![\p{L}-])/iu;
 
   // Menge am Anfang: optional "ca."/"etwa", Zahl oder Bereich, optional Einheit
   const LEAD = new RegExp('^(\\s*(?:ca\\.?\\s*|etwa\\s+|circa\\s+)?)(' + NUM + ')(?:\\s*[-–]\\s*(' + NUM + '))?(\\s*)([A-Za-zÄÖÜäöüß]+\\.?(?=\\s|,|$))?', 'i');
@@ -187,5 +188,66 @@
     return parts.length <= 2 && parts.every(p => p && !isNaN(parseNum(p)));
   }
 
-  window.RecipeScale = { FORM_UNITS, parseIngredient, validAmount, parseNum, scaleIngredient, scaleText, parseServings, isPersons, servingsLabel, formatCount };
+  /* ---------- Zutatenzeile in einheitliche Form bringen ----------
+     Erkennt Menge und Einheit an beliebiger Stelle:
+     "Mehl 200g" -> "200 g Mehl", "Zucker: 100 g" -> "100 g Zucker", "Eier 4" -> "4 Eier",
+     "eine Prise Salz" -> "1 Prise Salz", "Butter (125 g, weich)" -> "125 g Butter (weich)".
+     Zahlen, die zum Namen gehören ("Mehl Type 405", "Joghurt 3,5 %", "26er Form"), bleiben im Namen. */
+  const NUM_WORDS = { ein: 1, eine: 1, einen: 1, einem: 1, einer: 1, zwei: 2, drei: 3, vier: 4, 'fünf': 5, sechs: 6, sieben: 7, acht: 8, neun: 9, zehn: 10, elf: 11, 'zwölf': 12, anderthalb: '1½', eineinhalb: '1½' };
+  const UNIT_CASE = { el: 'EL', tl: 'TL', msp: 'Msp.', pck: 'Pck.', g: 'g', kg: 'kg', mg: 'mg', ml: 'ml', l: 'l', cl: 'cl', dl: 'dl' };
+  const ANY_AMOUNT = new RegExp('(?<![\\p{L}\\d,./])(' + NUM + ')(?:\\s*[-–]\\s*(' + NUM + '))?(?![\\d/])(\\s*)([A-Za-zÄÖÜäöüß]+\\.?)?', 'giu');
+
+  function unitCase(u) {
+    const k = u.replace(/\.$/, '').toLowerCase();
+    return UNIT_CASE[k] || u;
+  }
+
+  function normalizeIngredient(line) {
+    let t = String(line || '').replace(/^[\s\-–•*·]+/, '').replace(/\s+/g, ' ').trim();
+    if (!t) return '';
+    // "200g" -> "200 g", "1EL" -> "1 EL"
+    t = t.replace(/(\d)(?=(?:g|kg|mg|ml|l|cl|dl|el|tl|msp|pck)\b)/gi, '$1 ');
+    // Zahlwort am Anfang: "eine Prise" -> "1 Prise", "ein halber TL" -> "½ TL", "zwei Eier" -> "2 Eier"
+    t = t.replace(/^(?:(ein|eine|einen|einem|einer)\s+)?(halbe[nrs]?|halb)\s+/i, (all, a, b) => '½ ');
+    t = t.replace(/^([A-Za-zäöüß]+)\s+/, (all, w) => {
+      const v = NUM_WORDS[w.toLowerCase()];
+      return v != null ? v + ' ' : all;
+    });
+
+    // Steht die Menge schon vorn, nur Einheit vereinheitlichen
+    const lead = t.match(LEAD);
+    if (lead && !isNaN(parseNum(lead[2]))) {
+      if (lead[5] && KNOWN_UNITS.has(lead[5].replace(/\.$/, '').toLowerCase())) {
+        const start = lead[0].length - lead[5].length;
+        t = t.slice(0, start) + unitCase(lead[5]) + t.slice(lead[0].length);
+      }
+      return t;
+    }
+
+    // Menge irgendwo im Text suchen
+    ANY_AMOUNT.lastIndex = 0;
+    let m;
+    while ((m = ANY_AMOUNT.exec(t))) {
+      const before = t.slice(0, m.index);
+      const word = m[4] || '';
+      const num = m[1];
+      const amountEnd = m.index + m[0].length - word.length - m[3].length;
+      if (/(typ|type)\s*$/i.test(before)) continue;              // Mehl Type 405
+      if (/^\s*[%°]/.test(t.slice(amountEnd))) continue;         // 3,5 % Fett, 200 °C
+      if (/^(prozent|cm|mm|grad|er)$/i.test(word)) continue;      // 26er Form
+      if (isNaN(parseNum(num))) continue;
+      const known = word && KNOWN_UNITS.has(word.replace(/\.$/, '').toLowerCase());
+      const amount = num.trim() + (m[2] ? '–' + m[2].trim() : '');
+      const cutEnd = m.index + (known ? m[0].length : m[0].length - word.length - m[3].length);
+      let name = (t.slice(0, m.index) + ' ' + t.slice(cutEnd))
+        .replace(/\(\s*[,;]\s*/g, '(').replace(/\s*[,;]\s*\)/g, ')').replace(/\(\s*\)/g, '')
+        .replace(/\s*[:]\s*/g, ' ').replace(/\s+([,;])/g, '$1')
+        .replace(/^[\s,;:–-]+|[\s,;:–-]+$/g, '').replace(/\s{2,}/g, ' ').trim();
+      if (!name) return t;
+      return [amount, known ? unitCase(word) : '', name].filter(Boolean).join(' ');
+    }
+    return t;
+  }
+
+  window.RecipeScale = { normalizeIngredient, FORM_UNITS, parseIngredient, validAmount, parseNum, scaleIngredient, scaleText, parseServings, isPersons, servingsLabel, formatCount };
 })();

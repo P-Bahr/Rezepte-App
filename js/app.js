@@ -19,6 +19,7 @@
     query: '',
     filters: { collectionId: new Set(), course: new Set(), mainIngredient: new Set(), method: new Set() },
     mode: null,          // 'detail' | 'edit' | 'collections' | null
+    favOnly: false,      // nur Favoriten zeigen
     depth: 0,            // wie viele Rezepte nacheinander per Antippen geöffnet wurden (für "Zurück")
     pushing: false       // gerade öffnet die App selbst ein Rezept
   };
@@ -65,7 +66,7 @@
     try {
       const f = {};
       for (const k in state.filters) f[k] = [...state.filters[k]];
-      sessionStorage.setItem('rezepte.ansicht', JSON.stringify({ q: state.query, f }));
+      sessionStorage.setItem('rezepte.ansicht', JSON.stringify({ q: state.query, f, fav: state.favOnly }));
     } catch (e) { /* nicht schlimm */ }
   }
   function restoreView() {
@@ -73,6 +74,7 @@
       const v = JSON.parse(sessionStorage.getItem('rezepte.ansicht') || 'null');
       if (!v) return;
       state.query = v.q || '';
+      state.favOnly = !!v.fav;
       for (const k in state.filters) state.filters[k] = new Set((v.f && v.f[k]) || []);
     } catch (e) { /* nicht schlimm */ }
   }
@@ -89,6 +91,7 @@
   }
 
   function passesFilters(r, skipKey) {
+    if (state.favOnly && skipKey !== 'fav' && !r.favorite) return false;
     for (const f of FACETS) {
       if (f.key === skipKey) continue;
       const sel = state.filters[f.key];
@@ -113,7 +116,7 @@
     renderFilters(scored.map(x => x.r));
     renderGrid(results.map(x => x.r), all.length);
 
-    const active = state.query.trim() || FACETS.some(f => state.filters[f.key].size);
+    const active = state.query.trim() || state.favOnly || FACETS.some(f => state.filters[f.key].size);
     $('#count').textContent = results.length === 1 ? '1 Rezept' : results.length + ' Rezepte';
     $('#btnReset').hidden = !active;
     $('#qClear').hidden = !state.query;
@@ -145,7 +148,7 @@
         }
       }
       let values = [...labels.keys()].filter(v => counts.get(v) || state.filters[f.key].has(v));
-      if (!values.length) continue;
+      if (!values.length && f.key !== 'collectionId') continue;
 
       const orderIdx = v => {
         if (!f.order) return 999;
@@ -169,6 +172,14 @@
             }
           }, labels.get(v), h('span', { class: 'n', text: String(counts.get(v) || 0) }));
         }));
+      // Favoriten: fest ganz vorn bei den Sammlungen
+      if (f.key === 'collectionId') {
+        const favCount = searchHits.filter(r => r.favorite && passesFilters(r, 'fav')).length;
+        chips.prepend(h('button', {
+          type: 'button', class: 'chip chip-fav', 'aria-pressed': state.favOnly ? 'true' : 'false',
+          onclick: () => { state.favOnly = !state.favOnly; render(); }
+        }, h('span', { class: 'star', 'aria-hidden': 'true', text: '★' }), 'Favoriten', h('span', { class: 'n', text: String(favCount) })));
+      }
       box.append(h('div', { class: 'facet' }, h('span', { class: 'facet-label', text: f.label }), chips));
       if (scrollPos[f.key]) chips.scrollLeft = scrollPos[f.key];
     }
@@ -218,6 +229,14 @@
           }, 'Beispielrezepte laden')));
       return;
     }
+    if (!list.length && state.favOnly && !Store.recipes().some(r => r.favorite)) {
+      empty.hidden = false;
+      empty.append(
+        h('h2', { text: 'Noch keine Favoriten' }),
+        h('p', { text: 'Öffne ein Rezept und tippe oben rechts auf den Stern ☆. Dann erscheint es hier.' }),
+        h('button', { type: 'button', class: 'btn', onclick: resetAll }, 'Alle Rezepte zeigen'));
+      return;
+    }
     if (!list.length) {
       empty.hidden = false;
       empty.append(
@@ -230,8 +249,10 @@
     const frag = document.createDocumentFragment();
     for (const r of list) {
       const meta = [window.RecipeTime.label(r), collectionName(r.collectionId)].filter(Boolean).join(' · ');
+      const img = imageBox('tile-img', r);
+      if (r.favorite) img.append(h('span', { class: 'fav-badge', 'aria-label': 'Favorit', text: '★' }));
       frag.append(h('button', { type: 'button', class: 'tile', onclick: () => openDetail(r.id) },
-        imageBox('tile-img', r),
+        img,
         h('div', { class: 'tile-body' },
           h('span', { class: 'tile-title', text: r.title }),
           meta ? h('span', { class: 'tile-meta', text: meta }) : null)));
@@ -241,6 +262,7 @@
 
   function resetAll() {
     state.query = '';
+    state.favOnly = false;
     $('#q').value = '';
     for (const k in state.filters) state.filters[k].clear();
     render();
@@ -290,7 +312,7 @@
     hideDialog();
   }
 
-  dlg.addEventListener('cancel', e => { e.preventDefault(); if (state.mode === 'detail') closeDetail(); else if (state.mode !== 'edit') closeDialog(); });
+  dlg.addEventListener('cancel', e => { e.preventDefault(); const ex = body.querySelector('.explain'); if (ex) { ex.remove(); return; } if (state.mode === 'detail') closeDetail(); else if (state.mode !== 'edit') closeDialog(); });
   dlg.addEventListener('click', e => { if (e.target === dlg && state.mode === 'detail') closeDetail(); });
 
   // Wischen vom linken Rand = zurück (wie in iOS-Apps).
@@ -377,10 +399,27 @@
     location.hash = 'rezept-' + encodeURIComponent(id); // hashchange zeigt das Rezept
   }
 
-  function head(title, onClose) {
+  function head(title, onClose, extra) {
     return h('div', { class: 'dlg-head' },
       h('h2', { id: 'dlgTitle', text: title }),
-      h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Schließen', onclick: onClose }, '×'));
+      h('div', { class: 'dlg-head-actions' }, extra || null,
+        h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Schließen', onclick: onClose }, '×')));
+  }
+
+  function favButton(id) {
+    const btn = h('button', { type: 'button', class: 'icon-btn fav-btn' });
+    const show = () => {
+      const on = !!(Store.recipe(id) || {}).favorite;
+      btn.textContent = on ? '★' : '☆';
+      btn.setAttribute('aria-pressed', on ? 'true' : 'false');
+      btn.setAttribute('aria-label', on ? 'Aus Favoriten entfernen' : 'Zu Favoriten hinzufügen');
+    };
+    btn.addEventListener('click', () => {
+      try { const on = Store.toggleFavorite(id); show(); toast(on ? 'Zu Favoriten hinzugefügt' : 'Aus Favoriten entfernt'); }
+      catch (e) { toast(e.message); }
+    });
+    show();
+    return btn;
   }
 
   // ---------- Fachbegriffe: markieren und auf Antippen erklären ----------
@@ -393,11 +432,11 @@
   function explain(term, text) {
     const old = body.querySelector('.explain');
     if (old) old.remove();
-    const box = h('div', { class: 'explain', role: 'dialog', 'aria-label': 'Erklärung: ' + term },
-      h('div', { class: 'explain-text' }, h('b', { text: term }), h('p', { text: text })),
-      h('button', { type: 'button', class: 'btn btn-primary', onclick: () => box.remove() }, 'Verstanden'));
+    const box = h('div', { class: 'explain', role: 'status', 'aria-live': 'polite' },
+      h('b', { text: term }), h('p', { text: text }));
     body.append(box);
-    box.querySelector('button').focus();
+    // Ein Tipp irgendwohin schließt die Erklärung (pointerdown, weil iOS bei Text keinen Klick meldet)
+    setTimeout(() => document.addEventListener('pointerdown', () => box.remove(), { capture: true, once: true }), 0);
   }
 
   function renderDetail(id) {
@@ -465,7 +504,7 @@
     normalFoot();
 
     showDialog('detail', h('div', { style: 'display:contents' },
-      head(r.title, closeDetail), h('div', { class: 'dlg-scroll' }, content), foot));
+      head(r.title, closeDetail, favButton(id)), h('div', { class: 'dlg-scroll' }, content), foot));
   }
 
   // ---------- Notizen, darunter passende eigene Rezepte ----------
@@ -620,90 +659,31 @@
     return el;
   }
 
-  // ---------- Formular-Baustein: Zutaten als Zeilen (Menge | Einheit | Zutat) ----------
-  let rowSeq = 0;
-  function ingredientRows(initial) {
+  // ---------- Formular-Baustein: Zutaten als Text, mit Vorschau der Erkennung ----------
+  function ingredientInput(initial) {
     const Sc = window.RecipeScale;
-    const list = h('div', { class: 'ing-rows' });
+    const area = h('textarea', { id: 'fIngredients', rows: 8, placeholder: '200 g Mehl\nEier 3\nZucker: 100g\neine Prise Salz' });
+    area.value = (initial || []).join('\n');
+    const preview = h('ul', { class: 'ing-preview', 'aria-live': 'polite' });
     const api = { onChange: () => {} };
-
-    function makeRow(data) {
-      const n = ++rowSeq;
-      const d = data || { amount: '', unit: '', name: '' };
-      const units = Sc.FORM_UNITS.includes(d.unit) ? Sc.FORM_UNITS : Sc.FORM_UNITS.concat(d.unit);
-      const amount = h('input', { id: 'ingA' + n, class: 'ing-amount', type: 'text', inputmode: 'decimal', placeholder: 'Menge', value: d.amount, autocomplete: 'off', 'aria-label': 'Menge' });
-      const unit = h('select', { id: 'ingU' + n, class: 'ing-unit', 'aria-label': 'Einheit' },
-        units.map(u => h('option', { value: u, text: u || 'Stück', selected: u === d.unit })));
-      const name = h('input', { id: 'ingN' + n, class: 'ing-name', type: 'text', placeholder: 'Zutat, z. B. Mehl', value: d.name, autocomplete: 'off', 'aria-label': 'Zutat' });
-      const del = h('button', { type: 'button', class: 'icon-btn ing-del', 'aria-label': 'Zutat entfernen' }, '×');
-      const row = h('div', { class: 'ing-row' }, amount, unit, name, del);
-      row.fields = { amount, unit, name };
-      const changed = () => { row.classList.remove('invalid'); api.onChange(); };
-      [amount, name].forEach(i => i.addEventListener('input', changed));
-      unit.addEventListener('change', changed);
-      del.addEventListener('click', () => {
-        row.remove();
-        if (!list.children.length) list.append(makeRow());
-        api.onChange();
-      });
-      // Ganze Zutatenliste einfügen -> auf Zeilen verteilen
-      [amount, name].forEach(i => i.addEventListener('paste', e => {
-        const text = (e.clipboardData || window.clipboardData).getData('text');
-        const lines = String(text || '').split(/\r?\n/).map(x => x.replace(/^[-•*·\s]+/, '').trim()).filter(Boolean);
-        if (lines.length < 2) return;
-        e.preventDefault();
-        let after = row;
-        const empty = !amount.value.trim() && !name.value.trim();
-        lines.forEach((line, k) => {
-          const p = Sc.parseIngredient(line);
-          if (k === 0 && empty) { fill(row, p); return; }
-          const r = makeRow(p);
-          after.after(r);
-          after = r;
-        });
-        api.onChange();
-      }));
-      name.addEventListener('keydown', e => {
-        if (e.key !== 'Enter') return;
-        e.preventDefault();
-        const r = makeRow();
-        row.after(r);
-        r.fields.amount.focus();
-      });
-      return row;
-    }
-    function fill(row, p) {
-      const f = row.fields;
-      if (p.unit && ![...f.unit.options].some(o => o.value === p.unit)) f.unit.append(h('option', { value: p.unit, text: p.unit }));
-      f.amount.value = p.amount; f.unit.value = p.unit; f.name.value = p.name;
-    }
-
-    const parsed = (initial || []).map(l => Sc.parseIngredient(l));
-    (parsed.length ? parsed : [null, null, null]).forEach(p => list.append(makeRow(p)));
-    const add = h('button', { type: 'button', class: 'btn', onclick: () => { const r = makeRow(); list.append(r); r.fields.amount.focus(); } }, '+ Zutat hinzufügen');
-
-    api.el = h('div', { class: 'field' },
-      h('span', { class: 'label', text: 'Zutaten' }),
-      h('span', { class: 'hint', text: 'Menge als Zahl, z. B. 200, ½, 1,5 oder 2–3. Für Zutaten ohne Menge (z. B. Salz) das Mengenfeld leer lassen. Mengen wie im Originalrezept; die App rechnet sie um.' }),
-      list, add);
-    const rows = () => [...list.children];
-    api.lines = () => rows().map(r => {
-      const f = r.fields;
-      const a = f.amount.value.trim().replace(/\s*-\s*/, '–');
-      return [a, a ? f.unit.value : '', f.name.value.trim()].filter(Boolean).join(' ');
-    }).filter(l => l.trim());
-    api.check = () => {
-      for (const r of rows()) {
-        const f = r.fields;
-        const a = f.amount.value.trim(), nm = f.name.value.trim();
-        let msg = null, id = null;
-        if (a && !Sc.validAmount(a)) { msg = '„' + a + '“ ist keine Menge. Bitte eine Zahl eintragen, z. B. 200, ½, 1,5 oder 2–3, oder das Feld leer lassen.'; id = f.amount.id; }
-        else if (a && !nm) { msg = 'Bei der Menge „' + a + '“ fehlt die Zutat.'; id = f.name.id; }
-        else if (!a && f.unit.value && nm) { msg = 'Bei „' + nm + '“ fehlt die Menge für „' + f.unit.value + '“.'; id = f.amount.id; }
-        if (msg) { r.classList.add('invalid'); return { msg, id }; }
+    api.lines = () => area.value.split('\n').map(l => Sc.normalizeIngredient(l)).filter(Boolean);
+    function show() {
+      preview.textContent = '';
+      for (const line of api.lines()) {
+        const p = Sc.parseIngredient(line);
+        preview.append(h('li', null, p.amount
+          ? [h('b', { text: [p.amount, p.unit].filter(Boolean).join(' ') }), ' ', p.name]
+          : [h('span', { class: 'muted', text: 'ohne Menge: ' }), p.name]));
       }
-      return null;
-    };
+      previewBox.hidden = !preview.children.length;
+    }
+    const previewBox = h('div', { class: 'ing-preview-box' }, h('span', { class: 'hint', text: 'So erkennt die App deine Zutaten:' }), preview);
+    area.addEventListener('input', () => { show(); api.onChange(); });
+    show();
+    api.el = h('div', { class: 'field' },
+      h('label', { for: 'fIngredients', text: 'Zutaten' }),
+      h('span', { class: 'hint', text: 'Eine Zutat pro Zeile, Reihenfolge egal: „200 g Mehl“, „Mehl 200g“ oder „Eier 3“ wird alles erkannt. Mengen wie im Originalrezept.' }),
+      area, previewBox);
     return api;
   }
 
@@ -793,7 +773,7 @@
     unitSel.addEventListener('change', syncSize);
 
     const imageSection = imagePicker(v);
-    const ingRows = ingredientRows(v.ingredients);
+    const ingRows = ingredientInput(v.ingredients);
     const ingredientsEditor = ingRows.el;
 
     const inp = (fid, value, extra) => h('input', Object.assign({ id: fid, type: 'text', value: value || '', autocomplete: 'off' }, extra || {}));
@@ -853,8 +833,6 @@
       if (!val('fTitle').trim()) return fail('Bitte gib dem Rezept einen Namen.', 'fTitle');
       if (!sel.value) return fail('Bitte wähle eine Sammlung aus.', 'fCollection');
       if (sel.value === '__new' && !newCol.value.trim()) return fail('Bitte gib der neuen Sammlung einen Namen.', 'fNewCollection');
-      const badRow = ingRows.check();
-      if (badRow) return fail(badRow.msg, badRow.id);
       for (const [fid, name] of [['fImage', 'Bild-Adresse'], ['fSource', 'Quelle']]) {
         if (val(fid).trim() && !safeUrl(val(fid).trim())) return fail('Die ' + name + ' muss mit https:// beginnen.', fid);
       }

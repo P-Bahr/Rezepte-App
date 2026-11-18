@@ -61,3 +61,14 @@ require('../js/time.js');
 const T = window.RecipeTime;
 const vs = T.estimateMinutes({ ingredients: ['500 ml Milch', '1 Vanilleschote', '4 Eigelb'], steps: ['Vanilleschote aufschneiden und mit der Milch aufkochen.', 'Eigelb unterrühren.'] }).minutes;
 if (vs > 30) { console.log('FEHLER Zeit Vanillesoße', vs); process.exitCode = 1; } else console.log('ok   Zeit Vanillesoße', vs, 'Min.');
+
+// Zutaten in beliebiger Reihenfolge
+const N = S.normalizeIngredient;
+for (const [a, e] of [['Mehl 200g', '200 g Mehl'], ['Zucker: 100 g', '100 g Zucker'], ['Eier 4', '4 Eier'], ['eine Prise Salz', '1 Prise Salz'], ['ein halber TL Zimt', '½ TL Zimt'], ['Butter (125 g, weich)', '125 g Butter (weich)'], ['Mehl Type 405, 500 g', '500 g Mehl Type 405'], ['Mehl Type 405', 'Mehl Type 405'], ['Joghurt 3,5 % 200 g', '200 g Joghurt 3,5 %'], ['Knoblauch 2 Zehen', '2 Zehen Knoblauch'], ['Salz, Pfeffer', 'Salz, Pfeffer'], ['Zitrone, ½', '½ Zitrone'], ['Essig 2-3 EL', '2–3 EL Essig'], ['1 Dose Tomaten (400 g)', '1 Dose Tomaten (400 g)'], ['- 1EL Öl', '1 EL Öl'], ['Sahne 30 % Fett, 200 ml', '200 ml Sahne 30 % Fett'], ['Springform 26er', 'Springform 26er'], ['200 g Mehl', '200 g Mehl']]) {
+  if (N(a) !== e) { console.log('FEHLER Reihenfolge', a, '→', N(a)); process.exitCode = 1; } else console.log('ok   Reihenfolge', a, '→', N(a));
+}
+
+for (const [l, f, e] of [['4 sehr frische Eier', 2 / 3, '3 sehr frische Eier'], ['2 Eier (Größe M)', 0.75, '2 Eier (Größe M)'], ['200 g Ei-Nudeln', 0.5, '100 g Ei-Nudeln'], ['3 Zwiebeln', 0.5, '1½ Zwiebeln']]) {
+  const g = S.scaleText(l, f);
+  if (g !== e) { console.log('FEHLER Ei irgendwo', l, '→', g); process.exitCode = 1; } else console.log('ok   Ei irgendwo', l, '→', g);
+}
