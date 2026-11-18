@@ -9,6 +9,7 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Suche, die Umlaute, Wortteile und kleine Tippfehler verzeiht („hahnchen“ findet „Hähnchenbrust“, „brownis“ findet „Brownies“)
 - Filterchips für Sammlung, Rezeptart, Hauptzutat und Zubereitung, mit Trefferzahl
 - Rezept öffnet sich als Fenster über der Übersicht, Suche und Filter bleiben erhalten
+- Personen-Regler im Rezept: startet bei 4 Personen, rechnet alle Mengen um (z. B. „1 kg“ für 2 → „500 g“ für 1)
 - Rezepte anlegen, bearbeiten und löschen; Sammlungen anlegen, umbenennen und löschen
 - Speichern **nur auf diesem Gerät** (vorläufig)
 
@@ -29,8 +30,10 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `css/app.css` | Aussehen (Systemschrift, 17 pt Text, Touch-Ziele mindestens 44 pt, heller und dunkler Modus) |
 | `js/store.js` | Datenspeicher; hier wird später die Online-Datenbank angeschlossen |
 | `js/search.js` | Suchlogik |
+| `js/scale.js` | Mengen auf andere Personenzahlen umrechnen |
 | `js/app.js` | Bedienoberfläche |
 | `js/examples.js` | Beispielrezepte |
 | `tests/app.test.js` | Automatischer Test im Browser |
+| `tests/scale.test.js` | Test der Mengen-Umrechnung (`node tests/scale.test.js`) |
 
 Lokal starten: `python3 -m http.server 8123 --bind 127.0.0.1`, dann `node tests/app.test.js` für den Test.

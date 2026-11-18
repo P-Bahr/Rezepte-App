@@ -21,6 +21,12 @@
         const parsed = JSON.parse(raw);
         if (parsed && Array.isArray(parsed.recipes) && Array.isArray(parsed.collections)) data = parsed;
       }
+      // Ältere Einträge: Portionen als Text ("12 Stück") -> Zahl + Einheit
+      data.recipes = data.recipes.map(r => {
+        if (typeof r.servings === 'number' || r.servings === null) return r;
+        const p = window.RecipeScale.parseServings(r.servings);
+        return { ...r, servings: p.servings, servingsUnit: r.servingsUnit || p.unit };
+      });
     } catch (e) {
       storageOk = false;
     }
@@ -55,6 +61,8 @@
       const title = clean(input.title);
       if (!title) throw new Error('Bitte gib dem Rezept einen Namen.');
       if (!input.collectionId || !this.collection(input.collectionId)) throw new Error('Bitte wähle eine Sammlung.');
+      const parsedServ = window.RecipeScale.parseServings(input.servings);
+      if (clean(input.servings) && !parsedServ.servings) throw new Error('Bei „Rezept ist für“ bitte eine Zahl eintragen, zum Beispiel 4.');
       const now = new Date().toISOString();
       const existing = input.id ? this.recipe(input.id) : null;
       const recipe = {
@@ -64,7 +72,8 @@
         course: clean(input.course),
         mainIngredient: clean(input.mainIngredient),
         method: clean(input.method),
-        servings: clean(input.servings),
+        servings: parsedServ.servings,
+        servingsUnit: clean(input.servingsUnit) || parsedServ.unit,
         totalTime: clean(input.totalTime),
         ingredients: cleanList(input.ingredients),
         steps: cleanList(input.steps),
