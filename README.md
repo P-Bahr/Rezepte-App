@@ -24,6 +24,7 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Leere Sammlung nach dem Verschieben direkt löschbar
 - Notizen zeigen erwähnte eigene Rezepte als „Passt dazu ›“-Knopf („Dazu passen die Ofenkartoffeln“); × und Wischen vom linken Rand führen zum vorherigen Rezept zurück
 - Rezepte anlegen, bearbeiten und löschen; Sammlungen anlegen, umbenennen und löschen
+- 25 Beispielrezepte; unter „Sammlungen“ hinzufügen oder alle auf einmal entfernen
 - Speichern **nur auf diesem Gerät** (vorläufig)
 
 **Als Nächstes:**

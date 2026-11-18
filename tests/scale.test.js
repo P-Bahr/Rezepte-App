@@ -55,3 +55,9 @@ for (const [l, exp] of [['2 EL Dijon-Senf', 'mittelscharfer Senf, gleiche Menge'
 // Gläser
 const G = F.parseSize('Gläser', '300 ml');
 if (G.ml !== 300 || F.formatSize('Gläser', { ml: 1000 }) !== '1 l' || F.parseSize('Gläser', '0,5 l').ml !== 500) { console.log('FEHLER Glasgröße'); process.exitCode = 1; } else console.log('ok   Glasgrößen');
+
+// Zeitschätzung: Flüssigkeiten werden nicht "geschnitten"
+require('../js/time.js');
+const T = window.RecipeTime;
+const vs = T.estimateMinutes({ ingredients: ['500 ml Milch', '1 Vanilleschote', '4 Eigelb'], steps: ['Vanilleschote aufschneiden und mit der Milch aufkochen.', 'Eigelb unterrühren.'] }).minutes;
+if (vs > 30) { console.log('FEHLER Zeit Vanillesoße', vs); process.exitCode = 1; } else console.log('ok   Zeit Vanillesoße', vs, 'Min.');

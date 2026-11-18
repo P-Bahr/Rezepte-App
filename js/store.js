@@ -89,6 +89,7 @@
         imageId: clean(input.imageId),
         imageUrl: clean(input.imageUrl),
         sourceUrl: clean(input.sourceUrl),
+        example: existing ? !!existing.example : !!input.example, // Beispielrezept (lässt sich gesammelt entfernen)
         createdAt: existing ? existing.createdAt : now,
         updatedAt: now
       };
@@ -136,16 +137,44 @@
       try { save(); } catch (e) { data.collections = before; throw e; }
     },
 
+    // Fügt fehlende Beispielrezepte hinzu (vorhandene mit gleichem Namen werden nicht doppelt angelegt).
+    // Rückgabe: Anzahl neu hinzugefügter Rezepte.
     loadExamples() {
       const ex = window.EXAMPLE_RECIPES || [];
       const before = JSON.stringify(data);
+      let added = 0;
       try {
+        const byTitle = new Map(data.recipes.map(r => [r.title.toLowerCase(), r]));
         const ids = {};
-        ex.forEach(r => {
-          if (!ids[r.collection]) ids[r.collection] = this.addCollection(r.collection).id;
-        });
-        ex.forEach(r => this.saveRecipe({ ...r, collectionId: ids[r.collection] }));
+        for (const r of ex) {
+          const old = byTitle.get(r.title.toLowerCase());
+          if (old) { old.example = true; continue; } // ältere, ungekennzeichnete Beispiele kennzeichnen
+          if (!ids[r.collection]) {
+            const existed = data.collections.some(c => c.name.toLowerCase() === r.collection.toLowerCase());
+            const col = this.addCollection(r.collection);
+            if (!existed) col.example = true;
+            ids[r.collection] = col.id;
+          }
+          this.saveRecipe({ ...r, collectionId: ids[r.collection], example: true });
+          added++;
+        }
+        save();
       } catch (e) { data = JSON.parse(before); throw e; }
+      return added;
+    },
+
+    exampleCount() { return data.recipes.filter(r => r.example).length; },
+
+    // Entfernt alle Beispielrezepte und die durch sie entstandenen, jetzt leeren Sammlungen.
+    removeExamples() {
+      const gone = data.recipes.filter(r => r.example);
+      const before = JSON.stringify(data);
+      data.recipes = data.recipes.filter(r => !r.example);
+      const used = new Set(data.recipes.map(r => r.collectionId));
+      data.collections = data.collections.filter(c => used.has(c.id) || !c.example);
+      try { save(); } catch (e) { data = JSON.parse(before); throw e; }
+      gone.forEach(r => { if (r.imageId && window.RecipeImages) window.RecipeImages.remove(r.imageId); });
+      return gone.length;
     }
   };
 

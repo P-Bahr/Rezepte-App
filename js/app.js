@@ -208,12 +208,12 @@
       empty.hidden = false;
       empty.append(
         h('h2', { text: 'Noch keine Rezepte' }),
-        h('p', { text: 'Lege dein erstes Rezept an. Zum Ausprobieren von Suche und Filtern kannst du auch zehn Beispielrezepte laden und später wieder löschen.' }),
+        h('p', { text: 'Lege dein erstes Rezept an. Zum Ausprobieren kannst du auch ' + (window.EXAMPLE_RECIPES || []).length + ' Beispielrezepte laden. Unter „Sammlungen“ lassen sie sich später mit einem Tipp wieder entfernen.' }),
         h('div', { class: 'row' },
           h('button', { type: 'button', class: 'btn btn-primary', onclick: () => openEdit(null) }, '+ Neues Rezept'),
           h('button', {
             type: 'button', class: 'btn', onclick: () => {
-              try { Store.loadExamples(); toast('Beispielrezepte geladen'); } catch (e) { toast(e.message); }
+              try { const n = Store.loadExamples(); toast(n + ' Beispielrezepte geladen'); } catch (e) { toast(e.message); }
             }
           }, 'Beispielrezepte laden')));
       return;
@@ -229,7 +229,7 @@
     empty.hidden = true;
     const frag = document.createDocumentFragment();
     for (const r of list) {
-      const meta = [collectionName(r.collectionId), window.RecipeTime.label(r)].filter(Boolean).join(' · ');
+      const meta = [window.RecipeTime.label(r), collectionName(r.collectionId)].filter(Boolean).join(' · ');
       frag.append(h('button', { type: 'button', class: 'tile', onclick: () => openDetail(r.id) },
         imageBox('tile-img', r),
         h('div', { class: 'tile-body' },
@@ -914,6 +914,38 @@
   }
 
   // ---------- Sammlungen verwalten ----------
+  // Beispielrezepte hinzufügen oder alle auf einmal entfernen
+  function examplesBox() {
+    const total = (window.EXAMPLE_RECIPES || []).length;
+    const have = Store.exampleCount();
+    const box = h('div', { class: 'field examples' }, h('span', { class: 'label', text: 'Beispielrezepte' }));
+    const info = h('p', { class: 'hint', text: have ? have + ' Beispielrezepte sind geladen. Deine eigenen Rezepte sind davon nicht betroffen.' : 'Zum Ausprobieren: ' + total + ' Beispielrezepte mit vielen Funktionen.' });
+    const row = h('div', { class: 'pick-actions' });
+    if (have < total) row.append(h('button', {
+      type: 'button', class: 'btn', onclick: () => {
+        try { const n = Store.loadExamples(); toast(n === 1 ? '1 Beispielrezept hinzugefügt' : n + ' Beispielrezepte hinzugefügt'); openCollections(); }
+        catch (e) { toast(e.message); }
+      }
+    }, have ? 'Fehlende Beispiele hinzufügen' : 'Beispielrezepte hinzufügen'));
+    if (have) {
+      const del = h('button', { type: 'button', class: 'btn btn-danger' }, 'Beispielrezepte entfernen');
+      del.addEventListener('click', () => {
+        row.textContent = '';
+        row.append(h('p', { class: 'confirm-text', text: 'Alle ' + have + ' Beispielrezepte löschen?' }),
+          h('button', { type: 'button', class: 'btn', onclick: () => openCollections() }, 'Abbrechen'),
+          h('button', {
+            type: 'button', class: 'btn btn-danger-solid', onclick: () => {
+              try { const n = Store.removeExamples(); toast(n + ' Beispielrezepte entfernt'); openCollections(); }
+              catch (e) { toast(e.message); }
+            }
+          }, 'Ja, entfernen'));
+      });
+      row.append(del);
+    }
+    box.append(info, row);
+    return box;
+  }
+
   function openCollections() {
     const err = h('div', { class: 'form-error', role: 'alert', hidden: true });
     const showErr = m => { err.textContent = m; err.hidden = false; };
@@ -948,7 +980,8 @@
     const content = h('div', { class: 'form' },
       err,
       Store.collections().length ? list : h('p', { text: 'Noch keine Sammlungen. Lege unten deine erste an.' }),
-      h('div', { class: 'field' }, h('span', { class: 'label', text: 'Neue Sammlung' }), addForm));
+      h('div', { class: 'field' }, h('span', { class: 'label', text: 'Neue Sammlung' }), addForm),
+      examplesBox());
 
     showDialog('collections', h('div', { style: 'display:contents' },
       head('Sammlungen', closeDialog), h('div', { class: 'dlg-scroll' }, content)));

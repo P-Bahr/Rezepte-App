@@ -49,16 +49,22 @@
   }
 
   // Schneidezeit für eine Zutat je nach Menge: 1 Zwiebel ~3 Min., 1 kg Äpfel ~9 Min.
+  // Flüssigkeiten und Löffelmengen (ml, l, EL, TL …) werden nicht geschnitten. Höchstens 15 Min. je Zutat.
   function cutMinutes(line) {
-    const m = String(line).match(/^\s*([\d.,\/½¼¾ ]+)\s*(kg|g)?\b/i);
+    const m = String(line).match(/^\s*([\d.,\/½¼¾ ]+)\s*([A-Za-zÄÖÜäöüß]+\.?)?/);
     if (!m) return 3;
     const v = Sc.parseNum(m[1].trim());
     if (isNaN(v)) return 3;
-    if (m[2]) {
-      const grams = m[2].toLowerCase() === 'kg' ? v * 1000 : v;
-      return 3 + Math.max(0, Math.round((grams - 250) / 250 * 2));
+    const unit = (m[2] || '').toLowerCase().replace(/\.$/, '');
+    if (/^(ml|l|cl|dl|el|tl|msp|prise|prisen|pck|päckchen|tasse|tassen|becher|glas|dose)$/.test(unit)) return 0;
+    let min;
+    if (unit === 'g' || unit === 'kg') {
+      const grams = unit === 'kg' ? v * 1000 : v;
+      min = 3 + Math.max(0, Math.round((grams - 250) / 250 * 2));
+    } else {
+      min = 3 + Math.max(0, Math.round(v) - 2);
     }
-    return 3 + Math.max(0, Math.round(v) - 2);
+    return Math.min(15, min);
   }
 
   function estimateMinutes(recipe) {

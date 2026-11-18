@@ -13,6 +13,7 @@
     [/\bmascarpone\b/, 'Frischkäse (Doppelrahmstufe)'],
     [/\bricotta\b/, 'Magerquark oder glatt gerührter Hüttenkäse'],
     [/\bpecorino\b/, 'Parmesan'],
+    [/\bgruyere\b/, 'Bergkäse oder Emmentaler'],
     [/\b(pancetta|guanciale)\b/, 'durchwachsener Speck'],
     [/\b(mie ?nudeln|mi nudeln|udon|ramen ?nudeln)\b/, 'Spaghetti oder Linguine'],
     [/\b(geroestetes |gerostetes )?sesamol\b/, 'Rapsöl mit etwas geröstetem Sesam'],

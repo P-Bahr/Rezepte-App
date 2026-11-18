@@ -10,18 +10,22 @@ const OUT = process.argv[2] || '.';
   await p.goto(URL);
   assert(await p.isVisible('text=Noch keine Rezepte'), 'Leerzustand sichtbar');
   await p.click('button:has-text("Beispielrezepte laden")');
-  assert(await p.locator('.tile').count() === 11, '11 Beispielkacheln');
+  assert(await p.locator('.tile').count() === 25, '25 Beispielkacheln');
   const titles = async () => p.$$eval('.tile-title', e => e.map(x => x.textContent));
-  for (const [q, exp] of [['kase', null], ['hahnchen', 'Hähnchenbrust in Zitronen-Sahne'], ['Haehnchen', 'Hähnchenbrust in Zitronen-Sahne'], ['brownis', 'Schokoladen-Brownies'], ['brust', 'Hähnchenbrust in Zitronen-Sahne'], ['feta ofen', 'Ofengemüse mit Feta'], ['xyzzy', null]]) {
+  for (const [q, exp] of [['kase', null], ['brownis', 'Schokoladen-Brownies'], ['brust', 'Hähnchenbrust in Zitronen-Sahne'], ['feta ofen', 'Ofengemüse mit Feta'], ['xyzzy', null]]) {
     await p.fill('#q', q); const t = await titles();
     if (exp) assert(t[0] === exp, `Suche "${q}" -> ${t[0]}`); else console.log('    Suche', q, '->', t);
   }
   assert(await p.isVisible('text=Keine Treffer'), 'Keine-Treffer-Hinweis');
-  await p.click('#btnReset'); assert(await p.locator('.tile').count() === 11, 'Zurücksetzen');
+  for (const q of ['hahnchen', 'Haehnchen', 'Hähnchen']) {
+    await p.fill('#q', q); const t = (await titles()).slice(0, 2).sort().join();
+    assert(t === 'Hähnchenbrust in Zitronen-Sahne,Rotes Thai-Curry mit Hähnchen', 'Suche "' + q + '" -> beide Hähnchen-Rezepte oben: ' + t);
+  }
+  await p.click('#btnReset'); assert(await p.locator('.tile').count() === 25, 'Zurücksetzen');
   await p.click('.facet:has-text("Zubereitung") .chip:has-text("Backen")');
-  const nBack = await p.locator('.tile').count(); assert(nBack === 6, 'Filter Backen = ' + nBack);
+  const nBack = await p.locator('.tile').count(); assert(nBack === 10, 'Filter Backen = ' + nBack);
   await p.click('.facet:has-text("Rezeptart") .chip:has-text("Hauptgericht")');
-  assert((await titles()).join() === 'Lachs mit Honig-Senf-Kruste,Ofengemüse mit Feta', 'Backen+Hauptgericht');
+  assert((await titles()).join() === 'Lachs mit Honig-Senf-Kruste,Ofengemüse mit Feta,Quiche Lorraine', 'Backen+Hauptgericht');
   await p.fill('#q', 'lachs');
   assert((await p.locator('.tile').count()) === 1, 'Suche+Filter kombiniert');
   await p.click('.tile'); await p.waitForTimeout(200); assert(await p.isVisible('dialog[open] h2:has-text("Lachs")'), 'Rezeptfenster offen');
@@ -195,7 +199,9 @@ const OUT = process.argv[2] || '.';
   assert(/^bild-/.test(imgId), 'Foto-ID gespeichert');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
   assert((await p.getAttribute('.tile:has-text("Omas Käsespätzle") img', 'src') || '').startsWith('blob:'), 'Foto auf der Kachel');
-  assert((await p.locator('.facet:has-text("Zubereitung") .chip').filter({hasText: /^Kochen\s*\d+$/}).first().textContent()).includes('2'), 'kochen/Kochen zusammengefasst');
+  const kochChips = await p.locator('.facet:has-text("Zubereitung") .chip').filter({ hasText: /^Kochen\s*\d+$/i }).allTextContents();
+  const kochCount = await p.evaluate(() => Store.recipes().filter(r => /^kochen$/i.test(r.method)).length);
+  assert(kochChips.length === 1 && kochChips[0].replace(/\D/g, '') === String(kochCount), 'kochen/Kochen zusammengefasst: ' + kochChips.join() + ' bei ' + kochCount);
   await p.fill('#q', 'kasespatzle'); await p.click('.tile'); await p.waitForTimeout(200); await p.click('text=Bearbeiten');
   await p.fill('#fNotes', 'Mit Röstzwiebeln'); await p.click('dialog button[type=submit]'); await p.waitForTimeout(500);
   assert(await p.isVisible('dialog .notes:has-text("Röstzwiebeln")'), 'Bearbeiten gespeichert');
@@ -204,13 +210,13 @@ const OUT = process.argv[2] || '.';
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
   assert(await p.inputValue('#q') === 'kasespatzle', 'Suche nach Neuladen erhalten');
   await p.click('#btnReset');
-  assert(await p.locator('.tile').count() === 12, '12 Rezepte nach Neuladen');
+  assert(await p.locator('.tile').count() === 26, '26 Rezepte nach Neuladen');
   await p.waitForTimeout(300);
   assert((await p.getAttribute('.tile:has-text("Omas Käsespätzle") img', 'src') || '').startsWith('blob:'), 'Foto nach Neuladen noch da');
   await p.fill('#q', 'mango'); await p.click('.tile'); await p.waitForTimeout(200); await p.click('dialog >> text=Löschen');
   await p.click('text=Ja, löschen'); await p.waitForTimeout(300);
   assert(!(await p.isVisible('dialog[open]')), 'Fenster nach Löschen zu');
-  await p.click('#btnReset'); assert(await p.locator('.tile').count() === 11, 'Gelöscht');
+  await p.click('#btnReset'); assert(await p.locator('.tile').count() === 25, 'Gelöscht');
   // Rezept verschieben -> alte Sammlung leer -> direkt löschen
   await p.fill('#q', 'lachs'); await p.click('.tile'); await p.waitForTimeout(200); await p.click('text=Bearbeiten');
   await p.click('dialog button[type=submit]'); await p.waitForTimeout(400);
@@ -224,7 +230,19 @@ const OUT = process.argv[2] || '.';
   assert(!(await p.isVisible('.notice')) && (await p.locator('.chip:has-text("Fisch")').count()) === 0, 'Leere Sammlung mit einem Tipp gelöscht');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
   await p.click('#btnReset');
+  // Beispielrezepte entfernen und wieder hinzufügen; eigenes Rezept bleibt
   await p.click('#btnCollections');
+  await p.click('text=Beispielrezepte entfernen');
+  await p.click('text=Ja, entfernen'); await p.waitForTimeout(200);
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  assert((await titles()).join() === 'Omas Käsespätzle', 'Nur Beispiele entfernt, eigenes Rezept bleibt: ' + (await titles()).join());
+  assert((await p.$$eval('.facet:has-text("Sammlung") .chip', e => e.map(x => x.textContent))).join() === 'Oma1', 'Leere Beispiel-Sammlungen mit entfernt');
+  await p.click('#btnCollections');
+  await p.click('text=Beispielrezepte hinzufügen'); await p.waitForTimeout(200);
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  assert(await p.locator('.tile').count() === 26, 'Beispiele wieder hinzugefügt');
+  await p.click('#btnCollections');
+  assert(!(await p.isVisible('text=Fehlende Beispiele hinzufügen')), 'Keine doppelten Beispiele anbietbar, wenn alle da sind');
   await p.click('.col-item:has(input[value="Oma"]) >> text=Löschen');
   assert(await p.isVisible('.form-error:has-text("noch 1 Rezepte")'), 'Volle Sammlung nicht löschbar');
   await p.fill('.col-item input[value="Oma"]', 'Omas Küche');
