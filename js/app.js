@@ -969,6 +969,24 @@
     return box;
   }
 
+  // Konto (nur mit Online-Speicher)
+  function accountBox() {
+    const S = window.RecipeSync;
+    if (!S || !S.enabled || !S.email()) return null;
+    const out = h('button', { type: 'button', class: 'btn' }, 'Abmelden');
+    out.addEventListener('click', () => {
+      const row = out.parentElement;
+      row.textContent = '';
+      row.append(h('p', { class: 'confirm-text', text: 'Abmelden? Deine Rezepte bleiben online gespeichert. Auf diesem Gerät wird nicht mehr abgeglichen, bis du dich wieder anmeldest.' }),
+        h('button', { type: 'button', class: 'btn', onclick: () => openCollections() }, 'Abbrechen'),
+        h('button', { type: 'button', class: 'btn btn-danger-solid', onclick: async () => { closeDialog(); await S.signOut(); } }, 'Ja, abmelden'));
+    });
+    return h('div', { class: 'field examples' }, h('span', { class: 'label', text: 'Konto' }),
+      h('p', { class: 'hint', text: 'Angemeldet als ' + S.email() + '. Deine Rezepte werden automatisch mit deinen anderen Geräten abgeglichen.' }),
+      h('div', { class: 'pick-actions' },
+        h('button', { type: 'button', class: 'btn', onclick: () => { S.syncNow(); toast('Abgleich gestartet'); } }, 'Jetzt abgleichen'), out));
+  }
+
   function openCollections() {
     const err = h('div', { class: 'form-error', role: 'alert', hidden: true });
     const showErr = m => { err.textContent = m; err.hidden = false; };
@@ -1004,7 +1022,8 @@
       err,
       Store.collections().length ? list : h('p', { text: 'Noch keine Sammlungen. Lege unten deine erste an.' }),
       h('div', { class: 'field' }, h('span', { class: 'label', text: 'Neue Sammlung' }), addForm),
-      examplesBox());
+      examplesBox(),
+      accountBox());
 
     showDialog('collections', h('div', { style: 'display:contents' },
       head('Sammlungen', closeDialog), h('div', { class: 'dlg-scroll' }, content)));
@@ -1017,6 +1036,7 @@
   q.addEventListener('input', () => { state.query = q.value; render(); });
   $('#qClear').addEventListener('click', () => { state.query = ''; q.value = ''; render(); q.focus(); });
   $('#btnReset').addEventListener('click', resetAll);
+  $('#syncStatus').addEventListener('click', () => { if (window.RecipeSync && window.RecipeSync.syncNow) window.RecipeSync.syncNow(); });
   const sortSel = $('#sort');
   Object.keys(SORTS).forEach(k => sortSel.append(h('option', { value: k, text: SORTS[k], selected: k === sortBy })));
   sortSel.addEventListener('change', () => {

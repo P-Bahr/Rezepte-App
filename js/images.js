@@ -9,6 +9,7 @@
   const MAX = 1600;
   let dbPromise = null;
   const urls = new Map(); // id -> blob:-Adresse (zwischengespeichert)
+  let remote = null;     // holt fehlende Fotos aus dem Online-Speicher (wird vom Abgleich gesetzt)
 
   function open() {
     if (!dbPromise) {
@@ -77,12 +78,18 @@
       if (!key) return Promise.resolve(null);
       if (urls.has(key)) return Promise.resolve(urls.get(key));
       return tx('readonly', s => s.get(key)).then(blob => {
+        if (blob || !remote) return blob;
+        // Foto fehlt auf diesem Gerät: aus dem Online-Speicher holen und hier ablegen
+        return remote(key).then(b => (b ? tx('readwrite', s => s.put(b, key)).then(() => b) : null)).catch(() => null);
+      }).then(blob => {
         if (!blob) return null;
         const u = URL.createObjectURL(blob);
         urls.set(key, u);
         return u;
       });
     },
+    blob(key) { return key ? tx('readonly', s => s.get(key)) : Promise.resolve(null); },
+    setRemote(fn) { remote = fn; },
     remove(key) {
       if (!key) return Promise.resolve();
       if (urls.has(key)) { URL.revokeObjectURL(urls.get(key)); urls.delete(key); }

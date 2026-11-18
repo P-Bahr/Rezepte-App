@@ -128,6 +128,23 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .facet-move .icon-btn { width: var(--touch); height: var(--touch); font-size: 16px; }
 .facet-move .icon-btn:disabled { opacity: .3; cursor: not-allowed; }
 
+/* Abgleich-Status und Anmeldung */
+.title-wrap { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.sync-status {
+  min-height: var(--touch); padding: 0 10px; border: 0; border-radius: 10px; background: transparent;
+  color: var(--muted); font-size: 14px; cursor: pointer;
+}
+.sync-status[data-kind="ok"]::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+.sync-status[data-kind="error"] { color: var(--danger); }
+.auth {
+  position: fixed; inset: 0; z-index: 100; background: var(--bg); overflow-y: auto;
+  display: flex; align-items: flex-start; justify-content: center;
+  padding: calc(48px + env(safe-area-inset-top, 0px)) max(16px, env(safe-area-inset-right, 0px)) 32px max(16px, env(safe-area-inset-left, 0px));
+}
+.auth-box { width: min(420px, 100%); }
+.auth-box h2 { margin: 0; font-size: 28px; }
+.auth-box p { margin: 0; }
+
 /* Buttons */
 .btn {
   min-height: var(--touch); padding: 0 16px; border-radius: 10px;

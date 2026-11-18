@@ -27,10 +27,9 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Notizen zeigen erwähnte eigene Rezepte als „Passt dazu ›“-Knopf („Dazu passen die Ofenkartoffeln“); × und Wischen vom linken Rand führen zum vorherigen Rezept zurück
 - Rezepte anlegen, bearbeiten und löschen; Sammlungen anlegen, umbenennen und löschen
 - 25 Beispielrezepte; unter „Sammlungen“ hinzufügen oder alle auf einmal entfernen
-- Speichern **nur auf diesem Gerät** (vorläufig)
+- Online-Abgleich (Supabase): Anmeldung mit E-Mail und Passwort, Rezepte, Sammlungen und Fotos auf allen Geräten; funktioniert auch offline und gleicht später ab
 
 **Als Nächstes:**
-1. Speichern online, damit alle Geräte dieselben Rezepte sehen
 2. KI erkennt Rezeptart, Hauptzutat und Zubereitung automatisch
 3. Import von Webseiten
 4. Import aus TikTok, Instagram und Pinterest über das Teilen-Menü (per Apple-Kurzbefehl)
@@ -53,10 +52,16 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/forms.js` | Einheiten, Backformen und ihre Flächen |
 | `js/substitutes.js` | Alternativen für ausgefallene Zutaten |
 | `js/glossary.js` | Erklärungen für Kochbegriffe |
+| `js/sync.js` | Online-Abgleich und Anmeldung |
+| `js/config.js` | Zugangsdaten für den Online-Speicher |
+| `supabase/einrichtung.sql` | Datenbank-Einrichtung (einmal in Supabase ausführen) |
+| `js/vendor/supabase.js` | Supabase-Bibliothek 2.45.4 (MIT-Lizenz) |
 | `js/images.js` | Fotos verkleinern und im Bildspeicher (IndexedDB) ablegen |
 | `js/app.js` | Bedienoberfläche |
 | `js/examples.js` | Beispielrezepte |
 | `tests/app.test.js` | Automatischer Test im Browser |
+| `tests/sync.test.js` | Regeln für das Zusammenführen (`node tests/sync.test.js`) |
+| `tests/sync-e2e.test.js` | Zwei Geräte mit nachgebautem Online-Speicher |
 | `tests/scale.test.js` | Test der Mengen-Umrechnung (`node tests/scale.test.js`) |
 
 Lokal starten: `python3 -m http.server 8123 --bind 127.0.0.1`, dann `node tests/app.test.js` für den Test.

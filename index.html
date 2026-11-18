@@ -19,7 +19,10 @@
 <div class="app">
   <header class="top" id="top">
     <div class="titlebar">
-      <h1>Rezepte</h1>
+      <div class="title-wrap">
+        <h1>Rezepte</h1>
+        <button type="button" class="sync-status" id="syncStatus" hidden aria-live="polite" title="Jetzt abgleichen"></button>
+      </div>
       <div class="titlebar-actions">
         <button type="button" class="btn btn-quiet" id="btnCollections">Sammlungen</button>
         <button type="button" class="btn btn-primary" id="btnNew">+ Neues Rezept</button>
@@ -55,6 +58,8 @@
 
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 <!--APP-END-->
+<script src="js/vendor/supabase.js"></script>
+<script src="js/config.js"></script>
 <script src="js/search.js"></script>
 <script src="js/examples.js"></script>
 <script src="js/scale.js"></script>
@@ -66,5 +71,6 @@
 <script src="js/images.js"></script>
 <script src="js/store.js"></script>
 <script src="js/app.js"></script>
+<script src="js/sync.js"></script>
 </body>
 </html>

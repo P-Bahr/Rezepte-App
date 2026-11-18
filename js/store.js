@@ -22,6 +22,8 @@
         if (parsed && Array.isArray(parsed.recipes) && Array.isArray(parsed.collections)) data = parsed;
       }
       // Ältere Einträge: Portionen als Text ("12 Stück") -> Zahl + Einheit
+      // Sammlungen ohne Zeitstempel (ältere Daten) bekommen einen festen, gleichen Wert
+      data.collections = data.collections.map(c => (c.updatedAt ? c : { ...c, updatedAt: '2000-01-01T00:00:00.000Z' }));
       data.recipes = data.recipes.map(r => ({ ...r, ingredients: (r.ingredients || []).map(cleanIngredient).filter(Boolean), method: cleanMethod(r.method) }));
       data.recipes = data.recipes.map(r => {
         if (typeof r.servings === 'number' || r.servings === null) return { ...r, servingsUnit: window.RecipeForms.normalizeUnit(r.servingsUnit) };
@@ -106,7 +108,7 @@
       const r = this.recipe(id);
       if (!r) return false;
       const before = data.recipes;
-      data.recipes = before.map(x => (x.id === id ? { ...x, favorite: !x.favorite } : x));
+      data.recipes = before.map(x => (x.id === id ? { ...x, favorite: !x.favorite, updatedAt: new Date().toISOString() } : x));
       try { save(); } catch (e) { data.recipes = before; throw e; }
       return !r.favorite;
     },
@@ -125,7 +127,7 @@
       if (!name) throw new Error('Bitte gib der Sammlung einen Namen.');
       const same = data.collections.find(c => c.name.toLowerCase() === name.toLowerCase());
       if (same) return same;
-      const col = { id: uid(), name };
+      const col = { id: uid(), name, updatedAt: new Date().toISOString() };
       data.collections = data.collections.concat(col);
       try { save(); } catch (e) { data.collections = data.collections.filter(c => c !== col); throw e; }
       return col;
@@ -137,7 +139,7 @@
       const other = data.collections.find(c => c.id !== id && c.name.toLowerCase() === name.toLowerCase());
       if (other) throw new Error('Eine Sammlung mit diesem Namen gibt es schon.');
       const before = data.collections;
-      data.collections = before.map(c => (c.id === id ? { ...c, name } : c));
+      data.collections = before.map(c => (c.id === id ? { ...c, name, updatedAt: new Date().toISOString() } : c));
       try { save(); } catch (e) { data.collections = before; throw e; }
     },
 
@@ -160,7 +162,7 @@
         const ids = {};
         for (const r of ex) {
           const old = byTitle.get(r.title.toLowerCase());
-          if (old) { old.example = true; continue; } // ältere, ungekennzeichnete Beispiele kennzeichnen
+          if (old) { if (!old.example) { old.example = true; old.updatedAt = new Date().toISOString(); } continue; } // ältere, ungekennzeichnete Beispiele kennzeichnen
           if (!ids[r.collection]) {
             const existed = data.collections.some(c => c.name.toLowerCase() === r.collection.toLowerCase());
             const col = this.addCollection(r.collection);
@@ -173,6 +175,26 @@
         save();
       } catch (e) { data = JSON.parse(before); throw e; }
       return added;
+    },
+
+    // ---- Für den Online-Abgleich ----
+    _snapshot() { return JSON.parse(JSON.stringify({ recipes: data.recipes, collections: data.collections })); },
+    // Übernimmt den abgeglichenen Stand. Rezepte ohne (vorhandene) Sammlung landen in "Ohne Sammlung".
+    _replace(next) {
+      const before = JSON.stringify(data);
+      data.recipes = next.recipes;
+      data.collections = next.collections;
+      const ids = new Set(data.collections.map(c => c.id));
+      const orphans = data.recipes.filter(r => !ids.has(r.collectionId));
+      if (orphans.length) {
+        let col = data.collections.find(c => c.name === 'Ohne Sammlung');
+        if (!col) { col = { id: uid(), name: 'Ohne Sammlung', updatedAt: new Date().toISOString() }; data.collections = data.collections.concat(col); }
+        const now = new Date().toISOString();
+        data.recipes = data.recipes.map(r => (ids.has(r.collectionId) ? r : { ...r, collectionId: col.id, updatedAt: now }));
+      }
+      if (JSON.stringify(data) === before) return false;
+      try { save(); } catch (e) { data = JSON.parse(before); throw e; }
+      return true;
     },
 
     exampleCount() { return data.recipes.filter(r => r.example).length; },
