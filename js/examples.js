@@ -72,7 +72,7 @@ window.EXAMPLE_RECIPES = [
   },
   {
     title: 'Mango-Lassi', collection: 'Schnell & einfach', course: 'Getränk', mainIngredient: 'Mango', method: 'Kalt zubereitet',
-    servings: '2 Personen', totalTime: '5 Min.',
+    servings: '2 Gläser', totalTime: '5 Min.',
     ingredients: ['1 reife Mango', '300 g Joghurt', '100 ml Milch', '1 TL Honig', '1 Prise Kardamom'],
     steps: ['Alles im Mixer fein pürieren.', 'Kalt servieren.'],
     notes: ''

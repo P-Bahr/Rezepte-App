@@ -6,7 +6,7 @@ let fail = 0;
 const cases = [
   ['200 g Mehl', 2, '400 g Mehl'], ['200 g Mehl', 0.5, '100 g Mehl'], ['1 kg Äpfel', 0.5, '500 g Äpfel'],
   ['600 g Kartoffeln', 2, '1,2 kg Kartoffeln'], ['250 ml Sahne', 0.5, '125 ml Sahne'], ['1 l Gemüsebrühe', 0.5, '500 ml Gemüsebrühe'],
-  ['3 Eier', 0.5, '1½ Eier'], ['1/2 TL Salz', 0.5, '¼ TL Salz'], ['1 1/2 EL Zucker', 2, '3 EL Zucker'], ['1½ EL Öl', 0.5, '¾ EL Öl'],
+  ['3 Eier', 0.5, '1½ Eier (genau: 75 g verquirlt)'], ['1/2 TL Salz', 0.5, '¼ TL Salz'], ['1 1/2 EL Zucker', 2, '3 EL Zucker'], ['1½ EL Öl', 0.5, '¾ EL Öl'],
   ['2-3 EL Essig', 2, '4–6 EL Essig'], ['ca. 200 g Feta', 2, 'ca. 400 g Feta'], ['1 Dose (400 g) Tomaten', 0.5, '½ Dose (200 g) Tomaten'],
   ['Mehl Type 405', 2, 'Mehl Type 405'], ['Salz, Pfeffer', 3, 'Salz, Pfeffer'], ['500-600 g Hack', 2, '1–1,2 kg Hack'], ['5 g Hefe', 0.5, '2,5 g Hefe'],
   ['250 g Tellerlinsen', 1 / 3, '83 g Tellerlinsen'], ['1 Zitrone', 1, '1 Zitrone'], ['2,5 kg Mehl', 1, '2,5 kg Mehl'], ['1 Bio-Zitrone', 2, '2 Bio-Zitrone']
@@ -26,4 +26,28 @@ const bold = (l, f) => S.scaleIngredient(l, f).filter(p => p.amount).map(p => p.
 for (const [l, f, exp] of [['1 Bio-Zitrone', 1, '1'], ['4 Eier', 0.5, '2'], ['200 g Mehl', 2, '400 g'], ['1 Pck. Backpulver', 1, '1 Pck.'], ['2 EL Öl', 1.5, '3 EL'], ['1 kg Äpfel', 0.5, '500 g']]) {
   if (bold(l, f) !== exp) { console.log('FEHLER fett', l, '→', JSON.stringify(bold(l, f))); process.exitCode = 1; }
   else console.log('ok   fett', l, '→', bold(l, f));
+}
+
+// Eier: keine Kommazahlen, genaues Gewicht bei krummen Mengen
+for (const [l, f, exp] of [['4 Eier', 0.4793, '2 Eier (genau: 96 g verquirlt)'], ['3 Eier', 0.5, '1½ Eier (genau: 75 g verquirlt)'], ['4 Eier', 2.2602, '9 Eier'], ['2 Eigelb', 0.75, '1½ Eigelb (genau: 30 g verquirlt)'], ['4 Eier', 1, '4 Eier'], ['2 Eier', 2, '4 Eier']]) {
+  const got = S.scaleText(l, f);
+  if (got !== exp) { console.log('FEHLER Ei', l, f, '→', got); process.exitCode = 1; } else console.log('ok   Ei', l, '×', f, '→', got);
+}
+// Flächen: Springform und Blech
+require('../js/search.js'); require('../js/forms.js');
+const F = window.RecipeForms;
+const near = (a, b) => Math.abs(a - b) < 0.01;
+const checks = [
+  [F.area('Springform', { d: 26 }), Math.PI * 169, 'Fläche Ø 26'],
+  [F.area('Blech', { l: 30, w: 40 }), 1200, 'Fläche Blech'],
+  [F.area('Springform', { d: 18 }) / F.area('Springform', { d: 26 }), 324 / 676, 'Faktor Ø 26 → Ø 18 = (18/26)²']
+];
+for (const [got, exp, name] of checks) {
+  if (!near(got, exp)) { console.log('FEHLER', name, got, exp); process.exitCode = 1; } else console.log('ok  ', name, got.toFixed(4));
+}
+// Alternativen
+global.window.RecipeSearch = window.RecipeSearch; require('../js/substitutes.js');
+const A = window.RecipeSubstitutes.alternativeFor;
+for (const [l, exp] of [['2 EL Dijon-Senf', 'mittelscharfer Senf, gleiche Menge'], ['1 EL Sesamöl', 'Rapsöl mit etwas geröstetem Sesam'], ['200 g Crème fraîche', 'Schmand oder saure Sahne'], ['1 TL Koriandersamen', null], ['1 Bund Koriander', 'glatte Petersilie'], ['2 Schalotten', 'eine kleine, milde Zwiebel'], ['200 g Mehl', null], ['1 Prise Kardamom', 'eine Prise Zimt oder weglassen']]) {
+  if (A(l) !== exp) { console.log('FEHLER Alternative', l, '→', A(l)); process.exitCode = 1; } else console.log('ok   Alternative', l, '→', A(l));
 }

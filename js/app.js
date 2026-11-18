@@ -481,7 +481,9 @@
       const f = factor();
       list.textContent = '';
       for (const line of r.ingredients) {
-        list.append(h('li', null, Sc.scaleIngredient(line, f).map(p => p.amount ? h('b', { text: p.t }) : p.t)));
+        const alt = window.RecipeSubstitutes.alternativeFor(line);
+        list.append(h('li', null, Sc.scaleIngredient(line, f).map(p => p.amount ? h('b', { text: p.t }) : p.t),
+          alt ? h('span', { class: 'alt', text: 'Alternative: ' + alt }) : null));
       }
     }
     update();

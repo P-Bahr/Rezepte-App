@@ -1,16 +1,17 @@
-/* Einheiten und Backformen: Personen, Stück, Blech, Springform, Kastenform.
+/* Einheiten und Backformen: Personen, Stück, Gläser, Blech, Springform, Kastenform.
    Springform und Blech lassen sich ineinander umrechnen (nach Bodenfläche). */
 (function () {
   'use strict';
 
-  const UNITS = ['Personen', 'Stück', 'Blech', 'Springform', 'Kastenform'];
+  const UNITS = ['Personen', 'Stück', 'Gläser', 'Blech', 'Springform', 'Kastenform'];
   const DEFAULTS = { Springform: { d: 26 }, Blech: { l: 30, w: 40 }, Kastenform: { len: 30 } };
 
   // Alte oder freie Angaben auf die fünf Einheiten abbilden
   function normalizeUnit(u) {
     const s = String(u || '').trim().toLowerCase().replace(/\.$/, '');
-    if (!s || /^(person|personen|pers|portion|portionen|port|gläser|glas|auflaufform)$/.test(s)) return 'Personen';
+    if (!s || /^(person|personen|pers|portion|portionen|port|auflaufform)$/.test(s)) return 'Personen';
     if (/^(stück|stk|stck)$/.test(s)) return 'Stück';
+    if (/^(gläser|glas|gläschen)$/.test(s)) return 'Gläser';
     if (/^(blech|backblech|bleche)$/.test(s)) return 'Blech';
     if (/^(springform|springformen|tortenform|kuchenform)$/.test(s)) return 'Springform';
     if (/^(kastenform|kastenformen)$/.test(s)) return 'Kastenform';

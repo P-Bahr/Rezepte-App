@@ -10,10 +10,12 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Filterchips für Sammlung, Rezeptart, Hauptzutat und Zubereitung, mit Trefferzahl
 - Rezept öffnet sich als Fenster über der Übersicht, Suche und Filter bleiben erhalten
 - Personen-Regler im Rezept: startet bei 4 Personen, rechnet alle Mengen um (z. B. „1 kg“ für 2 → „500 g“ für 1)
-- Einheit als Auswahl: Personen, Stück, Blech, Springform, Kastenform; Größenfeld nur bei Formen
+- Einheit als Auswahl: Personen, Stück, Gläser, Blech, Springform, Kastenform; Größenfeld nur bei Formen
 - Kuchen: Umschalter Springform ↔ Blech und Durchmesser 12–32 cm, Mengen nach Bodenfläche
 - Zeit wird automatisch aus den Schritten geschätzt (Zeitangaben im Text + Arbeitsschritte wie Schneiden nach Menge)
 - „Bio“ wird aus Zutaten entfernt
+- Eier ohne Kommazahlen, bei krummen Mengen mit genauem Gewicht („2 Eier (genau: 96 g verquirlt)“)
+- Alternativen für ausgefallene Zutaten („Dijon-Senf → mittelscharfer Senf“)
 - Leere Sammlung nach dem Verschieben direkt löschbar
 - Notizen zeigen erwähnte eigene Rezepte als „Passt dazu ›“-Knopf („Dazu passen die Ofenkartoffeln“); × und Wischen vom linken Rand führen zum vorherigen Rezept zurück
 - Rezepte anlegen, bearbeiten und löschen; Sammlungen anlegen, umbenennen und löschen
@@ -41,6 +43,7 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/links.js` | Erwähnte Rezepte in Notizen finden |
 | `js/time.js` | Zubereitungszeit schätzen |
 | `js/forms.js` | Einheiten, Backformen und ihre Flächen |
+| `js/substitutes.js` | Alternativen für ausgefallene Zutaten |
 | `js/app.js` | Bedienoberfläche |
 | `js/examples.js` | Beispielrezepte |
 | `tests/app.test.js` | Automatischer Test im Browser |

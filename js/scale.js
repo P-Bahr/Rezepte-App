@@ -15,6 +15,10 @@
   const KNOWN_UNITS = new Set(['g', 'kg', 'mg', 'ml', 'l', 'cl', 'dl', 'el', 'tl', 'msp', 'pck', 'päckchen', 'packung', 'prise', 'prisen',
     'dose', 'dosen', 'bund', 'becher', 'tasse', 'tassen', 'glas', 'gläser', 'stück', 'stk', 'scheibe', 'scheiben', 'zehe', 'zehen',
     'handvoll', 'spritzer', 'schuss', 'zweig', 'zweige', 'blatt', 'blätter', 'tropfen', 'würfel', 'liter', 'gramm', 'kilogramm', 'tüte', 'beutel', 'flasche', 'stange', 'stangen', 'knolle', 'kopf']);
+  // Gewicht ohne Schale bei Größe M
+  const EGG = /^\s*(eier|ei|eigelbe|eigelb|eiweiße|eiweiß|eiweisse|eiweiss)(?![\p{L}])/iu;
+  const EGG_GRAMS = { eier: 50, ei: 50, eigelb: 20, eiweiß: 30 };
+
   // Menge am Anfang: optional "ca."/"etwa", Zahl oder Bereich, optional Einheit
   const LEAD = new RegExp('^(\\s*(?:ca\\.?\\s*|etwa\\s+|circa\\s+)?)(' + NUM + ')(?:\\s*[-–]\\s*(' + NUM + '))?(\\s*)([A-Za-zÄÖÜäöüß]+\\.?(?=\\s|,|$))?', 'i');
   const PAREN = new RegExp('(\\()([^)]*?)(' + NUM + ')\\s*' + UNIT + '\\b', 'gi');
@@ -84,6 +88,7 @@
     const m = text.match(LEAD);
     let parts = [];
     let rest = text;
+    let eggNote = '';
 
     if (m && !isNaN(parseNum(m[2]))) {
       // Nur echte Maßeinheiten gehören zur Menge, "Eier" oder "Bio-" nicht
@@ -108,6 +113,13 @@
         }
       } else {
         amountText = formatCount(a) + (b != null && !isNaN(b) ? '–' + formatCount(b) : '');
+        // Eier: keine Kommazahlen; bei krummen Mengen das genaue Gewicht dazu
+        const egg = !unitWord && (b == null || isNaN(b)) && text.slice(consumed).match(EGG);
+        const shown = formatCount(a);
+        if (egg && factor !== 1 && (shown.includes(',') || Math.abs(a - Math.round(a)) > 0.1)) {
+          amountText = shown.includes(',') ? String(Math.max(1, Math.round(a))) : shown;
+          eggNote = ' (genau: ' + Math.round(a * EGG_GRAMS[egg[1].toLowerCase().replace('ss', 'ß').replace(/e$/, '')]) + ' g verquirlt)';
+        }
       }
       const amount = amountText + gap + unitOut;
       if (m[1]) parts.push({ t: m[1], amount: false });
@@ -125,6 +137,7 @@
       });
     }
     if (rest) parts.push({ t: rest, amount: false });
+    if (eggNote) parts.push({ t: eggNote, amount: false });
     return parts;
   }
 
@@ -147,9 +160,13 @@
     return { servings: n > 0 ? n : null, unit: m[2].trim() };
   }
 
+  const SINGULAR = { 'Gläser': 'Glas' };
+  const PLURAL = { 'Blech': 'Bleche', 'Springform': 'Springformen', 'Kastenform': 'Kastenformen' };
   function servingsLabel(n, unit) {
     const num = formatCount(n);
     if (isPersons(unit)) return num + ' ' + (n === 1 ? 'Person' : 'Personen');
+    if (n === 1 && SINGULAR[unit]) return num + ' ' + SINGULAR[unit];
+    if (n !== 1 && PLURAL[unit]) return num + ' ' + PLURAL[unit];
     return num + ' ' + unit;
   }
 
