@@ -10,7 +10,7 @@ window.EXAMPLE_RECIPES = [
   {
     title: 'Hähnchenbrust in Zitronen-Sahne', collection: 'Alltag', course: 'Hauptgericht', mainIngredient: 'Hähnchen', method: 'Braten',
     servings: '2', totalTime: '25 Min.',
-    ingredients: ['2 Hähnchenbrustfilets', '200 ml Sahne', '1 Bio-Zitrone', '1 Knoblauchzehe', '1 EL Butter'],
+    ingredients: ['2 Hähnchenbrustfilets', '200 ml Sahne', '1 Zitrone', '1 Knoblauchzehe', '1 EL Butter'],
     steps: ['Hähnchen salzen und in Butter von beiden Seiten goldbraun braten.', 'Knoblauch kurz mitbraten, mit Sahne ablöschen.', 'Zitronenabrieb und Saft dazugeben, 5 Minuten köcheln.'],
     notes: ''
   },
@@ -38,7 +38,7 @@ window.EXAMPLE_RECIPES = [
   {
     title: 'Käsekuchen ohne Boden', collection: 'Backen & Süßes', course: 'Gebäck', mainIngredient: 'Quark', method: 'Backen',
     servings: '1 Springform', formSize: 'Ø 26 cm', totalTime: '1 Std. 20 Min.',
-    ingredients: ['1 kg Magerquark', '200 g Zucker', '4 Eier', '1 Pck. Vanillepuddingpulver', '125 g weiche Butter', '1 Bio-Zitrone'],
+    ingredients: ['1 kg Magerquark', '200 g Zucker', '4 Eier', '1 Pck. Vanillepuddingpulver', '125 g weiche Butter', '1 Zitrone'],
     steps: ['Ofen auf 175 °C Ober-/Unterhitze vorheizen, Form fetten.', 'Alle Zutaten glatt rühren.', 'In die Form füllen und 60 Minuten backen, im ausgeschalteten Ofen abkühlen lassen.'],
     notes: 'Für ein Blech die Menge verdoppeln. Dazu passt der Apfelkuchen, wenn viele Gäste kommen.'
   },

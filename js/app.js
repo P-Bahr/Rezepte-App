@@ -220,7 +220,7 @@
     empty.hidden = true;
     const frag = document.createDocumentFragment();
     for (const r of list) {
-      const meta = [collectionName(r.collectionId), r.totalTime].filter(Boolean).join(' · ');
+      const meta = [collectionName(r.collectionId), window.RecipeTime.label(r)].filter(Boolean).join(' · ');
       frag.append(h('button', { type: 'button', class: 'tile', onclick: () => openDetail(r.id) },
         imageBox('tile-img', r),
         h('div', { class: 'tile-body' },
@@ -266,6 +266,12 @@
     catch (e) { location.hash = ''; }
   }
 
+  // Im verlinkten Rezept geht es einen Schritt zurück, sonst schließt sich das Fenster
+  function closeDetail() {
+    if (state.mode === 'detail' && state.depth > 1) history.back();
+    else closeDialog();
+  }
+
   function closeDialog() {
     if (hashId()) {
       if (state.depth > 0) { const d = state.depth; state.depth = 0; history.go(-d); return; } // hashchange schließt
@@ -274,8 +280,38 @@
     hideDialog();
   }
 
-  dlg.addEventListener('cancel', e => { e.preventDefault(); if (state.mode !== 'edit') closeDialog(); });
-  dlg.addEventListener('click', e => { if (e.target === dlg && state.mode === 'detail') closeDialog(); });
+  dlg.addEventListener('cancel', e => { e.preventDefault(); if (state.mode === 'detail') closeDetail(); else if (state.mode !== 'edit') closeDialog(); });
+  dlg.addEventListener('click', e => { if (e.target === dlg && state.mode === 'detail') closeDetail(); });
+
+  // Wischen vom linken Rand = zurück (wie in iOS-Apps)
+  let swipe = null;
+  let lastHashChange = 0;
+  window.addEventListener('hashchange', () => { lastHashChange = Date.now(); });
+  document.addEventListener('touchstart', e => {
+    if (!dlg.open || state.mode !== 'detail' || e.touches.length !== 1) { swipe = null; return; }
+    const t = e.touches[0];
+    swipe = t.clientX <= 30 ? { x: t.clientX, y: t.clientY, start: Date.now(), dx: 0 } : null;
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!swipe) return;
+    const t = e.touches[0];
+    swipe.dx = t.clientX - swipe.x;
+    if (Math.abs(t.clientY - swipe.y) > Math.max(40, swipe.dx)) { swipe = null; dlg.style.transform = ''; return; }
+    if (swipe.dx > 0) dlg.style.transform = 'translateX(' + swipe.dx + 'px)';
+  }, { passive: true });
+  const endSwipe = cancelled => {
+    if (!swipe) return;
+    const s = swipe;
+    swipe = null;
+    dlg.style.transition = 'transform .15s ease';
+    dlg.style.transform = '';
+    setTimeout(() => { dlg.style.transition = ''; }, 200);
+    if (cancelled || s.dx < 80) return;
+    // Falls der Browser selbst schon zurückgegangen ist, nicht doppelt zurück
+    setTimeout(() => { if (lastHashChange < s.start && state.mode === 'detail') closeDetail(); }, 250);
+  };
+  document.addEventListener('touchend', () => endSwipe(false));
+  document.addEventListener('touchcancel', () => endSwipe(true));
 
   window.addEventListener('hashchange', syncFromHash);
   function syncFromHash() {
@@ -313,11 +349,27 @@
 
     const tags = [r.course, r.mainIngredient, r.method].filter(Boolean);
     const facts = [];
-    if (r.totalTime) facts.push(h('span', null, 'Zeit: ', h('b', { text: r.totalTime })));
+    const time = window.RecipeTime.label(r);
+    if (time) facts.push(h('span', null, 'Zeit: ', h('b', { text: time })));
     facts.push(h('span', null, 'Sammlung: ', h('b', { text: collectionName(r.collectionId) })));
 
     const src = safeUrl(r.sourceUrl);
-    const content = h('div', { class: 'detail' },
+    // Hinweis: alte Sammlung ist nach dem Verschieben leer
+    let emptyNotice = null;
+    if (state.emptyCollection && Store.collection(state.emptyCollection)) {
+      const cid = state.emptyCollection;
+      state.emptyCollection = null;
+      emptyNotice = h('div', { class: 'notice' },
+        h('p', { text: 'Die Sammlung „' + collectionName(cid) + '“ ist jetzt leer.' }),
+        h('div', { class: 'notice-actions' },
+          h('button', { type: 'button', class: 'btn', onclick: () => emptyNotice.remove() }, 'Behalten'),
+          h('button', {
+            type: 'button', class: 'btn btn-danger-solid', onclick: () => {
+              try { Store.deleteCollection(cid); emptyNotice.remove(); toast('Sammlung gelöscht'); } catch (e) { toast(e.message); }
+            }
+          }, 'Sammlung löschen')));
+    }
+    const content = h('div', { class: 'detail' }, emptyNotice,
       safeUrl(r.imageUrl) ? (() => {
         const img = h('img', { class: 'detail-img', src: safeUrl(r.imageUrl), alt: '', referrerpolicy: 'no-referrer' });
         img.addEventListener('error', () => img.remove());
@@ -354,7 +406,7 @@
     normalFoot();
 
     showDialog('detail', h('div', { style: 'display:contents' },
-      head(r.title, closeDialog), h('div', { class: 'dlg-scroll' }, content), foot));
+      head(r.title, closeDetail), h('div', { class: 'dlg-scroll' }, content), foot));
   }
 
   // ---------- Notizen mit Links zu passenden Rezepten ----------
@@ -413,7 +465,7 @@
       target = Math.floor(target + 1e-9) + 1; update();
     }) : null;
     // Runde Form: Durchmesser in 2-cm-Schritten, Mengen nach Fläche umgerechnet
-    const dia = d0 ? stepper('Formgröße', () => { d = Math.max(12, d - 2); update(); }, () => { d = Math.min(40, d + 2); update(); }) : null;
+    const dia = d0 ? stepper('Formgröße', () => { d = Math.max(12, d - 2); update(); }, () => { d = Math.min(32, d + 2); update(); }) : null;
 
     function update() {
       let factor = 1;
@@ -426,7 +478,7 @@
         factor *= (d * d) / (d0 * d0);
         dia.value.textContent = 'Ø ' + Sc.formatCount(d) + ' cm';
         dia.minus.disabled = d <= 12;
-        dia.plus.disabled = d >= 40;
+        dia.plus.disabled = d >= 32;
       }
       list.textContent = '';
       for (const line of r.ingredients) {
@@ -497,7 +549,9 @@
         field('Rezept ist für', inp('fServings', v.servings ? window.RecipeScale.formatCount(v.servings) : '', { inputmode: 'decimal', placeholder: 'z. B. 4' })),
         field('Einheit', inp('fServUnit', v.servingsUnit || (v.servings ? 'Personen' : ''), { list: 'dlUnit', placeholder: 'Personen' }), 'Meist „Personen“. Auch möglich: Stück, Blech, Springform.'),
         field('Form- oder Blechgröße', inp('fFormSize', v.formSize, { placeholder: 'z. B. Ø 26 cm oder 30 × 40 cm' }), 'Nur bei Kuchen, Aufläufen usw. Bei runden Formen mit Ø rechnet die App auch auf andere Größen um.'),
-        field('Zeit', inp('fTime', v.totalTime, { placeholder: 'z. B. 30 Min.' }))),
+        h('div', { class: 'field' }, h('span', { class: 'label', text: 'Zeit' }),
+          h('output', { id: 'fTimeOut', class: 'time-out', for: 'fSteps fIngredients' }),
+          h('span', { class: 'hint', text: 'Wird aus den Schritten berechnet.' }))),
       field('Zutaten', ta('fIngredients', v.ingredients.join('\n'), 8), 'Eine Zutat pro Zeile, mit den Mengen aus dem Originalrezept. Die App rechnet sie für andere Personenzahlen um.'),
       field('Zubereitung (Schritte)', ta('fSteps', v.steps.join('\n'), 8), 'Ein Schritt pro Zeile.'),
       field('Notizen', ta('fNotes', v.notes, 3)),
@@ -507,6 +561,16 @@
       datalist('dlMain', [], 'mainIngredient'),
       datalist('dlMethod', METHODS, 'method'),
       datalist('dlUnit', ['Personen', 'Stück', 'Blech', 'Springform', 'Kastenform', 'Auflaufform', 'Gläser'], 'servingsUnit'));
+
+    // Zeit live aus den Schritten berechnen
+    const timeOut = form.querySelector('#fTimeOut');
+    const updateTime = () => {
+      const t = window.RecipeTime.label({ steps: form.querySelector('#fSteps').value.split('\n').filter(x => x.trim()), ingredients: form.querySelector('#fIngredients').value.split('\n').filter(x => x.trim()) });
+      timeOut.textContent = t || 'Erscheint, sobald Schritte eingetragen sind';
+    };
+    form.querySelector('#fSteps').addEventListener('input', updateTime);
+    form.querySelector('#fIngredients').addEventListener('input', updateTime);
+    updateTime();
 
     const cancel = () => { if (id && Store.recipe(id)) renderDetail(id); else closeDialog(); };
 
@@ -525,14 +589,18 @@
       }
       try {
         const collectionId = sel.value === '__new' ? Store.addCollection(newCol.value).id : sel.value;
+        const oldCollection = r ? r.collectionId : null;
         const saved = Store.saveRecipe({
           id: id || undefined, title: val('fTitle'), collectionId,
           course: val('fCourse'), mainIngredient: val('fMain'), method: val('fMethod'),
-          servings: val('fServings'), servingsUnit: val('fServUnit'), formSize: val('fFormSize'), totalTime: val('fTime'),
+          servings: val('fServings'), servingsUnit: val('fServUnit'), formSize: val('fFormSize'),
           ingredients: lines('fIngredients'), steps: lines('fSteps'), notes: val('fNotes'),
           imageUrl: val('fImage'), sourceUrl: val('fSource')
         });
         toast('Gespeichert');
+        state.emptyCollection = null;
+        if (oldCollection && oldCollection !== saved.collectionId && Store.collection(oldCollection) &&
+            !Store.recipes().some(x => x.collectionId === oldCollection)) state.emptyCollection = oldCollection;
         if (hashId() === saved.id) renderDetail(saved.id);
         else openDetail(saved.id);
       } catch (ex) { fail(ex.message); }

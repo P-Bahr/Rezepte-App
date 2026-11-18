@@ -22,6 +22,7 @@
         if (parsed && Array.isArray(parsed.recipes) && Array.isArray(parsed.collections)) data = parsed;
       }
       // Ältere Einträge: Portionen als Text ("12 Stück") -> Zahl + Einheit
+      data.recipes = data.recipes.map(r => ({ ...r, ingredients: (r.ingredients || []).map(cleanIngredient).filter(Boolean) }));
       data.recipes = data.recipes.map(r => {
         if (typeof r.servings === 'number' || r.servings === null) return r;
         const p = window.RecipeScale.parseServings(r.servings);
@@ -46,6 +47,10 @@
   }
 
   function clean(text) { return String(text || '').trim(); }
+  // "Bio" ist beim Einkaufen eigene Entscheidung und gehört nicht ins Rezept
+  function cleanIngredient(text) {
+    return clean(String(text || '').replace(/(^|[\s(])bio(?:-|\s+)(?=\p{L})/giu, '$1').replace(/\s{2,}/g, ' '));
+  }
   function cleanList(list) { return (list || []).map(clean).filter(Boolean); }
 
   const Store = {
@@ -76,7 +81,7 @@
         servingsUnit: clean(input.servingsUnit) || parsedServ.unit,
         formSize: clean(input.formSize),
         totalTime: clean(input.totalTime),
-        ingredients: cleanList(input.ingredients),
+        ingredients: cleanList(input.ingredients).map(cleanIngredient).filter(Boolean),
         steps: cleanList(input.steps),
         notes: clean(input.notes),
         imageUrl: clean(input.imageUrl),

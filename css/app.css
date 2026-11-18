@@ -219,6 +219,12 @@ dialog::backdrop { background: rgba(10, 20, 15, .45); }
 .stepper-value { min-width: 7.5em; text-align: center; font-weight: 600; font-variant-numeric: tabular-nums; }
 .detail li b { font-weight: 600; }
 
+/* Hinweis im Rezept (z. B. leere Sammlung) */
+.notice { display: grid; gap: 10px; padding: 14px 16px; border-radius: var(--radius); background: var(--chip); }
+.notice p { margin: 0; }
+.notice-actions { display: flex; gap: 10px; flex-wrap: wrap; justify-content: flex-end; }
+.time-out { min-height: var(--touch); display: flex; align-items: center; font-weight: 600; }
+
 /* Notizen mit Links */
 .recipe-link { color: var(--accent); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
 .related { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
