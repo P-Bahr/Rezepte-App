@@ -20,6 +20,12 @@ create table if not exists public.collections (
   primary key (user_id, id)
 );
 
+-- Angemeldete Benutzer dürfen die Tabellen grundsätzlich benutzen
+-- (neuere Supabase-Projekte vergeben diese Rechte nicht mehr automatisch).
+grant usage on schema public to authenticated;
+grant select, insert, update, delete on public.recipes to authenticated;
+grant select, insert, update, delete on public.collections to authenticated;
+
 -- Zugriffsschutz: Jeder angemeldete Benutzer sieht und ändert nur seine eigenen Einträge.
 alter table public.recipes enable row level security;
 alter table public.collections enable row level security;
