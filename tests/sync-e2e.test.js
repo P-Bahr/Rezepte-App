@@ -278,6 +278,17 @@ const titles = p => p.$$eval('.tile-title', e => e.map(x => x.textContent));
   await Dd.click('#inboxBanner button:has-text("Ansehen")');
   await Dd.waitForSelector('#fTitle');
   assert(await Dd.inputValue('#fTitle') === 'Omas Nudelauflauf' && (await Dd.inputValue('#fIngredients')).includes('200 g Nudeln'), 'Geteilter Text wird als Rezept zum Prüfen geöffnet');
+  // Mehrere geteilte Rezepte: "Alle importieren"
+  await Dd.click('dialog .icon-btn[aria-label=Schließen]').catch(() => {}); await Dd.keyboard.press('Escape'); await Dd.waitForTimeout(200);
+  shareAdd(key, 'Bananenbrot\nZutaten:\n3 Bananen\n250 g Mehl\n2 Eier\nZubereitung:\nAlles verrühren und 50 Minuten backen.');
+  shareAdd(key, 'Schaut mal, wie süß mein Hund ist!');
+  await Dd.evaluate(() => window.RecipeInbox.check());
+  await Dd.waitForSelector('#inboxAll');
+  assert((await Dd.textContent('#inboxBanner')).includes('2 geteilte Rezepte'), 'Mehrere geteilte: „2 geteilte Rezepte“ mit „Alle importieren“');
+  await Dd.click('#inboxAll');
+  await Dd.waitForSelector('#boardResult b', { timeout: 15000 });
+  assert((await Dd.textContent('#boardResult')).includes('1 importiert, 0 schon vorhanden, 1 nicht geklappt'), 'Alle importiert: ' + (await Dd.textContent('#boardResult')).slice(0, 60));
+  assert(server.inbox.length === 0 && await Dd.evaluate(() => !!Store.recipes().find(r => r.title === 'Bananenbrot' && r.review && r.importBatch.startsWith('teilen-'))), 'Eingangsfach leer, Rezept als „Zu prüfen“ gespeichert');
   assert(Dd.errs.length === 0 && C.errs.length === 0, 'Keine Skriptfehler beim Teilen ' + C.errs.concat(Dd.errs).join('; '));
 
   assert(A.errs.length === 0 && B.errs.length === 0, 'Keine Skriptfehler ' + A.errs.concat(B.errs).join('; '));

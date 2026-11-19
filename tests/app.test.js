@@ -58,6 +58,14 @@ const OUT = process.argv[2] || '.';
   assert(!(await p.isVisible('#filters')), 'Zugeklappt bleibt nach Neuladen zu');
   await p.click('#btnFilter');
   assert(await p.isVisible('#filters'), 'Filter wieder aufgeklappt');
+  // Nach oben
+  await p.setViewportSize({ width: 390, height: 844 }); await p.waitForTimeout(100);
+  assert(!(await p.isVisible('#toTop')), '„Nach oben“ oben noch versteckt');
+  await p.evaluate(() => window.scrollTo(0, 3000)); await p.waitForTimeout(200);
+  assert(await p.isVisible('#toTop'), '„Nach oben“ erscheint beim Scrollen');
+  await p.click('#toTop'); await p.waitForFunction(() => window.scrollY === 0, null, { timeout: 3000 });
+  assert(true, '„Nach oben“ scrollt zum Anfang');
+  await p.setViewportSize({ width: 1024, height: 1366 }); await p.waitForTimeout(100);
   // Hauptzutat als feste Gruppen
   const groupChips = await p.$$eval('.chips[data-key=mainIngredient] .chip', e => e.map(x => x.firstChild.textContent.trim()));
   const allowed = await p.evaluate(() => window.RecipeGroups.ORDER);

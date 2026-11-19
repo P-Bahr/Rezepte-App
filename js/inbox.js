@@ -23,12 +23,20 @@
     const t = document.createElement('span');
     t.textContent = '📥 ' + (items.length === 1 ? '1 geteiltes Rezept' : items.length + ' geteilte Rezepte');
     const go = document.createElement('button');
-    go.type = 'button'; go.className = 'btn btn-primary'; go.textContent = 'Ansehen';
+    go.type = 'button'; go.className = 'btn' + (items.length > 1 ? '' : ' btn-primary'); go.textContent = items.length > 1 ? 'Einzeln' : 'Ansehen';
     go.addEventListener('click', next);
+    if (items.length > 1) {
+      const all = document.createElement('button');
+      all.type = 'button'; all.className = 'btn btn-primary'; all.id = 'inboxAll'; all.textContent = 'Alle importieren';
+      all.addEventListener('click', importAll);
+      el.textContent = '';
+      el.append(t, all, go);
+    }
     const later = document.createElement('button');
     later.type = 'button'; later.className = 'btn'; later.textContent = 'Später';
     later.addEventListener('click', () => el.remove());
-    el.append(t, go, later);
+    if (!el.querySelector('#inboxAll')) el.append(t, go); else el.append(go);
+    el.append(later);
   }
 
   async function check() {
@@ -36,6 +44,27 @@
     busy = true;
     try { items = await S.inbox(); } catch (e) { items = []; } finally { busy = false; }
     banner();
+  }
+
+  // Alle auf einmal: wie die Pinterest-Pinnwand (automatisch speichern, "Zu prüfen", Liste "Nicht geklappt")
+  function importAll() {
+    const el = document.getElementById('inboxBanner');
+    if (el) el.remove();
+    const A = window.RecipeApp;
+    if (!A || !A.openBoardImport) return;
+    const list = items.slice();
+    items = [];
+    const pins = list.map(it => {
+      const input = String(it.input || '').trim();
+      const link = ((input.match(/https?:\/\/[^\s<>"']+/i) || [''])[0]).replace(/[).,;!?]+$/, '');
+      const text = input.replace(link, ' ').trim();
+      return { id: it.id, link, url: link, text: text.length > 15 ? text : '', image: '' };
+    });
+    A.openBoardImport({ pins }, {
+      title: 'Geteilte Rezepte importieren', word: 'Rezepte', textHow: 'social', batchPrefix: 'teilen-', autoStart: true,
+      info: pins.length + ' geteilte Rezepte aus dem Eingangsfach.',
+      afterEach: pin => S.inboxDone(pin.id)
+    });
   }
 
   async function next() {

@@ -853,24 +853,28 @@
   }
 
   // ---------- Pinnwand-Import: alle Pins nacheinander ----------
-  function openBoardImport(res) {
+  // Sammel-Import: Pinterest-Pinnwand oder alle geteilten Rezepte aus dem Eingangsfach
+  function openBoardImport(res, opts) {
+    opts = opts || {};
     const S = window.RecipeSync;
     const pins = res.pins;
     const total = res.board && res.board.count || pins.length;
-    const info = h('p', { text: 'Pinnwand „' + (res.board && res.board.name || '') + '“: ' + pins.length + (total > pins.length ? ' von ' + total + ' Pins (die neuesten; mehr gibt Pinterest nicht heraus).' : ' Pins.') });
-    const go = h('button', { type: 'button', class: 'btn btn-primary', id: 'boardGo' }, pins.length + ' Pins importieren');
+    const word = opts.word || 'Pins';
+    const info = h('p', { text: opts.info || ('Pinnwand „' + (res.board && res.board.name || '') + '“: ' + pins.length + (total > pins.length ? ' von ' + total + ' Pins (die neuesten; mehr gibt Pinterest nicht heraus).' : ' Pins.')) });
+    const go = h('button', { type: 'button', class: 'btn btn-primary', id: 'boardGo' }, pins.length + ' ' + word + ' importieren');
     const progress = h('p', { class: 'hint', id: 'boardProgress', 'aria-live': 'polite' });
     const out = h('div', { id: 'boardResult' });
     const box = h('div', { class: 'form' }, info,
       h('p', { class: 'hint', text: 'Das dauert ein paar Minuten. Rezepte, die vollständig aussehen (Name, mindestens 2 Zutaten und 1 Schritt), werden gespeichert und als „Zu prüfen“ markiert. Doppelte werden übersprungen.' }),
       h('div', { class: 'pick-actions' }, go), progress, out);
-    showDialog('board', h('div', { style: 'display:contents' }, head('Pinnwand importieren', closeDialog), h('div', { class: 'dlg-scroll' }, box)));
+    showDialog('board', h('div', { style: 'display:contents' }, head(opts.title || 'Pinnwand importieren', closeDialog), h('div', { class: 'dlg-scroll' }, box)));
+    if (opts.autoStart) setTimeout(() => go.click(), 0);
 
     const complete = d => d && d.title && d.title !== 'Importiertes Rezept' && d.ingredients.length >= 2 && d.steps.length >= 1;
     const norm = u => String(u || '').replace(/[?#].*$/, '').replace(/\/$/, '').toLowerCase();
     go.addEventListener('click', async () => {
       go.remove();
-      const batch = 'pin-' + Date.now().toString(36);
+      const batch = (opts.batchPrefix || 'pin-') + Date.now().toString(36);
       const saved = [], dup = [], failed = [];
       let done = 0;
       const queue = pins.slice();
@@ -881,9 +885,9 @@
         }
         if (!complete(d) && pin.text) {
           const t = window.RecipeImporter.fromText(pin.text, { image: pin.image, url: pin.link || pin.url });
-          if (complete(t)) { d = t; d.importHow = 'pin'; }
+          if (complete(t)) { d = t; d.importHow = opts.textHow || 'pin'; }
         }
-        const label = (d && d.title && d.title !== 'Importiertes Rezept' ? d.title : (pin.text || '').split('\n')[0].slice(0, 60)) || 'Pin ohne Text';
+        const label = (d && d.title && d.title !== 'Importiertes Rezept' ? d.title : (pin.text || pin.link || '').split('\n')[0].slice(0, 60)) || 'Ohne Text';
         if (!complete(d)) { failed.push({ pin, label }); return; }
         d.sourceUrl = d.sourceUrl || pin.link || pin.url;
         d.imageUrl = d.imageUrl || pin.image;
@@ -897,8 +901,9 @@
         while (queue.length) {
           const pin = queue.shift();
           await one(pin);
+          if (opts.afterEach) { try { await opts.afterEach(pin); } catch (e) { /* egal */ } }
           done++;
-          progress.textContent = done + ' von ' + pins.length + ' Pins … (' + saved.length + ' gespeichert)';
+          progress.textContent = done + ' von ' + pins.length + ' ' + word + ' … (' + saved.length + ' gespeichert)';
         }
       };
       await Promise.all([worker(), worker(), worker()]);
@@ -914,8 +919,8 @@
             saved.length ? h('button', { type: 'button', class: 'btn btn-danger', id: 'boardUndo', onclick: askUndo }, 'Import rückgängig') : null),
           failed.length ? h('div', { class: 'field' },
             h('span', { class: 'label', text: 'Nicht geklappt' }),
-            h('p', { class: 'hint', text: 'Hier stand kein vollständiges Rezept. Tippen öffnet den Pin; dann z. B. ein Bildschirmfoto vom Rezept importieren.' }),
-            h('ul', { class: 'board-failed' }, failed.map(f => h('li', null, h('a', { href: f.pin.url, target: '_blank', rel: 'noopener noreferrer', text: f.label }))))) : '');
+            h('p', { class: 'hint', text: 'Hier stand kein vollständiges Rezept. Tippen öffnet das Original; dann z. B. ein Bildschirmfoto vom Rezept importieren.' }),
+            h('ul', { class: 'board-failed' }, failed.map(f => h('li', null, f.pin.url ? h('a', { href: f.pin.url, target: '_blank', rel: 'noopener noreferrer', text: f.label }) : f.label)))) : '');
       }
       function askUndo() {
         out.querySelector('#boardUndo').replaceWith(h('div', { class: 'confirm' },
@@ -1443,8 +1448,20 @@
   render();
   syncFromHash();
 
+  // "Nach oben"-Knopf, sobald man weit genug gescrollt hat
+  const toTop = $('#toTop');
+  if (toTop) {
+    const showTop = () => { toTop.hidden = window.scrollY < 600; };
+    window.addEventListener('scroll', showTop, { passive: true });
+    toTop.addEventListener('click', () => {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+      toTop.blur();
+    });
+    showTop();
+  }
+
   window.RecipeToast = toast;
-  window.RecipeApp = { openImport, openEdit };
+  window.RecipeApp = { openImport, openEdit, openBoardImport };
 
   // Für automatische Tests
   window.__app = { state, render };
