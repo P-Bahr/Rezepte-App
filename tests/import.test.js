@@ -171,7 +171,27 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(d.title === 'Cremige Nudeln', 'Facebook: Name ohne „Teil 5 | Kinderrezepte“: ' + d.title);
   ok(JSON.stringify(d.ingredients) === JSON.stringify(['1 Zwiebel', '1–2 Kohlrabi', '4 Karotten', 'etwas Öl', '200 ml Sahne', 'etwas Salz']), 'Facebook: Zutaten einzeln, „(ich hatte …)“ entfernt: ' + JSON.stringify(d.ingredients));
   ok(d.mainIngredient !== 'Kinderrezepte' && !/Kinderrezepte|Anzeige/.test(d.notes), 'Facebook: keine Kategorie als Hauptzutat, keine Werbung in den Notizen');
-  ok(d.steps[0] === 'Nehmen wir uns eine Zwiebel und schneiden sie klein.' && d.steps[1] === 'Anrichten.', 'Schritte gestrafft: „Zuerst“, „nur noch“, „und genießen“ entfernt: ' + JSON.stringify(d.steps));
+  ok(d.steps[0] === 'Zwiebel klein schneiden.' && d.steps[1] === 'Anrichten.', 'Schritte gestrafft: „Zuerst nehmen wir …“, „nur noch“, „und genießen“ entfernt: ' + JSON.stringify(d.steps));
+  // Erzählstil -> kurze Anweisung (Beispiele aus einem echten Facebook-Rezept)
+  const kurz = [
+    ['Zuerst nehmen wir uns eine Zwiebel, schälen und schneiden sie klein.', 'Zwiebel schälen und klein schneiden.'],
+    ['Nun nehmen wir uns eine Pfanne, geben etwas Öl und einen Klecks Butter hinein und schwitzen die Zwiebeln darin an.', 'Etwas Öl und einen Klecks Butter in die Pfanne geben und die Zwiebeln darin anschwitzen.'],
+    ['Wenn das Gemüse schön angeschwitzt ist, füllen wir alles mit Gemüsebrühe auf.', 'Wenn das Gemüse angeschwitzt ist, alles mit Gemüsebrühe auffüllen.'],
+    ['Das Gemüse stellen wir zunächst beiseite.', 'Gemüse beiseitestellen.'],
+    ['Die vier Karotten schälen und schneiden sie auch in kleine Stücke.', 'Die vier Karotten schälen und in kleine Stücke schneiden.'],
+    ['Jetzt geben wir die Nudeln direkt in die Pfanne und fügen 200 ml Sahne hinzu.', 'Nudeln in die Pfanne geben und 200 ml Sahne hinzufügen.'],
+    ['Die Pfanne mit einem Deckel verschließen und das Ganze bei mittlerer Hitze köcheln lassen.', 'Die Pfanne mit einem Deckel verschließen und bei mittlerer Hitze köcheln lassen.'],
+    ['Mehl, Eier und Milch zu einem glatten Teig verrühren.', 'Mehl, Eier und Milch zu einem glatten Teig verrühren.'],
+    ['Wir lassen den Teig 30 Minuten ruhen.', 'Teig 30 Minuten ruhen lassen.'],
+    ['Ich gebe dann noch etwas Pfeffer dazu.', 'Noch etwas Pfeffer dazugeben.'],
+    ['Danach nehmen wir uns eine Schüssel und vermischen Mehl und Backpulver.', 'In einer Schüssel Mehl und Backpulver vermischen.'],
+    ['Jetzt verrühren wir Eier, Zucker und Butter schön schaumig.', 'Eier, Zucker und Butter schaumig verrühren.'],
+    ['Als Erstes heizen wir den Ofen auf 180 Grad vor.', 'Ofen auf 180 Grad vorheizen.']
+  ];
+  for (const [a, b] of kurz) {
+    const got = I.fromText('Test\nZutaten:\n1 Ei\n2 EL Mehl\nZubereitung:\n' + a).steps.join(' ');
+    ok(got === b, 'Kürzen: „' + a.slice(0, 40) + '…“ -> ' + got);
+  }
 
   // ---------- Pinterest ----------
   const pinAnswers = {

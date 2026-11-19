@@ -248,15 +248,112 @@
       .replace(/\s+und\s+(genießen|servieren und genießen|guten appetit)\s*([.!]+)?$/i, '.')
       .replace(/\s{2,}/g, ' ').trim();
     x = x.charAt(0).toUpperCase() + x.slice(1);
-    return x;
+    return condense(x);
+  }
+
+  // ---------- "wir"-Erzählstil in kurze Anweisungen umschreiben ----------
+  // "Nun nehmen wir uns eine Pfanne, geben etwas Öl hinein und schwitzen die Zwiebeln darin an."
+  //   -> "Etwas Öl in die Pfanne geben und die Zwiebeln darin anschwitzen."
+  const PARTICLES = ['an', 'auf', 'aus', 'ab', 'bei', 'dazu', 'hinzu', 'hinein', 'herein', 'heraus', 'hinaus', 'ein', 'mit', 'nach', 'vor', 'zu', 'zurück', 'weg', 'um', 'unter', 'durch', 'beiseite', 'zusammen', 'fest', 'darüber', 'darauf', 'darunter'];
+  const NOT_VERB = /^(einen|den|denen|kleinen|großen|ganzen|frischen|warmen|kalten|heißen|weichen|allen|diesen|einigen|beiden|anderen|guten|braunen|roten|grünen|gelben|weißen|feinen|groben|dünnen|dicken|ersten|zweiten|letzten|restlichen|übrigen|vorbereiteten|geschnittenen|gehackten|gekochten|eigenen|unseren|meinen|deinen|ihren|seinen|oben|unten|wieder|eben|gegen|neben|unter|hinten|gern|gerne|morgen|sondern)$/i;
+  const VESSEL = /^(eine?n?|die|der|den|das)\s+(pfanne|topf|schüssel|auflaufform|form|backform|springform|kastenform|blech|backblech|kasserolle|wok|bräter|rührschüssel|schale|mixer|standmixer|glas|kanne|tasse|kochtopf|bratpfanne|pfanne mit .+|großen? \p{L}+|tiefen? \p{L}+)$/iu;
+  const FILLER = /\s+(?:schön|einfach|ruhig|mal|ebenfalls|auch|zunächst|nun|jetzt|dann|eben|gerne?|direkt)(?=\s|[,.!]|$)/gi;
+  const isVerbWord = (w, next) => /^\p{Ll}+(?:en|ern|eln)$/u.test(w || '') && !NOT_VERB.test(w) && (!(next && /^\p{Lu}/u.test(next)) || STEP_VERB.test(w));
+  function verbFinal(verb, rest) {
+    let r = rest.replace(/^(?:wir|uns)\s+/i, '').replace(/^uns\s+/i, '').replace(FILLER, '').trim().replace(/^(?:dann|nun|jetzt|zunächst|direkt)\s+/i, '');
+    // Pronomen am Anfang ("schneiden sie klein") weglassen
+    r = r.replace(/^(?:sie|ihn|es|diese|diesen|dieses)\b\s*/i, '');
+    const words = r ? r.split(/\s+/) : [];
+    const last = (words[words.length - 1] || '').toLowerCase();
+    if (words.length && PARTICLES.includes(last)) { words.pop(); return (words.join(' ') + ' ' + last + verb).trim(); }
+    return (r + ' ' + verb).trim();
+  }
+  function condenseSentence(sen) {
+    const end = (sen.match(/[.!?]+$/) || ['.'])[0].replace(/!+/, '.').replace(/\?+/, '.');
+    let s = sen.replace(/[.!?]+$/, '').trim();
+    // Nebensatz vorn behalten ("Wenn das Gemüse angeschwitzt ist, …")
+    let lead = '';
+    const sub = s.match(/^((?:wenn|sobald|nachdem|sowie|während)\b[^,]+,)\s*(.+)$/i);
+    if (sub) { lead = sub[1].replace(FILLER, '') + ' '; s = sub[2]; }
+    // "Wir lassen …" / "Ich gebe …" -> wie "Lassen wir …"
+    s = s.replace(/^wir\s+(\p{Ll}+)\s+/iu, (a, v) => v + ' wir ')
+      .replace(/^ich\s+(\p{Ll}+e)\s+/iu, (a, v) => v + 'n wir ')
+      .replace(/^(\p{L}+e)\s+ich\s+/u, (a, v) => v + 'n wir ');
+    let m = s.match(/^(\p{L}+)\s+wir\s+(.*)$/iu);
+    let head = null;
+    if (!m) {
+      // "Das Gemüse stellen wir beiseite" -> Objekt vorn
+      const v2 = s.match(/^(.+?)\s+(\p{Ll}+(?:en|ern|eln))\s+wir\s+(.*)$/u);
+      if (!v2) return null;
+      head = { verb: v2[2], rest: v2[1].replace(/^(\p{Lu})/u, c => c.toLowerCase()) + ' ' + v2[3] };
+      // Artikel am Satzanfang wieder groß
+      head.rest = head.rest.replace(/^(\p{L})/u, c => c.toUpperCase());
+    }
+    const verb0 = head ? head.verb : m[1].toLowerCase();
+    let rest = head ? head.rest : m[2];
+    // Teilsätze an ", verb" und " und verb" trennen
+    const clauses = [{ verb: verb0, text: '' }];
+    const toks = rest.split(/(\s*,\s*|\s+und\s+)/);
+    for (let i = 0; i < toks.length; i++) {
+      const t = toks[i];
+      if (/^(\s*,\s*|\s+und\s+)$/.test(t)) {
+        const nxt = (toks[i + 1] || '').trim().split(/\s+/);
+        if (isVerbWord(nxt[0], nxt[1])) {
+          clauses.push({ verb: nxt[0], text: nxt.slice(1).join(' '), sep: /und/.test(t) ? 'und' : ',' });
+          i++; continue;
+        }
+        clauses[clauses.length - 1].text += t;
+      } else clauses[clauses.length - 1].text += t;
+    }
+    // "nehmen wir uns X" verschmilzt mit dem nächsten Schritt
+    const out = [];
+    for (let i = 0; i < clauses.length; i++) {
+      const c = clauses[i];
+      const obj = c.text.replace(/^(?:wir|uns)\s+/i, '').replace(/^uns\s+/i, '').trim();
+      if (c.verb === 'nehmen' && clauses[i + 1]) {
+        const n = clauses[i + 1];
+        if (VESSEL.test(obj) && /\bhinein$/.test(n.text.trim())) {
+          n.text = n.text.trim().replace(/\s*hinein$/, ' in ' + obj.replace(/^(eine?n?)\s+/i, 'die ').replace(/^den\s+/i, 'den '));
+          n.text = n.text.replace(/in die (topf|bräter|wok|mixer|standmixer|kochtopf)\b/i, 'in den $1').replace(/in die (glas|blech|backblech)\b/i, 'in das $1');
+        } else if (!/^(?:sie|ihn|es)\b/i.test(n.text.trim()) && n.text.trim()) {
+          if (VESSEL.test(obj)) {
+            // "nehmen wir uns eine Schüssel und vermischen Mehl …" -> "In einer Schüssel Mehl … vermischen"
+            n.prefix = 'In ' + obj.replace(/^eine\s+/i, 'einer ').replace(/^eine?n?\s+/i, 'einem ').replace(/^die\s+/i, 'der ').replace(/^den\s+/i, 'dem ') + ' ';
+          } else out.push(obj.replace(/^(eine?n?|die|der|den|das)\s+/i, '') + ' bereitstellen');
+        } else {
+          n.text = obj.replace(/^(eine?n?|die|der|den|das)\s+/i, '') + ' ' + n.text.trim().replace(/^(?:sie|ihn|es)\b\s*/i, '');
+        }
+        continue;
+      }
+      out.push((c.prefix || '') + verbFinal(c.verb, obj));
+    }
+    const parts = out.filter(Boolean);
+    let res = parts.length > 1 ? parts.slice(0, -1).join(', ') + ' und ' + parts[parts.length - 1] : (parts[0] || '');
+    res = (lead + res).replace(/\s{2,}/g, ' ').trim();
+    res = res.replace(/^(eine?n?|die|der|den|das)\s+(?=\p{Lu})/iu, '');
+    return res.charAt(0).toUpperCase() + res.slice(1) + end;
+  }
+  function condense(step) {
+    // Überall: "und schneiden sie (auch) in Stücke" -> "und in Stücke schneiden"; Füllwörter wie "das Ganze", "schön"
+    step = step.split(/(?<=[.!?])\s+/).map(sen => sen
+      .replace(/\bund\s+(\p{Ll}+(?:en|eln|ern))\s+(?:sie|ihn|es)\b(?:\s+(?:auch|ebenfalls|dann))?\s+([^.!?,]+?)([.!?]?)$/u, (all, v, rest, e) => isVerbWord(v) && !/\bwir\b/.test(sen) ? 'und ' + verbFinal(v, rest) + e : all)
+      .replace(/\s+das Ganze\b/g, '')
+      .replace(/\s+(?:schön|einfach|ruhig)\s+(?=\p{Ll})/gu, ' ')
+    ).join(' ');
+    if (!/\b(wir|ich)\b/i.test(step)) return step;
+    return step.split(/(?<=[.!?])\s+/).map(sen => {
+      if (!/\b(wir|ich)\b/i.test(sen)) return sen;
+      try { return condenseSentence(sen) || sen; } catch (e) { return sen; }
+    }).join(' ');
   }
 
   function splitSteps(list) {
     const out = [];
     const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
     for (const step of list) {
-      if (step.length < 120) { out.push(step); continue; }
-      const sentences = step.split(/(?<=[.!?])\s+(?=\p{Lu})/u);
+      // Pro Satz ein Schritt (aber nicht nach Abkürzungen wie "ca.", "z. B.", "Std.")
+      const sentences = step.split(/(?<![\s(]\p{L}\.)(?<!\b(?:ca|bzw|evtl|ggf|ggfs|usw|etc|Std|Min|min|max|Nr|vgl|inkl|zzgl|gem|geh|gestr|TL|EL|Pck|Pkg)\.)(?<=[.!?])\s+(?=\p{Lu})/u);
+      if (sentences.length === 1 && step.length < 120) { out.push(step); continue; }
       for (const sen of sentences) {
         if (sen.length < 90) { out.push(cap(sen)); continue; }
         const end = (sen.match(/[.!?]$/) || [''])[0];
