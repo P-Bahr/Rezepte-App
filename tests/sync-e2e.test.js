@@ -95,7 +95,7 @@ const titles = p => p.$$eval('.tile-title', e => e.map(x => x.textContent));
   assert(true, 'Gerät A: Konto angelegt und angemeldet');
   await A.click('button:has-text("Beispielrezepte laden")');
   await synced(A);
-  assert(server.rows.recipes.size === 25 && server.rows.collections.size === 4, 'Gerät A: 25 Rezepte und 4 Sammlungen hochgeladen');
+  assert(server.rows.recipes.size === 25 && server.rows.collections.size === 5, 'Gerät A: 25 Rezepte und die 5 festen Sammlungen hochgeladen');
   assert((await A.textContent('#syncStatus')).startsWith('Abgeglichen'), 'Status zeigt „Abgeglichen“');
 
   // Gerät B
@@ -112,7 +112,6 @@ const titles = p => p.$$eval('.tile-title', e => e.map(x => x.textContent));
   // A: neues Rezept mit Foto -> B
   await A.click('#btnNew');
   await A.fill('#fTitle', 'Omas Apfelstrudel');
-  await A.selectOption('#fCollection', { label: 'Backen & Süßes' });
   await A.fill('#fIngredients', 'Äpfel 1 kg\nZucker 80g');
   await A.fill('#fSteps', 'Äpfel schälen und in Scheiben schneiden.\n40 Minuten backen.');
   await A.setInputFiles('#fPhoto', 'icons/icon-512.png');
@@ -214,6 +213,25 @@ const titles = p => p.$$eval('.tile-title', e => e.map(x => x.textContent));
   await A.click('dialog >> text=Abmelden'); await A.click('text=Ja, abmelden');
   await A.waitForSelector('.auth');
   assert(true, 'Abmelden zeigt wieder die Anmeldung');
+
+  // Update mit alten Sammlungen im Online-Speicher: beide Geräte sortieren um, ohne Konflikt
+  server.users['alt@beispiel.de'] = { id: 'user-alt', pw: 'geheim123' };
+  const put = (table, id, data) => server.rows[table].set('user-alt|' + id, { id, user_id: 'user-alt', data, deleted: false, updated_at: data.updatedAt });
+  put('collections', 'c-alltag', { id: 'c-alltag', name: 'Alltag', updatedAt: '2026-11-01T10:00:00.000Z' });
+  put('collections', 'c-oma', { id: 'c-oma', name: 'Von Oma', updatedAt: '2026-11-01T10:00:00.000Z' });
+  put('recipes', 'r-suppe', { id: 'r-suppe', title: 'Kürbissuppe', collectionId: 'c-alltag', method: 'Kochen', ingredients: ['1 Kürbis'], steps: ['30 Minuten kochen.'], createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z' });
+  put('recipes', 'r-kuchen', { id: 'r-kuchen', title: 'Rührkuchen', collectionId: 'c-oma', method: '', ingredients: ['250 g Mehl'], steps: ['Im Ofen 50 Minuten backen.'], createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z' });
+  const login = async (p) => { await p.fill('#authEmail', 'alt@beispiel.de'); await p.fill('#authPw', 'geheim123'); await p.click('.auth button[type=submit]'); await p.waitForSelector('.auth', { state: 'detached' }); await synced(p); };
+  const C = await device(b, { viewport: { width: 1024, height: 900 } });
+  const Dd = await device(b, devices['iPhone 13']);
+  await login(C); await login(Dd);
+  await syncNow(C); await syncNow(Dd); await syncNow(C);
+  const where = p => p.evaluate(() => Store.recipes().map(r => r.title + ':' + r.collectionId).sort().join(', '));
+  assert(await where(C) === 'Kürbissuppe:col-topf, Rührkuchen:col-ofen' && await where(Dd) === await where(C), 'Alte Rezepte auf beiden Geräten gleich einsortiert (' + await where(Dd) + ')');
+  assert(!(await C.isVisible('.conflict')) && !(await Dd.isVisible('.conflict')), 'Kein Konflikt-Fenster durch das Umsortieren');
+  const live = [...server.rows.collections.values()].filter(r => r.user_id === 'user-alt' && !r.deleted).map(r => r.data.name).sort().join(',');
+  assert(live === 'Grill,Kalt,Ofen,Pfanne,Topf', 'Online: alte Sammlungen gelöscht, feste angelegt (' + live + ')');
+  assert(C.errs.length === 0 && Dd.errs.length === 0, 'Keine Skriptfehler beim Umsortieren ' + C.errs.concat(Dd.errs).join('; '));
 
   assert(A.errs.length === 0 && B.errs.length === 0, 'Keine Skriptfehler ' + A.errs.concat(B.errs).join('; '));
   await b.close();

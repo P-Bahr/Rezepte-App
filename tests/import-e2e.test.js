@@ -61,7 +61,6 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   assert(await p.inputValue('#fTitle') === 'Allgäuer Käsespätzle' && (await p.inputValue('#fIngredients')).split('\n').length === 5, 'Formular ausgefüllt: Name und 5 Zutaten');
   assert(await p.inputValue('#fCourse') === 'Hauptgericht' && await p.inputValue('#fMethod') === 'Kochen' && await p.inputValue('#fMain') === 'Bergkäse', 'Kategorien vorausgefüllt');
   assert(await p.inputValue('#fSource') === 'https://www.chefkoch.de/rezepte/1/kaesespaetzle.html' && await p.inputValue('#fImage') === 'https://img.example/k.jpg', 'Quelle und Bild übernommen');
-  await p.selectOption('#fCollection', { label: 'Alltag' });
   await p.click('dialog button[type=submit]'); await p.waitForTimeout(400);
   assert(await p.isVisible('dialog h2:has-text("Allgäuer Käsespätzle")'), 'Gespeichert und geöffnet');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
@@ -103,7 +102,6 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   assert(await p.inputValue('#fTitle') === 'One-Pot-Pasta' && !p.url().includes('?url='), 'Übergebener Link wird sofort importiert, Adresse aufgeräumt');
 
   // 7. Tote Links: TikTok-Video verschwindet
-  await p.selectOption('#fCollection', { label: 'Alltag' });
   await p.click('dialog button[type=submit]'); await p.waitForTimeout(400);
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
   const tt = 'https://www.tiktok.com/@koch/video/1';

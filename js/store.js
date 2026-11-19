@@ -30,6 +30,8 @@
         const p = window.RecipeScale.parseServings(r.servings);
         return { ...r, servings: p.servings, servingsUnit: window.RecipeForms.normalizeUnit(r.servingsUnit || p.unit) };
       });
+      // Feste Sammlungen (Ofen, Pfanne, Topf, Grill, Kalt) – ältere Daten einmalig einsortieren
+      if (autoSort(new Date().toISOString())) localStorage.setItem(KEY, JSON.stringify(data));
     } catch (e) {
       storageOk = false;
     }
@@ -55,6 +57,22 @@
   }
   // Alte Bezeichnung umbenennen
   function cleanMethod(m) { return /^roh\s*\/\s*ohne kochen$/i.test(clean(m)) ? 'Kalt zubereitet' : clean(m); }
+  /* Sammlung aus der Zubereitung bestimmen (für alle Rezepte) und nur die festen Sammlungen behalten.
+     Gibt true zurück, wenn sich etwas geändert hat. Auf jedem Gerät gleiches Ergebnis. */
+  function autoSort(now) {
+    const C = window.RecipeCollections;
+    let changed = false;
+    data.recipes = data.recipes.map(r => {
+      const f = C.forRecipe(r);
+      if (r.collectionId === f.id && (r.method || '') === f.method) return r;
+      changed = true;
+      return { ...r, collectionId: f.id, method: f.method, updatedAt: now };
+    });
+    const fixed = C.list();
+    if (JSON.stringify(data.collections) !== JSON.stringify(fixed)) { data.collections = fixed; changed = true; }
+    return changed;
+  }
+
   function cleanList(list) { return (list || []).map(clean).filter(Boolean); }
 
   const Store = {
@@ -69,7 +87,6 @@
     saveRecipe(input) {
       const title = clean(input.title);
       if (!title) throw new Error('Bitte gib dem Rezept einen Namen.');
-      if (!input.collectionId || !this.collection(input.collectionId)) throw new Error('Bitte wähle eine Sammlung.');
       const parsedServ = window.RecipeScale.parseServings(input.servings);
       if (clean(input.servings) && !parsedServ.servings) throw new Error('Bei „Rezept ist für“ bitte eine Zahl eintragen, zum Beispiel 4.');
       const now = new Date().toISOString();
@@ -77,7 +94,7 @@
       const recipe = {
         id: existing ? existing.id : uid(),
         title,
-        collectionId: input.collectionId,
+        collectionId: '', // wird unten aus der Zubereitung bestimmt
         course: clean(input.course),
         mainIngredient: clean(input.mainIngredient),
         method: cleanMethod(input.method),
@@ -100,6 +117,11 @@
         createdAt: existing ? existing.createdAt : now,
         updatedAt: now
       };
+      // Sammlung automatisch aus der Zubereitung (fehlt sie, wird sie aus den Schritten geschätzt)
+      const auto = window.RecipeCollections.forRecipe(recipe);
+      recipe.collectionId = auto.id;
+      recipe.method = auto.method;
+      if (!data.collections.some(c => c.id === auto.id)) data.collections = window.RecipeCollections.list();
       const before = data.recipes;
       data.recipes = existing ? before.map(r => (r.id === recipe.id ? recipe : r)) : before.concat(recipe);
       try { save(); } catch (e) { data.recipes = before; throw e; }
@@ -162,17 +184,10 @@
       let added = 0;
       try {
         const byTitle = new Map(data.recipes.map(r => [r.title.toLowerCase(), r]));
-        const ids = {};
         for (const r of ex) {
           const old = byTitle.get(r.title.toLowerCase());
           if (old) { if (!old.example) { old.example = true; old.updatedAt = new Date().toISOString(); } continue; } // ältere, ungekennzeichnete Beispiele kennzeichnen
-          if (!ids[r.collection]) {
-            const existed = data.collections.some(c => c.name.toLowerCase() === r.collection.toLowerCase());
-            const col = this.addCollection(r.collection);
-            if (!existed) col.example = true;
-            ids[r.collection] = col.id;
-          }
-          this.saveRecipe({ ...r, collectionId: ids[r.collection], example: true });
+          this.saveRecipe({ ...r, example: true }); // Sammlung ergibt sich aus der Zubereitung
           added++;
         }
         save();
@@ -182,19 +197,13 @@
 
     // ---- Für den Online-Abgleich ----
     _snapshot() { return JSON.parse(JSON.stringify({ recipes: data.recipes, collections: data.collections })); },
-    // Übernimmt den abgeglichenen Stand. Rezepte ohne (vorhandene) Sammlung landen in "Ohne Sammlung".
+    // Übernimmt den abgeglichenen Stand und sortiert alles in die festen Sammlungen ein
+    // (auch Rezepte von Geräten mit älterer App-Version).
     _replace(next) {
       const before = JSON.stringify(data);
       data.recipes = next.recipes;
       data.collections = next.collections;
-      const ids = new Set(data.collections.map(c => c.id));
-      const orphans = data.recipes.filter(r => !ids.has(r.collectionId));
-      if (orphans.length) {
-        let col = data.collections.find(c => c.name === 'Ohne Sammlung');
-        if (!col) { col = { id: uid(), name: 'Ohne Sammlung', updatedAt: new Date().toISOString() }; data.collections = data.collections.concat(col); }
-        const now = new Date().toISOString();
-        data.recipes = data.recipes.map(r => (ids.has(r.collectionId) ? r : { ...r, collectionId: col.id, updatedAt: now }));
-      }
+      autoSort(new Date().toISOString());
       if (JSON.stringify(data) === before) return false;
       try { save(); } catch (e) { data = JSON.parse(before); throw e; }
       return true;
@@ -207,8 +216,6 @@
       const gone = data.recipes.filter(r => r.example);
       const before = JSON.stringify(data);
       data.recipes = data.recipes.filter(r => !r.example);
-      const used = new Set(data.recipes.map(r => r.collectionId));
-      data.collections = data.collections.filter(c => used.has(c.id) || !c.example);
       try { save(); } catch (e) { data = JSON.parse(before); throw e; }
       gone.forEach(r => { if (r.imageId && window.RecipeImages) window.RecipeImages.remove(r.imageId); });
       return gone.length;

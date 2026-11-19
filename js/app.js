@@ -11,13 +11,12 @@
   const FACETS = [
     { key: 'collectionId', label: 'Sammlung' },
     { key: 'course', label: 'Rezeptart', order: COURSES },
-    { key: 'mainIngredient', label: 'Hauptzutat' },
-    { key: 'method', label: 'Zubereitung', order: METHODS }
+    { key: 'mainIngredient', label: 'Hauptzutat' }
   ];
 
   const state = {
     query: '',
-    filters: { collectionId: new Set(), course: new Set(), mainIngredient: new Set(), method: new Set() },
+    filters: { collectionId: new Set(), course: new Set(), mainIngredient: new Set() },
     mode: null,          // 'detail' | 'edit' | 'collections' | null
     favOnly: false,      // nur Favoriten zeigen
     depth: 0,            // wie viele Rezepte nacheinander per Antippen geöffnet wurden (für "Zurück")
@@ -187,6 +186,7 @@
       if (!values.length && f.key !== 'collectionId' && !arranging) continue;
 
       const orderIdx = v => {
+        if (f.key === 'collectionId') return window.RecipeCollections.order(v); // Ofen, Pfanne, Topf, Grill, Kalt
         if (!f.order) return 999;
         const i = f.order.findIndex(o => facetKey(o) === v);
         return i < 0 ? 999 : i;
@@ -264,7 +264,7 @@
       empty.hidden = false;
       empty.append(
         h('h2', { text: 'Noch keine Rezepte' }),
-        h('p', { text: 'Lege dein erstes Rezept an. Zum Ausprobieren kannst du auch ' + (window.EXAMPLE_RECIPES || []).length + ' Beispielrezepte laden. Unter „Sammlungen“ lassen sie sich später mit einem Tipp wieder entfernen.' }),
+        h('p', { text: 'Lege dein erstes Rezept an. Zum Ausprobieren kannst du auch ' + (window.EXAMPLE_RECIPES || []).length + ' Beispielrezepte laden. Unter „Einstellungen“ lassen sie sich später mit einem Tipp wieder entfernen.' }),
         h('div', { class: 'row' },
           h('button', { type: 'button', class: 'btn btn-primary', onclick: () => openEdit(null) }, '+ Neues Rezept'),
           h('button', {
@@ -497,22 +497,7 @@
     facts.push(h('span', null, 'Sammlung: ', h('b', { text: collectionName(r.collectionId) })));
 
     const src = safeUrl(r.sourceUrl);
-    // Hinweis: alte Sammlung ist nach dem Verschieben leer
-    let emptyNotice = null;
-    if (state.emptyCollection && Store.collection(state.emptyCollection)) {
-      const cid = state.emptyCollection;
-      state.emptyCollection = null;
-      emptyNotice = h('div', { class: 'notice' },
-        h('p', { text: 'Die Sammlung „' + collectionName(cid) + '“ ist jetzt leer.' }),
-        h('div', { class: 'notice-actions' },
-          h('button', { type: 'button', class: 'btn', onclick: () => emptyNotice.remove() }, 'Behalten'),
-          h('button', {
-            type: 'button', class: 'btn btn-danger-solid', onclick: () => {
-              try { Store.deleteCollection(cid); emptyNotice.remove(); toast('Sammlung gelöscht'); } catch (e) { toast(e.message); }
-            }
-          }, 'Sammlung löschen')));
-    }
-    const content = h('div', { class: 'detail' }, emptyNotice,
+    const content = h('div', { class: 'detail' },
       (r.imageId || safeUrl(r.imageUrl)) ? (() => {
         const img = h('img', { class: 'detail-img', alt: '', referrerpolicy: 'no-referrer' });
         setImage(img, r, () => img.remove());
@@ -836,24 +821,7 @@
   function openEdit(id, draft) {
     const r = id ? Store.recipe(id) : null;
     const v = r || { title: '', collectionId: '', course: '', mainIngredient: '', method: '', servings: 4, servingsUnit: 'Personen', formSize: '', totalTime: '', ingredients: [], steps: [], notes: '', imageUrl: '', sourceUrl: '', ...(draft || {}) };
-    const cols = Store.collections();
     body.dataset.id = id || '';
-
-    // Bei neuem Rezept die gerade gefilterte Sammlung vorschlagen
-    let preselect = v.collectionId;
-    if (!preselect && state.filters.collectionId.size === 1) preselect = [...state.filters.collectionId][0];
-    if (!preselect && cols.length === 1) preselect = cols[0].id;
-    // sonst die zuletzt benutzte Sammlung
-    if (!preselect) { try { const last = localStorage.getItem('rezepte.letzteSammlung'); if (last && Store.collection(last)) preselect = last; } catch (e) { /* egal */ } }
-
-    const sel = h('select', { id: 'fCollection' },
-      h('option', { value: '', text: 'Bitte wählen …' }),
-      cols.map(c => h('option', { value: c.id, text: c.name, selected: c.id === preselect })),
-      h('option', { value: '__new', text: '+ Neue Sammlung anlegen …', selected: !cols.length }));
-    const newCol = h('input', { id: 'fNewCollection', type: 'text', placeholder: 'Name der neuen Sammlung', autocomplete: 'off' });
-    const newColField = field('Name der neuen Sammlung', newCol);
-    newColField.hidden = sel.value !== '__new';
-    sel.addEventListener('change', () => { newColField.hidden = sel.value !== '__new'; if (sel.value === '__new') newCol.focus(); });
 
     const err = h('div', { class: 'form-error', role: 'alert', hidden: true });
 
@@ -881,6 +849,13 @@
     }
     unitSel.addEventListener('change', syncSize);
 
+    // Sammlung ergibt sich aus der Zubereitung (Anzeige, aktualisiert sich beim Tippen)
+    const autoColInfo = h('p', { class: 'hint auto-col', id: 'autoCol', 'aria-live': 'polite' });
+    const updateAutoCol = () => {
+      const m = form.querySelector('#fMethod').value;
+      const c = window.RecipeCollections.forRecipe({ method: m, steps: form.querySelector('#fSteps').value.split('\n'), title: form.querySelector('#fTitle').value });
+      autoColInfo.textContent = 'Sammlung: ' + c.name + (m.trim() ? '' : ' (aus den Schritten geschätzt)') + ' – ergibt sich aus der Zubereitung.';
+    };
     const imageSection = imagePicker(v);
     const ingRows = ingredientInput(v.ingredients);
     const ingredientsEditor = ingRows.el;
@@ -894,19 +869,18 @@
       try { host = new URL(draft.sourceUrl).hostname.replace(/^www\./, ''); } catch (e) { /* egal */ }
       importNote = h('div', { class: 'notice', id: 'importNotice' },
         h('p', null, h('b', { text: 'Importiert' + (host ? ' von ' + host : '') + '.' }),
-          ' Bitte kurz prüfen, ' + (draft.ingredients && draft.ingredients.length ? 'eine Sammlung wählen und speichern.' : 'die Zutaten ergänzen, eine Sammlung wählen und speichern.')));
+          ' Bitte kurz prüfen ' + (draft.ingredients && draft.ingredients.length ? 'und speichern.' : ', die Zutaten ergänzen und speichern.')));
     }
     const form = h('form', { class: 'form', id: 'recipeForm', novalidate: true },
       importNote,
       err,
       field('Name des Rezepts', inp('fTitle', v.title, { required: true })),
       imageSection,
-      field('Sammlung', sel, 'Jedes Rezept liegt in genau einer Sammlung.'),
-      newColField,
       h('div', { class: 'row3' },
         suggestField('Rezeptart', 'fCourse', v.course, 'z. B. Hauptgericht', 'course', COURSES),
         suggestField('Hauptzutat', 'fMain', v.mainIngredient, 'z. B. Hähnchen', 'mainIngredient', []),
         suggestField('Zubereitung', 'fMethod', v.method, 'z. B. Backen', 'method', METHODS)),
+      autoColInfo,
       h('div', { class: 'row3' },
         field('Rezept ist für', inp('fServings', v.servings ? window.RecipeScale.formatCount(v.servings) : '', { inputmode: 'decimal', placeholder: 'z. B. 4' })),
         field('Einheit', unitSel),
@@ -928,6 +902,9 @@
       timeOut.textContent = t || 'Erscheint, sobald Schritte eingetragen sind';
     };
     form.querySelector('#fSteps').addEventListener('input', updateTime);
+    ['#fMethod', '#fSteps', '#fTitle'].forEach(sel => form.querySelector(sel).addEventListener('input', updateAutoCol));
+    form.querySelector('#fMethod').parentElement.addEventListener('click', () => setTimeout(updateAutoCol, 0)); // Vorschlag angetippt
+    updateAutoCol();
     ingRows.onChange = updateTime;
     updateTime();
 
@@ -964,8 +941,6 @@
       const fail = (msg, fid) => { err.textContent = msg; err.hidden = false; err.scrollIntoView({ block: 'nearest' }); if (fid) form.querySelector('#' + fid).focus(); };
 
       if (!val('fTitle').trim()) return fail('Bitte gib dem Rezept einen Namen.', 'fTitle');
-      if (!sel.value) return fail('Bitte wähle eine Sammlung aus.', 'fCollection');
-      if (sel.value === '__new' && !newCol.value.trim()) return fail('Bitte gib der neuen Sammlung einen Namen.', 'fNewCollection');
       for (const [fid, name] of [['fImage', 'Bild-Adresse'], ['fSource', 'Quelle']]) {
         if (val(fid).trim() && !safeUrl(val(fid).trim())) return fail('Die ' + name + ' muss mit https:// beginnen.', fid);
       }
@@ -993,10 +968,8 @@
         return fail('Das Foto konnte nicht gespeichert werden. Ist der Speicher des Geräts voll?');
       }
       try {
-        const collectionId = sel.value === '__new' ? Store.addCollection(newCol.value).id : sel.value;
-        const oldCollection = r ? r.collectionId : null;
         const saved = Store.saveRecipe({
-          id: id || undefined, title: val('fTitle'), collectionId,
+          id: id || undefined, title: val('fTitle'),
           course: val('fCourse'), mainIngredient: val('fMain'), method: val('fMethod'),
           servings: val('fServings'), servingsUnit: unitSel.value, formSize,
           ingredients: ingRows.lines(), steps: lines('fSteps'), notes: val('fNotes'),
@@ -1005,10 +978,6 @@
         // Altes Foto aufräumen, wenn es ersetzt oder entfernt wurde
         if (v.imageId && v.imageId !== imageId) window.RecipeImages.remove(v.imageId);
         toast('Gespeichert');
-        try { localStorage.setItem('rezepte.letzteSammlung', saved.collectionId); } catch (e2) { /* egal */ }
-        state.emptyCollection = null;
-        if (oldCollection && oldCollection !== saved.collectionId && Store.collection(oldCollection) &&
-            !Store.recipes().some(x => x.collectionId === oldCollection)) state.emptyCollection = oldCollection;
         if (hashId() === saved.id) renderDetail(saved.id);
         else openDetail(saved.id);
       } catch (ex) {
@@ -1040,7 +1009,7 @@
     const row = h('div', { class: 'pick-actions' });
     if (have < total) row.append(h('button', {
       type: 'button', class: 'btn', onclick: () => {
-        try { const n = Store.loadExamples(); toast(n === 1 ? '1 Beispielrezept hinzugefügt' : n + ' Beispielrezepte hinzugefügt'); openCollections(); }
+        try { const n = Store.loadExamples(); toast(n === 1 ? '1 Beispielrezept hinzugefügt' : n + ' Beispielrezepte hinzugefügt'); openSettings(); }
         catch (e) { toast(e.message); }
       }
     }, have ? 'Fehlende Beispiele hinzufügen' : 'Beispielrezepte hinzufügen'));
@@ -1049,10 +1018,10 @@
       del.addEventListener('click', () => {
         row.textContent = '';
         row.append(h('p', { class: 'confirm-text', text: 'Alle ' + have + ' Beispielrezepte löschen?' }),
-          h('button', { type: 'button', class: 'btn', onclick: () => openCollections() }, 'Abbrechen'),
+          h('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, 'Abbrechen'),
           h('button', {
             type: 'button', class: 'btn btn-danger-solid', onclick: () => {
-              try { const n = Store.removeExamples(); toast(n + ' Beispielrezepte entfernt'); openCollections(); }
+              try { const n = Store.removeExamples(); toast(n + ' Beispielrezepte entfernt'); openSettings(); }
               catch (e) { toast(e.message); }
             }
           }, 'Ja, entfernen'));
@@ -1108,7 +1077,7 @@
       const row = out.parentElement;
       row.textContent = '';
       row.append(h('p', { class: 'confirm-text', text: 'Abmelden? Deine Rezepte bleiben online gespeichert. Auf diesem Gerät wird nicht mehr abgeglichen, bis du dich wieder anmeldest.' }),
-        h('button', { type: 'button', class: 'btn', onclick: () => openCollections() }, 'Abbrechen'),
+        h('button', { type: 'button', class: 'btn', onclick: () => openSettings() }, 'Abbrechen'),
         h('button', { type: 'button', class: 'btn btn-danger-solid', onclick: async () => { closeDialog(); await S.signOut(); } }, 'Ja, abmelden'));
     });
     return h('div', { class: 'field examples' }, h('span', { class: 'label', text: 'Konto' }),
@@ -1117,49 +1086,17 @@
         h('button', { type: 'button', class: 'btn', onclick: () => { S.syncNow(); toast('Abgleich gestartet'); } }, 'Jetzt abgleichen'), out));
   }
 
-  function openCollections() {
-    const err = h('div', { class: 'form-error', role: 'alert', hidden: true });
-    const showErr = m => { err.textContent = m; err.hidden = false; };
-    const list = h('ul', { class: 'col-list' });
-
-    Store.collections().forEach(c => {
-      const n = Store.recipes().filter(r => r.collectionId === c.id).length;
-      const name = h('input', { type: 'text', id: 'col-' + c.id, value: c.name, 'aria-label': 'Name der Sammlung' });
-      list.append(h('li', { class: 'col-item' },
-        name,
-        h('span', { class: 'n', text: n === 1 ? '1 Rezept' : n + ' Rezepte' }),
-        h('button', {
-          type: 'button', class: 'btn', onclick: () => {
-            try { Store.renameCollection(c.id, name.value); toast('Umbenannt'); openCollections(); } catch (e) { showErr(e.message); }
-          }
-        }, 'Umbenennen'),
-        h('button', {
-          type: 'button', class: 'btn btn-danger', onclick: () => {
-            try { Store.deleteCollection(c.id); toast('Sammlung gelöscht'); openCollections(); } catch (e) { showErr(e.message); }
-          }
-        }, 'Löschen')));
-    });
-
-    const newName = h('input', { type: 'text', id: 'colNew', placeholder: 'Name der neuen Sammlung', autocomplete: 'off' });
-    const addForm = h('form', {
-      class: 'col-item', onsubmit: e => {
-        e.preventDefault();
-        try { Store.addCollection(newName.value); toast('Sammlung angelegt'); openCollections(); } catch (ex) { showErr(ex.message); }
-      }
-    }, newName, h('button', { type: 'submit', class: 'btn btn-primary' }, 'Anlegen'));
-
+  function openSettings() {
     const content = h('div', { class: 'form' },
-      err,
-      Store.collections().length ? list : h('p', { text: 'Noch keine Sammlungen. Lege unten deine erste an.' }),
-      h('div', { class: 'field' }, h('span', { class: 'label', text: 'Neue Sammlung' }), addForm),
+      h('p', { class: 'hint', text: 'Die Sammlungen Ofen, Pfanne, Topf, Grill und Kalt ergeben sich automatisch aus der Zubereitung.' }),
       examplesBox(),
       linksBox(),
       accountBox(),
       versionBox());
-
-    showDialog('collections', h('div', { style: 'display:contents' },
-      head('Sammlungen', closeDialog), h('div', { class: 'dlg-scroll' }, content)));
+    showDialog('settings', h('div', { style: 'display:contents' },
+      head('Einstellungen', closeDialog), h('div', { class: 'dlg-scroll' }, content)));
   }
+
 
   // ---------- Start ----------
   restoreView();
@@ -1207,7 +1144,7 @@
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go, { once: true });
     else go();
   })();
-  $('#btnCollections').addEventListener('click', openCollections);
+  $('#btnCollections').addEventListener('click', openSettings);
 
   Store.onChange(() => {
     render();

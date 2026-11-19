@@ -10,7 +10,8 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 **Schritt 1 (Grundgerüst):** fertig zum Ausprobieren
 - Übersicht aller Rezepte als Kacheln
 - Suche, die Umlaute, Wortteile und kleine Tippfehler verzeiht („hahnchen“ findet „Hähnchenbrust“, „brownis“ findet „Brownies“)
-- Filterchips für Sammlung, Rezeptart, Hauptzutat und Zubereitung, mit Trefferzahl; einklappbar, Reihenfolge der Filterzeilen frei anordnen
+- Feste Sammlungen automatisch aus der Zubereitung: Ofen, Pfanne, Topf, Grill, Kalt (js/collections.js); keine Auswahl beim Anlegen/Import
+- Filterchips für Sammlung, Rezeptart und Hauptzutat, mit Trefferzahl; einklappbar, Reihenfolge der Filterzeilen frei anordnen
 - Sortieren: A–Z, Neueste, Schnellste
 - Rezept öffnet sich als Fenster über der Übersicht, Suche und Filter bleiben erhalten
 - Personen-Regler im Rezept: startet bei 4 Personen, rechnet alle Mengen um (z. B. „1 kg“ für 2 → „500 g“ für 1)
@@ -83,6 +84,7 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/importer.js` | Import: Rezeptseiten und freien Text in Rezepte umwandeln |
 | `supabase/functions/import/index.ts` | Server-Programm: Rezeptseite abrufen (Supabase Edge Function) |
 | `js/linkcheck.js` | Tote Quellen-Links regelmäßig prüfen und entfernen |
+| `js/collections.js` | Feste Sammlungen aus der Zubereitung |
 | `js/dupes.js` | Doppelte Rezepte erkennen |
 | `js/images.js` | Fotos verkleinern und im Bildspeicher (IndexedDB) ablegen |
 | `js/app.js` | Bedienoberfläche |
