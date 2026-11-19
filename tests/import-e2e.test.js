@@ -38,6 +38,8 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   const ctx = await b.newContext(devices['iPhone 13']);
   await ctx.exposeFunction('__fn', body => JSON.stringify(serve(JSON.parse(body))));
   await ctx.route('**/js/vendor/supabase.js', r => r.fulfill({ contentType: 'text/javascript', body: FAKE }));
+  // sync.js absichtlich verzögern: so wie bei langsamem Netz auf dem Handy
+  await ctx.route('**/js/sync.js', async r => { await new Promise(res => setTimeout(res, 400)); r.continue(); });
   await ctx.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.APP_CONFIG={supabaseUrl:'https://t.example',supabaseKey:'k'};" }));
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));

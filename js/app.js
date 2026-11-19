@@ -1160,11 +1160,13 @@
     if (!/https?:\/\//i.test(shared)) return;
     try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* egal */ }
     const start = () => openImport(shared, true);
-    // Abgleich wird erst nach app.js geladen -> kurz warten
-    setTimeout(() => {
+    // Der Online-Abgleich (sync.js) wird erst nach app.js geladen -> warten, bis alle Skripte da sind
+    const go = () => {
       if (window.RecipeSync && window.RecipeSync.enabled && window.RecipeSync.whenSignedIn) window.RecipeSync.whenSignedIn().then(start);
       else start();
-    }, 0);
+    };
+    if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', go, { once: true });
+    else go();
   })();
   $('#btnCollections').addEventListener('click', openCollections);
 
