@@ -222,6 +222,19 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
     ok(got === b, 'Packungsgröße: „' + a + '“ -> „' + got + '“');
   }
 
+  // Vanillekipferl: "nach Omas bestem Rezept" weg, "96 Vanillekipferl" = Stück (nicht Personen), Gebäck
+  for (const [a, b] of [['Vanillekipferl nach Omas bestem Rezept', 'Vanillekipferl'], ['Apfelkuchen wie bei Oma', 'Apfelkuchen'], ['Rinderrouladen nach Mamas Art', 'Rinderrouladen'], ['Schnitzel nach Wiener Art', 'Schnitzel nach Wiener Art']])
+    ok(I.cleanTitle(a) === b, 'Name: „' + a + '“ -> „' + I.cleanTitle(a) + '“');
+  let yv = I.servingsFrom(['96', '96 Vanillekipferl'], 'Vanillekipferl');
+  ok(yv.servings === 96 && yv.servingsUnit === 'Stück', 'Ergibt „96 Vanillekipferl“ -> 96 Stück');
+  ok(I.servingsFrom(['4 Portionen'], 'x').servingsUnit === 'Personen' && I.servingsFrom(['4'], 'x').servingsUnit === 'Personen', '„4 Portionen“ und „4“ bleiben Personen');
+  ok(I.guessCourse('Vanillekipferl', ['Nachspeise'], []) === 'Gebäck', 'Kipferl sind Gebäck, auch wenn die Seite „Nachspeise“ sagt');
+  // Doppelpunkte hinter Zutaten
+  for (const [a, b] of [['Reis: 200 g', '200 g Reis'], ['200 g Reis:', '200 g Reis'], ['Frischkäse: 150 g', '150 g Frischkäse'], ['100 g Käse ((gerieben))', '100 g Käse (gerieben)'], ['1 Ei (Größe M) (verquirlt)', '1 Ei (Größe M, verquirlt)'], ['1 Dose Mais (285 g) (abgetropft)', '1 Dose (285 g) Mais (abgetropft)'], ['750 ml Sekt (= )', '750 ml Sekt']]) {
+    const got = window.Store.saveRecipe({ title: 'T', ingredients: [a], steps: ['x'] }).ingredients[0];
+    ok(got === b, 'Aufgeräumt: „' + a + '“ -> „' + got + '“');
+  }
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },

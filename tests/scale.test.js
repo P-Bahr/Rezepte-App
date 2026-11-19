@@ -78,3 +78,15 @@ for (const [l, f, e] of [['2 Dosen (je 400 ml) Kokosmilch', 0.5, '1 Dose (je 400
   const g = S.scaleText(l, f);
   if (g !== e) { console.log('FEHLER Packung', l, '→', g); process.exitCode = 1; } else console.log('ok   Packung', l, '→', g);
 }
+
+// Winzige Mengen nie als 0
+for (const [l, f, e] of [['1 Vanilleschote', 4 / 96, 'etwas Vanilleschote'], ['1 Prise Salz', 4 / 96, 'etwas Salz'], ['2 Pck. Vanillezucker', 4 / 96, 'etwas Vanillezucker'], ['1 TL Zimt', 0.5, '½ TL Zimt']]) {
+  const g = S.scaleText(l, f);
+  if (g !== e) { console.log('FEHLER winzig', l, '→', g); process.exitCode = 1; } else console.log('ok   winzig', l, '→', g);
+}
+
+// Eier immer ganz, auch "Stück Eier", "Freilandeier"; Einzahl/Mehrzahl
+for (const [l, f, e] of [['2 Stück Eier', 0.2, '1 Stück Ei'], ['2 Freilandeier', 0.2, '1 Freilandei'], ['2 Eier (Größe M)', 0.2, '1 Ei (Größe M)'], ['1 Ei', 3, '3 Eier'], ['2 Eigelbe', 0.2, '1 Eigelb'], ['2 Stk. Ei', 2.4, '5 Stk. Eier']]) {
+  const g = S.scaleText(l, f);
+  if (g !== e) { console.log('FEHLER Eier', l, '→', g); process.exitCode = 1; } else console.log('ok   Eier', l, '→', g);
+}

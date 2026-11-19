@@ -90,7 +90,8 @@
         unit = 'Springform';
         formSize = 'Ø ' + (dia ? (dia[1] || dia[2] || dia[3]) : 26) + ' cm';
       }
-      if (!F.UNITS.includes(unit)) unit = 'Personen';
+      // "96 Vanillekipferl", "12 Muffins", "20 Stück" -> Stück (sonst würde auf 4 Personen umgerechnet)
+      if (!F.UNITS.includes(unit)) unit = m[2] && !/^(x|mal|min|minuten|std|h)$/i.test(m[2]) ? 'Stück' : 'Personen';
       return { servings: n, servingsUnit: unit, formSize };
     }
     return { servings: 4, servingsUnit: 'Personen', formSize: '' };
@@ -116,6 +117,8 @@
     [/getränk|drink|beverage/i, 'Getränk'], [/snack/i, 'Snack'], [/sauce|soße|dip/i, 'Sauce & Dip']
   ];
   function guessCourse(title, category, keywords) {
+    if (/(kipferl|plätzchen|kekse?\b|cookies?|muffins?|kuchen|torte|brötchen|brot\b|brownies?|waffeln|zimtschnecken|stollen|lebkuchen|makronen)/i.test(title)) return 'Gebäck';
+    if (COURSE_RULES[0][1].test(title)) return 'Getränk';
     for (const c of arr(category)) for (const [re, v] of CATEGORY_MAP) if (re.test(clean(c))) return v;
     const hay = title + ' ' + arr(keywords).join(' ');
     for (const [v, re] of COURSE_RULES) if (re.test(hay)) return v;
@@ -139,7 +142,7 @@
   // Hauptzutat: die mengenmäßig größte Zutat, Grundzutaten ausgenommen
   // Grundzutaten: auch als Wortende ("Gemüsebrühe", "Puderzucker", "Olivenöl")
   const STAPLE_END = /(salz|pfeffer|zucker|wasser|öl|butter|mehl|backpulver|natron|hefe|essig|gewürz|gewürze|brühe|fond|milch|sahne|kräuter|zimt|muskat|honig|senf|pulver)$/i;
-  const STAPLE_WORD = /^(knoblauch|knoblauchzehen?|zehen?|zwiebeln?|ei|eier|eigelb|eiweiß|petersilie|schnittlauch|chili|chiliflocken|vanilleschote|lorbeerblätter?|thymian|rosmarin|basilikum|dill)$/i;
+  const STAPLE_WORD = /^(knoblauch|knoblauchzehen?|zehen?|zwiebeln?|ei|eier|eigelbe?|eiweiße?|petersilie|schnittlauch|chili|chiliflocken|vanilleschote|lorbeerblätter?|thymian|rosmarin|basilikum|dill)$/i;
   // Hauptwort einer Zutat: vor Komma/Klammer, letztes Wort ("300 g Bergkäse, gerieben" -> "Bergkäse")
   function noun(name) {
     const words = String(name).split(/[,(]/)[0].trim().split(/\s+/).filter(Boolean);
@@ -241,6 +244,8 @@
     if (keep.length > 1) keep = keep.filter(x => !generic(x)).concat(keep.filter(generic));
     t = (keep[0] || parts[0] || t);
     // Lob am Anfang und Rezept/Minuten-Angaben am Ende entfernen
+    // "nach Omas bestem Rezept", "wie bei Oma", "nach Mamas Art" … gehören nicht in den Namen
+    t = t.replace(/\s+(?:nach|wie bei|von|à la|a la)\s+(?:(?:meiner|unserer|der)\s+)?(?:omas?|mamas?|großmutters?|großmama|uromas?|muttis?|opas?|papas?)(?:\s+(?:bestem|bestes|bester|beste|liebstem|altem|klassischem|original|geheimem|bewährtem|einfachem|leckerem|leckerstem|traditionellem))?(?:\s+(?:rezept|art|stil|style))?\s*$/iu, '');
     t = t.replace(LEADING_PRAISE, '')
       .replace(/\s*\((?:grund)?rezept\)\s*$/iu, '')
       .replace(/\s+(?:grund)?rezept(?:\s+(?:von|nach)\s+.+)?$/iu, '')

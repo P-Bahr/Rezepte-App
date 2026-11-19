@@ -16,7 +16,9 @@
     'dose', 'dosen', 'bund', 'becher', 'tasse', 'tassen', 'glas', 'gläser', 'stück', 'stk', 'scheibe', 'scheiben', 'zehe', 'zehen',
     'handvoll', 'spritzer', 'schuss', 'zweig', 'zweige', 'blatt', 'blätter', 'tropfen', 'würfel', 'liter', 'gramm', 'kilogramm', 'tüte', 'beutel', 'flasche', 'stange', 'stangen', 'knolle', 'kopf']);
   // Eier irgendwo in der Zutat ("4 Eier", "4 sehr frische Eier", "2 Eier (Größe M)"), aber nicht "Ei-Nudeln"
-  const EGG = /(?<![\p{L}])(eier|ei|eigelbe|eigelb|eiweiße|eiweiß|eiweisse|eiweiss)(?![\p{L}-])/iu;
+  // Eier, auch als Wortende ("Freilandeier", "Wachteleier"), Eigelb, Eiweiß
+  const EGG = /(?:(?<![\p{L}])|(?<=\p{L}{3}))(eier|ei|eigelbe|eigelb|eiweiße|eiweiß|eiweisse|eiweiss)(?![\p{L}-])/iu;
+  const PIECE = /^(stück|stk|st)$/i;
 
   // Menge am Anfang: optional "ca."/"etwa", Zahl oder Bereich, optional Einheit
   const LEAD = new RegExp('^(\\s*(?:ca\\.?\\s*|etwa\\s+|circa\\s+)?)(' + NUM + ')(?:\\s*[-–]\\s*(' + NUM + '))?(\\s*)([A-Za-zÄÖÜäöüß]+\\.?(?=\\s|,|$))?', 'i');
@@ -87,6 +89,7 @@
     const m = text.match(LEAD);
     let parts = [];
     let rest = text;
+    let eggTail = null;
 
     if (m && !isNaN(parseNum(m[2]))) {
       // Nur echte Maßeinheiten gehören zur Menge, "Eier" oder "Bio-" nicht
@@ -112,8 +115,18 @@
       } else {
         amountText = formatCount(a) + (b != null && !isNaN(b) ? '–' + formatCount(b) : '');
         // Eier immer ganz (mindestens 1)
-        const egg = !unitWord && (b == null || isNaN(b)) && EGG.test(text.slice(consumed));
-        if (egg) amountText = String(Math.max(1, Math.round(a)));
+        const egg = (!unitWord || PIECE.test(unitClean)) && (b == null || isNaN(b)) && EGG.test(text.slice(consumed));
+        if (egg) {
+          const n = Math.max(1, Math.round(a));
+          amountText = String(n);
+          // Einzahl/Mehrzahl: "1 Ei", "2 Eier"
+          let tail = text.slice(consumed);
+          tail = n === 1 ? tail.replace(/(\p{L}*?)([Ee])ier(?!\p{L})/u, '$1$2i').replace(/\b([Ee])igelbe\b/u, '$1igelb').replace(/\b([Ee])iweiße\b/u, '$1iweiß')
+            : tail.replace(/(^|\s)(\p{L}*?)([Ee])i(?![\p{L}-])/u, '$1$2$3ier');
+          eggTail = tail;
+        }
+        // Winzige Mengen nie als "0": "etwas Salz" statt "0 Prise Salz"
+        else if (a > 0 && a < 0.125 && (b == null || isNaN(b) || b < 0.125)) { amountText = 'etwas'; unitWord && (unitOut = ''); }
       }
       // Packungen: Einzahl/Mehrzahl passend ("1 Dose", "2 Dosen")
       const PACK_SG = { dosen: 'Dose', flaschen: 'Flasche', packungen: 'Packung', gläser: 'Glas', tüten: 'Tüte', beutel: 'Beutel', becher: 'Becher', kartons: 'Karton', schalen: 'Schale', päckchen: 'Päckchen' };
@@ -122,10 +135,10 @@
       const maxAmount = b != null && !isNaN(b) ? b : a;
       if (!isMetric && maxAmount <= 1 && PACK_SG[lowU]) unitOut = PACK_SG[lowU];
       else if (!isMetric && maxAmount > 1 && PACK_PL[lowU]) unitOut = PACK_PL[lowU];
-      const amount = amountText + gap + unitOut;
+      const amount = unitOut ? amountText + gap + unitOut : amountText;
       if (m[1]) parts.push({ t: m[1], amount: false });
       parts.push({ t: factor === 1 ? text.slice(m[1].length, consumed) : amount, amount: true });
-      rest = text.slice(consumed);
+      rest = factor !== 1 && eggTail != null ? eggTail : text.slice(consumed);
     }
 
     // Gewichte/Volumen in Klammern mit umrechnen ("½ Dose (200 g)" = so viel braucht man);

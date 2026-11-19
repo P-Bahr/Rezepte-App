@@ -53,14 +53,19 @@
   function clean(text) { return String(text || '').trim(); }
   // "Bio" ist beim Einkaufen eigene Entscheidung und gehört nicht ins Rezept
   function cleanIngredient(text) {
-    return packSize(clean(String(text || '').replace(/(^|[\s(])bio(?:-|\s+)(?=\p{L})/giu, '$1').replace(/\s{2,}/g, ' ')));
+    return packSize(clean(String(text || '').replace(/(^|[\s(])bio(?:-|\s+)(?=\p{L})/giu, '$1')
+      .replace(/(\p{L})\s*:(?=\s|$)/gu, '$1') // "Reis: 200 g" / "200 g Reis:" -> ohne Doppelpunkt
+      .replace(/\(\s*\(+/g, '(').replace(/\)\s*\)+/g, ')')        // "((gerieben))" -> "(gerieben)"
+      .replace(/\(\s*[=,;:]?\s*\)/g, '')                          // leere "()", "(= )"
+      .replace(/\s{2,}/g, ' ')))
+      .replace(/\(([^()]*)\)\s*\(([^()]*)\)/g, '($1, $2)');       // "(Größe M) (verquirlt)" -> "(Größe M, verquirlt)"
   }
   // Packungsgröße in Klammern direkt hinter die Packung:
   // "1 Dose 400 g Tomaten" / "1 Flasche Sekt (= 750 ml)" / "1 Dose (à 400 g) Tomaten" -> "1 Dose (400 g) Tomaten"
   const PACK = '(?:Flaschen?|Dosen?|Packungen?|Pck\\.?|Pkg\\.?|Päckchen|Gläsern?|Glas|Becher|Tüten?|Beutel|Tetrapaks?|Kartons?|Schalen?|Netze?|Bund)';
   const SIZE = '(\\d+(?:[.,]\\d+)?\\s*(?:ml|cl|l|g|kg))';
   const PACK_DIRECT = new RegExp('^(\\S+\\s+' + PACK + ')\\s+\\(?\\s*(=|à|a|je|zu|ca\\.?)?\\s*' + SIZE + '\\s*\\)?\\s+(?=\\S)', 'iu');
-  const PACK_TAIL = new RegExp('^(\\S+\\s+' + PACK + ')\\s+(.+?)\\s*\\(\\s*(=|à|a|je|zu|ca\\.?)?\\s*' + SIZE + '\\s*\\)\\s*$', 'iu');
+  const PACK_TAIL = new RegExp('^(\\S+\\s+' + PACK + ')\\s+(.+?)\\s*\\(\\s*(=|à|a|je|zu|ca\\.?)?\\s*' + SIZE + '\\s*\\)\\s*(\\([^()]*\\))?\\s*$', 'iu');
   function packSize(t) {
     const fmt = (pack, q, size) => {
       const many = !/^(1|ein|eine)\s/i.test(pack);
@@ -69,7 +74,7 @@
     };
     if (PACK_DIRECT.test(t)) return t.replace(PACK_DIRECT, (m, pack, q, size) => fmt(pack, q, size) + ' ');
     const m = t.match(PACK_TAIL);
-    if (m) return fmt(m[1], m[3], m[4]) + ' ' + m[2];
+    if (m) return fmt(m[1], m[3], m[4]) + ' ' + m[2] + (m[5] ? ' ' + m[5] : '');
     return t;
   }
   // Alte Bezeichnung umbenennen
