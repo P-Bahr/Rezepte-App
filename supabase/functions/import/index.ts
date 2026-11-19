@@ -197,6 +197,38 @@ export async function tiktokResolve(url, fetcher) {
   return '';
 }
 
+// Beschreibung, Konto und Vorschaubild aus der Videoseite (TikTok liefert über oEmbed seit 2026 keine Beschreibung mehr)
+export function tiktokFromHtml(html) {
+  const out = { desc: '', author: '', image: '' };
+  const m = String(html).match(/<script[^>]+id="__UNIVERSAL_DATA_FOR_REHYDRATION__"[^>]*>([\s\S]*?)<\/script>/);
+  if (m) {
+    try {
+      const data = JSON.parse(m[1]);
+      let item = null;
+      const walk = (o, depth) => {
+        if (item || !o || typeof o !== 'object' || depth > 8) return;
+        if (o.itemStruct && typeof o.itemStruct.desc === 'string') { item = o.itemStruct; return; }
+        for (const k of Object.keys(o)) walk(o[k], depth + 1);
+      };
+      walk(data, 0);
+      if (item) {
+        out.desc = item.desc || '';
+        out.author = (item.author && (item.author.uniqueId || item.author.nickname)) || '';
+        out.image = (item.video && (item.video.cover || item.video.originCover)) || '';
+      }
+    } catch (_) { /* unten per Suche */ }
+  }
+  if (!out.desc) {
+    for (const d of String(html).matchAll(/"desc":"((?:[^"\\]|\\.)*)"/g)) {
+      let t = '';
+      try { t = JSON.parse('"' + d[1] + '"'); } catch (_) { continue; }
+      if (t.length > 20 && !/^\d[\d.,]*\s*(Likes|Mag ich)/i.test(t)) { out.desc = t; break; }
+    }
+  }
+  if (!out.image) out.image = metaContent(html, ['og:image']) || '';
+  return out;
+}
+
 // ---------- Pinterest: Pin -> Link zur eigentlichen Rezeptseite ----------
 export const isPinterest = host => /(^|\.)pinterest\.[a-z.]+$/.test(host) || host === 'pin.it';
 export function pinFromHtml(html) {
@@ -274,11 +306,18 @@ export async function handle(req) {
     // TikTok: Beschreibung über oEmbed (die Videoseite selbst enthält kein Rezept)
     if (isTikTok(checked.host)) {
       const long = (await tiktokResolve(checked.url)) || checked.url;
-      const o = await fetchText('https://www.tiktok.com/oembed?url=' + encodeURIComponent(long));
-      let data = null;
-      try { data = JSON.parse(o.text); } catch (_) { /* unten behandelt */ }
-      if (!data || !data.title) return json({ error: 'Die TikTok-Beschreibung konnte nicht geladen werden. Ist das Video öffentlich? Sonst ein Bildschirmfoto vom Rezept im Video machen.' }, 502);
-      return json({ kind: 'tiktok', url: long, title: data.title, author: data.author_name || '', image: data.thumbnail_url || '', jsonld: [], text: data.title, description: data.title });
+      let info = { desc: '', author: '', image: '' };
+      try { info = tiktokFromHtml((await fetchText(long, 2 * 1024 * 1024)).text || ''); } catch (_) { /* oEmbed versuchen */ }
+      if (!info.desc) {
+        // Früheres Format: oEmbed mit "title" = Beschreibung
+        try {
+          const data = JSON.parse((await fetchText('https://www.tiktok.com/oembed?url=' + encodeURIComponent(long))).text);
+          if (data && data.title) info = { desc: data.title, author: data.author_name || '', image: data.thumbnail_url || '' };
+        } catch (_) { /* unten behandelt */ }
+      }
+      if (!info.desc) return json({ error: 'Die TikTok-Beschreibung konnte nicht geladen werden. Ist das Video öffentlich? Sonst ein Bildschirmfoto vom Rezept im Video machen.' }, 502);
+      if (!info.author) info.author = (long.match(/@([^/]+)/) || [])[1] || '';
+      return json({ kind: 'tiktok', url: long, title: info.desc, author: info.author, image: info.image, jsonld: [], text: info.desc, description: info.desc });
     }
     // Pinterest: dem Pin zur Rezeptseite folgen; ohne Link die Pin-Beschreibung nehmen
     if (isPinterest(checked.host)) {

@@ -269,9 +269,17 @@
 
   function fromText(text, hint) {
     hint = hint || {};
-    let lines = String(text || '').replace(EMOJI, ' ')
+    let lines = String(text || '')
+      // Zahl-Emojis (1️⃣) und Aufzählungszeichen mitten im Text -> neue Zeile
+      .replace(/(\d)\uFE0F?\u20E3\s*/g, '\n')
+      .replace(EMOJI, ' ')
+      .replace(/\s[*•·▪︎]\s+/g, '\n')
       // "… Zutaten: 3 Bananen, … Zubereitung: …" -> eigene Zeilen
       .replace(/\s*\b(zutaten|ingredients|zubereitung|anleitung|so geht'?s|instructions)\s*:/gi, '\n$1:')
+      // "… Zutaten für 1 Blech: …" -> eigene Überschrift-Zeile
+      .replace(/\s*\b((?:zutaten|ingredients)\s+(?:für|for)\s+[^:\n.]{1,25}):/gi, '\n$1:\n')
+      // Kurze Zwischenüberschrift nach Satzende ("… (ca. 4 EL) Das steckt drin: …", "… wird. Haltbarkeit: …")
+      .replace(/(?<=[.!?)\]])\s+((?:[\p{L}\d-]+ ){0,5}[\p{L}-]+:)(?=\s|$)/gu, '\n$1\n')
       .split(/\r?\n|(?<=[.!])\s+(?=\d{1,2}[.)]\s)/)
       .map(l => l.replace(/#[\p{L}\p{N}_]+/gu, '').replace(/^[\s•·*\-–—>]+/, '').replace(/\s+/g, ' ').trim())
       .filter(l => l && !/^@\w/.test(l));
@@ -293,10 +301,12 @@
       }
       else if (HEAD_ING.test(l)) { mode = 'ing'; continue; }
       else if (HEAD_STEP.test(l)) { mode = 'step'; continue; }
+      // Andere Zwischenüberschrift ("Das steckt drin:", "Haltbarkeit:") -> Begleittext, keine Zutaten/Schritte
+      else if (/:$/.test(l) && l.split(' ').length <= 6 && !/^(für|for)\b/i.test(l) && !/\d/.test(l)) { mode = 'other'; other.push(l); continue; }
       // "ZUTATEN für etwa 16 Plätzchen" -> Überschrift (mit Mengenangabe)
       else if (/^(zutaten|ingredients?)\b/i.test(l)) {
         mode = 'ing';
-        const y = l.match(/(\d{1,3})\s*(portionen|personen|pers\.?|stück|stk\.?|plätzchen|muffins|gläser|servings?)/i);
+        const y = l.match(/(\d{1,3})\s*(portionen|personen|pers\.?|stück|stk\.?|plätzchen|muffins|gläser|bleche?|servings?)/i);
         if (y && !servingsFound) servingsFound = { n: parseInt(y[1], 10), unit: y[2] };
         continue;
       }
@@ -322,6 +332,7 @@
       }
 
       // Kochverb ohne Mengenangabe -> Zubereitung beginnt (auch ohne Überschrift)
+      if (mode === 'other') { other.push(l); continue; }
       if (numbered || (hasVerb && (mode === 'ing' || ingredients.length))) {
         mode = 'step';
         st.push(l.replace(/^\d{1,2}[.)]\s*/, ''));
@@ -339,6 +350,11 @@
       for (const o of other) { const m = o.match(/\bte[il]l\s*\d+\s*[|:–-]?\s*(.+)$/i); if (m) { title = m[1]; break; } }
       if (!title) title = other.find(o => o !== o.toUpperCase() && o.split(' ').length <= 8) || '';
     }
+    // Nur Fließtext mit Arbeitsschritten (keine Zutatenliste): die Sätze mit Kochverben als Schritte nehmen
+    if (!ingredients.length && !st.length) {
+      const verbs = other.filter(o => STEP_VERB.test(o) && o.split(' ').length >= 4);
+      if (verbs.length) { verbs.forEach(v => { st.push(v); other.splice(other.indexOf(v), 1); }); }
+    }
     if (!title) title = (other.shift() || '').replace(/[:!]+$/, '').slice(0, 80);
     title = cleanTitle(title);
     for (let i = other.length - 1; i >= 0; i--) if (isFluffLine(other[i])) other.splice(i, 1);
@@ -352,7 +368,7 @@
     const sv = String(text).match(/(?:für|for)\s+(\d{1,2})\s*(personen|portionen|pers\.?|servings?|people)/i);
     if (servingsFound) {
       d.servings = servingsFound.n;
-      d.servingsUnit = /stück|stk|plätzchen|muffins/i.test(servingsFound.unit) ? 'Stück' : /gläser/i.test(servingsFound.unit) ? 'Gläser' : 'Personen';
+      d.servingsUnit = /stück|stk|plätzchen|muffins/i.test(servingsFound.unit) ? 'Stück' : /gläser/i.test(servingsFound.unit) ? 'Gläser' : /blech/i.test(servingsFound.unit) ? 'Blech' : 'Personen';
     } else if (sv) d.servings = parseInt(sv[1], 10);
     return withGuesses(d);
   }
@@ -380,7 +396,7 @@
     if (res.kind === 'tiktok') {
       const t = fromText(res.text || '', { image: res.image, url: res.url });
       if (res.author) t.notes = (t.notes ? t.notes + '\n' : '') + 'Von @' + res.author + ' auf TikTok';
-      return { draft: t, how: t.ingredients.length ? 'tiktok' : 'tiktok-empty' };
+      return { draft: t, how: t.ingredients.length || t.steps.length ? 'tiktok' : 'tiktok-empty' };
     }
     return null;
   }

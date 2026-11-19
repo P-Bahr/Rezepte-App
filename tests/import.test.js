@@ -147,6 +147,18 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(await fn.checkOne('https://vm.tiktok.com/ZGdXpYwVd/', ttGet) === 'ok', 'Link-Prüfung: Kurzlink eines vorhandenen Videos ist „ok“');
   ok(await fn.checkOne('https://vm.tiktok.com/kaputt/', ttGet) === 'unknown', 'Link-Prüfung: nicht auflösbarer Kurzlink wird nicht entfernt');
 
+  // TikTok-Seite im neuen Format (oEmbed ohne Beschreibung)
+  const ttPage = require('fs').readFileSync(__dirname + '/fixtures/tiktok-seite.html', 'utf8');
+  let tp = fn.tiktokFromHtml(ttPage);
+  ok(/^Granola selbst gemacht/.test(tp.desc) && tp.author === 'test.koch' && tp.image === 'https://p16.example/cover.jpg', 'TikTok-Seite: Beschreibung, Konto und Bild aus den Seitendaten');
+  tp = fn.tiktokFromHtml('<script>{"x":{"desc":"8215 Likes, 3 Kommentare"},"y":{"desc":"Pizza Zutaten: 500 g Mehl, 1 Würfel Hefe"}}</script>');
+  ok(tp.desc === 'Pizza Zutaten: 500 g Mehl, 1 Würfel Hefe', 'TikTok-Seite: Notlösung per Suche, „Likes“-Zeile übersprungen');
+  d = I.toDraft({ kind: 'tiktok', url: 'u', text: fn.tiktokFromHtml(ttPage).desc, author: 'test.koch' }).draft;
+  ok(d.ingredients.length === 3 && d.steps.length === 1, 'TikTok neues Format: Zutaten und Schritt erkannt (' + d.ingredients.join(' | ') + ')');
+
+  d = I.toDraft({ kind: 'tiktok', url: 'u', text: 'Brezeln auf ein Backblech legen, Schokolade darauf verteilen und kurz bei 70 °C in den Ofen geben. Danach abkühlen lassen. #snack' }).draft;
+  ok(!d.ingredients.length && d.steps.length >= 1 && /Brezeln auf ein Backblech legen/.test(d.steps[0]), 'TikTok nur mit Schritten: Schritte übernommen statt Fehlermeldung');
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },
