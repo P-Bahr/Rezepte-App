@@ -193,6 +193,14 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
     ok(got === b, 'Kürzen: „' + a.slice(0, 40) + '…“ -> ' + got);
   }
 
+  // Hauptzutat: Rezeptname hat Vorrang vor der Menge
+  for (const [t, ing, want] of [
+    ['Cremige Kohlrabi-Karotten-Nudeln', ['1 Zwiebel', '1–2 Kohlrabi', '4 Karotten', '360 g Nudeln nach Wahl', '200 ml Sahne'], 'Nudeln'],
+    ['Hähnchen mit Reis', ['500 g Hähnchenbrustfilet', '250 g Reis'], 'Hähnchen'],
+    ['Lachs auf Spinat', ['2 Lachsfilets', '500 g Blattspinat'], 'Lachs'],
+    ['Kartoffelplätzchen', ['1 kg Kartoffeln', '3 Eigelb'], 'Kartoffeln']
+  ]) ok(I.guessMain(ing, t) === want, 'Hauptzutat aus dem Namen: ' + t + ' -> ' + I.guessMain(ing, t));
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },

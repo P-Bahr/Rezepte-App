@@ -141,12 +141,39 @@
     return words[words.length - 1] || '';
   }
   const isStaple = name => { const n = noun(name).toLowerCase(); return !n || STAPLE_END.test(n) || STAPLE_WORD.test(n); };
-  function guessMain(ingredients) {
-    let best = null, bestScore = -1;
+  // Hauptzutat aus dem Rezeptnamen: "Kohlrabi-Karotten-Nudeln" -> Nudeln (das Grundwort steht hinten),
+  // "Hähnchen mit Reis" -> Hähnchen (vor "mit" steht das Gericht), "Kartoffelplätzchen" -> Kartoffeln
+  function mainFromTitle(ingredients, title) {
+    const head = String(title || '').toLowerCase().split(/\s+(?:mit|an|auf|in|und|im|vom|aus|nach|à la|a la)\s+/)[0];
+    if (!head) return '';
+    let best = '', bestPos = -1;
+    for (const line of ingredients) {
+      const p = Sc.parseIngredient(Sc.normalizeIngredient(line));
+      if (!p.name || isStaple(p.name)) continue;
+      const name = p.name.replace(/\s+(nach (wahl|belieben|geschmack)|zum \p{L}+|für \p{L}+.*)$/iu, '');
+      const stemOf = x => x.toLowerCase().replace(/(innen|en|n|e|s)$/, '');
+      const headWords = head.split(/[\s-]+/).filter(w => w.length >= 4);
+      for (const word of name.split(/[\s,]+/).filter(w => /^\p{Lu}/u.test(w))) {
+        const n = word.toLowerCase();
+        if (/rezept|kinder|familie|essen$|ideen|gericht|küche/.test(n)) continue;
+        const stem = stemOf(n);
+        if (stem.length < 3) continue;
+        let pos = head.lastIndexOf(stem);
+        // "Lachs auf Spinat" + "Lachsfilets": Zutat beginnt mit einem Wort aus dem Namen
+        if (pos < 0) for (const w of headWords) if (n.startsWith(stemOf(w))) pos = Math.max(pos, head.lastIndexOf(w));
+        if (pos > bestPos) { bestPos = pos; best = p.name; }
+      }
+    }
+    return best;
+  }
+
+  function guessMain(ingredients, title) {
+    let best = mainFromTitle(ingredients, title) || null, bestScore = best ? Infinity : -1;
     ingredients.forEach((line, i) => {
       const p = Sc.parseIngredient(Sc.normalizeIngredient(line));
       if (!p.name || isStaple(p.name)) return;
       // Kategorie-Wörter von Webseiten sind keine Zutat ("Kinderrezepte", "Familienessen", "Abendessen")
+      if (bestScore === Infinity) return;
       if (/rezept|kinder|familie|essen\b|ideen|gericht|küche|snack|dessert|frühstück/i.test(p.name)) return;
       const v = Sc.parseNum(String(p.amount).split('–')[0]);
       let g = isNaN(v) ? 0 : v;
@@ -166,7 +193,7 @@
   function withGuesses(d, category, keywords) {
     d.course = d.course || guessCourse(d.title, category, keywords);
     d.method = d.method || guessMethod(d.steps, d.title);
-    d.mainIngredient = d.mainIngredient || guessMain(d.ingredients);
+    d.mainIngredient = d.mainIngredient || guessMain(d.ingredients, d.title);
     return d;
   }
 
