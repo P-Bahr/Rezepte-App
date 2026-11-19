@@ -237,6 +237,16 @@
      "Das einfachste Rezept: Ofenpfannkuchen" -> "Ofenpfannkuchen"
      "Super leckere schnelle Pfannkuchen in 10 Minuten" -> "Pfannkuchen"
      "Spaghetti Carbonara Rezept" -> "Spaghetti Carbonara" */
+  // Nur Zusätze ohne Inhalt entfernen ("nach Omas bestem Rezept", "für Kinder und Familie") – auch für gespeicherte Rezepte
+  function tidyTitle(t) {
+    // "nach Omas bestem Rezept", "wie bei Oma", "nach Mamas Art" … gehören nicht in den Namen
+    t = String(t || '').replace(/\s+(?:nach|wie bei|von|à la|a la)\s+(?:(?:meiner|unserer|der)\s+)?(?:omas?|mamas?|großmutters?|großmama|uromas?|muttis?|opas?|papas?)(?:\s+(?:bestem|bestes|bester|beste|liebstem|altem|klassischem|original|geheimem|bewährtem|einfachem|leckerem|leckerstem|traditionellem))?(?:\s+(?:rezept|art|stil|style))?\s*$/iu, '');
+    // Zielgruppe gehört nicht in den Namen: "für Kinder und Familie", "für die ganze Familie", "kindgerecht"
+    t = t.replace(/\s*[–—-]?\s*\(?\b(?:für|for)\s+(?:die\s+(?:ganze\s+)?|kleine\s+|große\s+(?:und\s+kleine\s+)?)?(?:kinder|kids|babys?|kleinkinder|familien?|groß\s+und\s+klein|jung\s+und\s+alt)(?:\s+(?:und|&|\+)\s+(?:die\s+(?:ganze\s+)?)?(?:kinder|kids|familien?|erwachsene))?\)?(?=\s*$|\s*[–—|,:(])/giu, '')
+      .replace(/\s*[–—-]?\s*\(?\b(?:kindgerecht|kinderfreundlich|familienfreundlich|kinderleicht|baby-?led[- ]?weaning|blw)\)?(?=\s*$|\s*[–—|,:(])/giu, '');
+    return t.trim();
+  }
+
   function cleanTitle(raw) {
     let t = clean(raw).replace(EMOJI_RE, ' ').replace(/\s+/g, ' ').trim();
     if (!t) return t;
@@ -250,8 +260,7 @@
     if (keep.length > 1) keep = keep.filter(x => !generic(x)).concat(keep.filter(generic));
     t = (keep[0] || parts[0] || t);
     // Lob am Anfang und Rezept/Minuten-Angaben am Ende entfernen
-    // "nach Omas bestem Rezept", "wie bei Oma", "nach Mamas Art" … gehören nicht in den Namen
-    t = t.replace(/\s+(?:nach|wie bei|von|à la|a la)\s+(?:(?:meiner|unserer|der)\s+)?(?:omas?|mamas?|großmutters?|großmama|uromas?|muttis?|opas?|papas?)(?:\s+(?:bestem|bestes|bester|beste|liebstem|altem|klassischem|original|geheimem|bewährtem|einfachem|leckerem|leckerstem|traditionellem))?(?:\s+(?:rezept|art|stil|style))?\s*$/iu, '');
+    t = tidyTitle(t);
     t = t.replace(LEADING_PRAISE, '')
       .replace(/\s*\((?:grund)?rezept\)\s*$/iu, '')
       .replace(/\s+(?:grund)?rezept(?:\s+(?:von|nach)\s+.+)?$/iu, '')
@@ -631,5 +640,5 @@
     throw new Error('Pinnwand nicht gefunden. Stimmen Name und Pinnwand, und ist sie öffentlich?');
   }
 
-  window.RecipeImporter = { validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

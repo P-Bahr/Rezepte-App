@@ -92,6 +92,13 @@
       changed = true;
       return { ...r, mainIngredient: I.validMain(I.guessMain(r.ingredients || [], r.title)), updatedAt: now };
     });
+    // Namen ohne "für Kinder und Familie", "nach Omas bestem Rezept" …
+    if (I && I.tidyTitle) data.recipes = data.recipes.map(r => {
+      const t = I.tidyTitle(r.title);
+      if (!t || t === r.title) return r;
+      changed = true;
+      return { ...r, title: t, updatedAt: now };
+    });
     data.recipes = data.recipes.map(r => {
       const f = C.forRecipe(r);
       if (r.collectionId === f.id && (r.method || '') === f.method) return r;
