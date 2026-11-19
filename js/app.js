@@ -555,7 +555,7 @@
         h('button', { type: 'button', class: 'btn btn-danger', onclick: askDelete }, 'Löschen'),
         h('button', { type: 'button', class: 'btn' + (reviewing ? '' : ' btn-primary'), onclick: () => openEdit(id) }, 'Bearbeiten'),
         // Beim Prüfen immer unten sichtbar
-        reviewing ? h('button', { type: 'button', class: 'btn btn-primary', id: 'btnReviewed', onclick: markReviewed }, 'Passt ✓') : null);
+        ...(reviewing ? [h('button', { type: 'button', class: 'btn btn-primary', id: 'btnReviewed', onclick: markReviewed }, 'Passt ✓')] : []));
     };
     function askDelete() {
       foot.textContent = '';
@@ -898,7 +898,7 @@
           failed.length ? h('div', { class: 'field' },
             h('span', { class: 'label', text: 'Nicht geklappt' }),
             h('p', { class: 'hint', text: 'Hier stand kein vollständiges Rezept. Tippen öffnet den Pin; dann z. B. ein Bildschirmfoto vom Rezept importieren.' }),
-            h('ul', { class: 'board-failed' }, failed.map(f => h('li', null, h('a', { href: f.pin.url, target: '_blank', rel: 'noopener noreferrer', text: f.label }))))) : null);
+            h('ul', { class: 'board-failed' }, failed.map(f => h('li', null, h('a', { href: f.pin.url, target: '_blank', rel: 'noopener noreferrer', text: f.label }))))) : '');
       }
       function askUndo() {
         out.querySelector('#boardUndo').replaceWith(h('div', { class: 'confirm' },

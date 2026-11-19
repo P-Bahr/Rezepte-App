@@ -82,6 +82,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   assert(await p.inputValue('#fSource') === 'https://www.chefkoch.de/rezepte/1/kaesespaetzle.html' && await p.inputValue('#fImage') === 'https://img.example/k.jpg', 'Quelle und Bild übernommen');
   await p.click('dialog button[type=submit]'); await p.waitForTimeout(400);
   assert(await p.isVisible('dialog h2:has-text("Allgäuer Käsespätzle")'), 'Gespeichert und geöffnet');
+  assert(!(await p.textContent('.dlg-foot')).includes('null'), 'Leiste unten ohne „null“');
   assert(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth && document.querySelector('#dlgBody').scrollWidth <= window.innerWidth), 'Rezept mit langem Quellen-Link passt aufs Handy (nicht breiter als der Bildschirm)');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
 
@@ -217,6 +218,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   const imported = await p.evaluate(() => Store.recipes().filter(r => r.review).map(r => r.title + '|' + r.sourceUrl + '|' + r.imageUrl).sort());
   assert(imported.length === 2 && imported[0].startsWith('Bananenbrot|https://www.pinterest.com/pin/3/') && imported[1] === 'Rote Linsensuppe|https://www.lecker.example/linsensuppe|https://i.pinimg.example/2.jpg', 'Gespeichert mit „Zu prüfen“, Quelle und Bild: ' + imported.join(' ; '));
   assert(await p.isVisible('.board-failed a:has-text("Schöne Deko-Idee")'), 'Liste „Nicht geklappt“ mit Link zum Pin');
+  assert(!(await p.textContent('#boardResult')).includes('null'), 'Ergebnis ohne „null“');
   assert(await p.evaluate(() => localStorage.getItem('rezepte.pinterestName')) === 'oopusteblumeoo', 'Pinterest-Name wird gemerkt');
   await p.click('#boardShowReview');
   await p.waitForSelector('#chipReview[aria-pressed=true]');
