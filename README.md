@@ -11,7 +11,7 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Übersicht aller Rezepte als Kacheln
 - Suche, die Umlaute, Wortteile und kleine Tippfehler verzeiht („hahnchen“ findet „Hähnchenbrust“, „brownis“ findet „Brownies“)
 - Feste Sammlungen automatisch aus der Zubereitung: Ofen, Pfanne, Topf, Grill, Kalt (js/collections.js); keine Auswahl beim Anlegen/Import
-- Filterchips für Sammlung, Rezeptart und Hauptzutat, mit Trefferzahl; einklappbar, Reihenfolge der Filterzeilen frei anordnen
+- Filterchips für Sammlung, Rezeptart und Hauptzutat (als feste Gruppen: Fleisch, Fisch, Nudeln, Kartoffeln, Reis & Getreide, Hülsenfrüchte, Käse & Eier, Obst, Süßes, Gemüse, Sonstiges), mit Trefferzahl; einklappbar, Reihenfolge der Filterzeilen frei anordnen
 - Sortieren: A–Z, Neueste, Schnellste
 - Rezept öffnet sich als Fenster über der Übersicht, Suche und Filter bleiben erhalten
 - Personen-Regler im Rezept: startet bei 4 Personen, rechnet alle Mengen um (z. B. „1 kg“ für 2 → „500 g“ für 1)
@@ -93,6 +93,7 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/vendor/tesseract/` | Tesseract.js 5.1.1 + deutsche Sprachdaten (Apache-2.0) |
 | `js/inbox.js` | Eingangsfach für geteilte Rezepte (Kurzbefehl) |
 | `supabase/eingang.sql` | Einrichtung Eingangsfach + Teilen-Schlüssel (einmal ausführen) |
+| `js/maingroups.js` | Hauptzutat -> feste Gruppe für den Filter (Fleisch, Fisch, Nudeln …) |
 | `js/dupes.js` | Doppelte Rezepte erkennen |
 | `js/images.js` | Fotos verkleinern und im Bildspeicher (IndexedDB) ablegen |
 | `js/app.js` | Bedienoberfläche |

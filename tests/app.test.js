@@ -58,6 +58,14 @@ const OUT = process.argv[2] || '.';
   assert(!(await p.isVisible('#filters')), 'Zugeklappt bleibt nach Neuladen zu');
   await p.click('#btnFilter');
   assert(await p.isVisible('#filters'), 'Filter wieder aufgeklappt');
+  // Hauptzutat als feste Gruppen
+  const groupChips = await p.$$eval('.chips[data-key=mainIngredient] .chip', e => e.map(x => x.firstChild.textContent.trim()));
+  const allowed = await p.evaluate(() => window.RecipeGroups.ORDER);
+  assert(groupChips.length > 2 && groupChips.length <= allowed.length && groupChips.every(c => allowed.includes(c)), 'Hauptzutat zeigt nur Gruppen: ' + groupChips.join(', '));
+  await p.click('.chips[data-key=mainIngredient] .chip:has-text("Fleisch")');
+  const meat = await p.$$eval('.tile-title', e => e.map(x => x.textContent));
+  assert(meat.length > 0 && await p.evaluate(t => t.every(x => window.RecipeGroups.groupOf(Store.recipes().find(r => r.title === x).mainIngredient) === 'Fleisch'), meat), 'Chip „Fleisch“ zeigt nur Fleischgerichte (' + meat.length + ')');
+  await p.click('.chips[data-key=mainIngredient] .chip:has-text("Fleisch")');
   // Filterzeilen anordnen
   const rowOrder = () => p.$$eval('.facet', e => e.map(x => x.dataset.key).join());
   assert(await rowOrder() === 'collectionId,course,mainIngredient', 'Standard-Reihenfolge der Filterzeilen (ohne eigene Zeile „Zubereitung“)');

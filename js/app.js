@@ -11,7 +11,7 @@
   const FACETS = [
     { key: 'collectionId', label: 'Sammlung' },
     { key: 'course', label: 'Rezeptart', order: COURSES },
-    { key: 'mainIngredient', label: 'Hauptzutat' }
+    { key: 'mainIngredient', label: 'Hauptzutat', order: window.RecipeGroups.ORDER } // als Gruppe (Fleisch, Fisch …)
   ];
 
   const state = {
@@ -52,7 +52,14 @@
 
   function facetKey(value) { return S.normalize(value); }
   function facetValue(recipe, key) {
-    return key === 'collectionId' ? recipe.collectionId : facetKey(recipe[key]);
+    if (key === 'collectionId') return recipe.collectionId;
+    if (key === 'mainIngredient') return facetKey(window.RecipeGroups.groupOf(recipe.mainIngredient));
+    return facetKey(recipe[key]);
+  }
+  function facetLabel(recipe, key) {
+    if (key === 'collectionId') return collectionName(recipe.collectionId);
+    if (key === 'mainIngredient') return window.RecipeGroups.groupOf(recipe.mainIngredient);
+    return String(recipe[key] || '').trim();
   }
   function collectionName(id) { const c = Store.collection(id); return c ? c.name : ''; }
 
@@ -76,6 +83,9 @@
       state.query = v.q || '';
       state.favOnly = !!v.fav;
       for (const k in state.filters) state.filters[k] = new Set((v.f && v.f[k]) || []);
+      // Früher gemerkte einzelne Hauptzutaten ("minuten") passen nicht mehr zu den Gruppen
+      const groups = new Set(window.RecipeGroups.ORDER.map(facetKey));
+      state.filters.mainIngredient = new Set([...state.filters.mainIngredient].filter(x => groups.has(x)));
     } catch (e) { /* nicht schlimm */ }
   }
 
@@ -174,14 +184,14 @@
       for (const r of searchHits) {
         const v = facetValue(r, f.key);
         if (!v) continue;
-        if (!labels.has(v)) labels.set(v, f.key === 'collectionId' ? collectionName(v) : r[f.key].trim());
+        if (!labels.has(v)) labels.set(v, facetLabel(r, f.key));
         if (passesFilters(r, f.key)) counts.set(v, (counts.get(v) || 0) + 1);
       }
       // Ausgewählte Werte immer zeigen, auch wenn sie gerade 0 Treffer haben
       for (const v of state.filters[f.key]) {
         if (!labels.has(v)) {
           const any = Store.recipes().find(r => facetValue(r, f.key) === v);
-          labels.set(v, f.key === 'collectionId' ? collectionName(v) : (any ? any[f.key].trim() : v));
+          labels.set(v, f.key === 'collectionId' ? collectionName(v) : (any ? facetLabel(any, f.key) : v));
         }
       }
       let values = [...labels.keys()].filter(v => counts.get(v) || state.filters[f.key].has(v));
