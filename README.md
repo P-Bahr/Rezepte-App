@@ -42,6 +42,8 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 6. Zählen pro Konto und Obergrenze für KI-Importe gleich mit einbauen
 Kein Auslesen direkt aus Videos (bewusst weggelassen).
 
+**Vor jeder Veröffentlichung:** `./tools/neue-version.sh` ausführen – geöffnete Apps erkennen dann die neue Version (version.json) und laden sie selbst.
+
 **Server-Programm aktualisieren:** `curl -X POST "https://api.supabase.com/v1/projects/raokoztpgowlsmfmmcbd/functions/deploy?slug=import" -H "Authorization: Bearer <Zugangsschlüssel>" -F 'metadata={"entrypoint_path":"index.ts","name":"import","verify_jwt":false};type=application/json' -F 'file=@supabase/functions/import/index.ts;filename=index.ts'`
 
 **Technische Notizen Import + KI:**
