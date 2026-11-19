@@ -238,6 +238,17 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   for (const [v, want] of [['Minuten', ''], ['1050', ''], ['63 g', ''], ['Kartoffeln', 'Kartoffeln'], ['Rote Linsen', 'Rote Linsen'], ['Kinderrezepte', '']])
     ok(I.validMain(v) === want, 'Hauptzutat gültig? „' + v + '“ -> „' + I.validMain(v) + '“');
 
+  // Seite ohne Rezeptangaben (wie leckeregerichte.com): Tippfehler-Zwischenüberschrift, Werbung mitten drin, Fußbereich
+  const plainPage = '<html><head><title>Besser als vom Bäcker, Streuseltaler unfassbar lecker!</title></head><body><a>Skip to content</a><h1>Besser als vom Bäcker, Streuseltaler unfassbar lecker!</h1>'
+    + '<p>Zutaten:</p><p>300 g Mehl</p><p>1 Pck. Trockenhefe</p><p>Fur die Streusel:</p><p>250 g Butter, kalte</p><p>250 g Zucker</p><p>Zubereitung:</p>'
+    + '<p>1. Mehl mit der Trockenhefe verrühren.</p><p>2. 20 Minuten gehen lassen.</p><p>Probieren Sie auch:</p><p>Nehmen Sie 1 Apfel, 400 g Blätterteig und bereiten Sie dieses Dessert!</p>'
+    + '<p>3. Streusel auf dem Teig verteilen.</p><p>4. 20 Minuten bei 180 °C backen.</p><p>Mit Familie und Freunden teilen</p><p>ÜBER UNS Willkommen bei …</p><p>Kürzliche Posts</p></body></html>';
+  d = I.toDraft({ kind: 'page', ...fn.extract(plainPage, 'https://leckeregerichte.com/x') }).draft;
+  ok(d.title === 'Streuseltaler', 'Name ohne „Besser als vom Bäcker“ und „unfassbar lecker“: ' + d.title);
+  ok(d.ingredients.length === 4 && d.ingredients.includes('250 g Zucker'), '„Fur die Streusel:“ ist eine Zwischenüberschrift, Zutaten danach bleiben: ' + d.ingredients.join(' | '));
+  ok(d.steps.length === 4 && /backen/.test(d.steps[3]) && !d.steps.some(x => /Apfel|ÜBER UNS|Posts/i.test(x)), 'Werbung und Seitenende nicht in den Schritten: ' + JSON.stringify(d.steps));
+  ok(d.course === 'Gebäck' && d.method === 'Backen' && !d.notes, 'Gebäck, Backen, keine Notizen wie „Skip to content“');
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },

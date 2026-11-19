@@ -117,7 +117,7 @@
     [/getränk|drink|beverage/i, 'Getränk'], [/snack/i, 'Snack'], [/sauce|soße|dip/i, 'Sauce & Dip']
   ];
   function guessCourse(title, category, keywords) {
-    if (/(kipferl|plätzchen|kekse?\b|cookies?|muffins?|kuchen|torte|brötchen|brot\b|brownies?|waffeln|zimtschnecken|stollen|lebkuchen|makronen)/i.test(title)) return 'Gebäck';
+    if (/(kipferl|plätzchen|kekse?\b|cookies?|muffins?|kuchen|torte|brötchen|brot\b|brownies?|waffeln|schnecken|stollen|lebkuchen|makronen|taler\b|teilchen|krapfen|berliner|donuts?|croissants?|plunder|zopf|streusel|scones|cupcakes?|blechkuchen|hefeteig)/i.test(title)) return 'Gebäck';
     if (COURSE_RULES[0][1].test(title)) return 'Getränk';
     for (const c of arr(category)) for (const [re, v] of CATEGORY_MAP) if (re.test(clean(c))) return v;
     const hay = title + ' ' + arr(keywords).join(' ');
@@ -244,7 +244,11 @@
     // Zielgruppe gehört nicht in den Namen: "für Kinder und Familie", "für die ganze Familie", "kindgerecht"
     t = t.replace(/\s*[–—-]?\s*\(?\b(?:für|for)\s+(?:die\s+(?:ganze\s+)?|kleine\s+|große\s+(?:und\s+kleine\s+)?)?(?:kinder|kids|babys?|kleinkinder|familien?|groß\s+und\s+klein|jung\s+und\s+alt)(?:\s+(?:und|&|\+)\s+(?:die\s+(?:ganze\s+)?)?(?:kinder|kids|familien?|erwachsene))?\)?(?=\s*$|\s*[–—|,:(])/giu, '')
       .replace(/\s*[–—-]?\s*\(?\b(?:kindgerecht|kinderfreundlich|familienfreundlich|kinderleicht|baby-?led[- ]?weaning|blw)\)?(?=\s*$|\s*[–—|,:(])/giu, '');
-    return t.trim();
+    // "Besser als vom Bäcker, …" / "… unfassbar lecker!"
+    t = t.replace(/^(?:(?:noch\s+)?besser\s+als\s+(?:vom|beim|im|aus\s+dem)\s+[\p{L}-]+|wie\s+(?:vom|beim|im)\s+[\p{L}-]+|der\s+hammer|suchtgefahr)\s*[!,:–—-]+\s*/iu, '');
+    const tail = /\s*[,–—-]?\s*(?:(?:super|mega|so+|einfach|unfassbar|unglaublich|richtig|total|wahnsinnig|absolut|extrem|echt|sehr|soo+)\s+)*(?:lecker|köstlich|himmlisch|genial|traumhaft|fantastisch|unwiderstehlich|saulecker|oberlecker|ein\s+traum|der\s+hammer|zum\s+niederknien)\s*!*$/iu;
+    if (tail.test(t) && /\p{L}{3,}/u.test(t.replace(tail, ''))) t = t.replace(tail, '');
+    return t.replace(/[\s!,]+$/, '').trim();
   }
 
   function cleanTitle(raw) {
@@ -272,7 +276,7 @@
   }
 
   // Sätze ohne Rezeptinhalt am Ende/Anfang von Schritten und Texten
-  const FLUFF_LINE = /^(guten appetit|viel spa(ß|ss)|lasst es euch|lass es dir|enjoy|bon app[ée]tit|und fertig|fertig ist|mahlzeit|have fun|happy (baking|cooking)|ich wünsche|wenn (du|ihr) (dieses|das) rezept|hast du (dieses|das) rezept|teile? (gerne )?(dein|ein) foto|markiere mich|folge mir|(und )?für mehr .{0,30}(folg|folge|folgt) mir|speicher(e|t)? (dir )?(das|dieses|den|die) (rezept|post|video|beitrag)|pin(ne)? (es|das rezept)|werbung|anzeige|affiliate|newsletter|link in bio|mehr rezepte)/iu;
+  const FLUFF_LINE = /^(guten appetit|viel spa(ß|ss)|lasst es euch|lass es dir|enjoy|bon app[ée]tit|und fertig|fertig ist|mahlzeit|have fun|happy (baking|cooking)|ich wünsche|wenn (du|ihr) (dieses|das) rezept|hast du (dieses|das) rezept|teile? (gerne )?(dein|ein) foto|markiere mich|folge mir|(und )?für mehr .{0,30}(folg|folge|folgt) mir|speicher(e|t)? (dir )?(das|dieses|den|die) (rezept|post|video|beitrag)|pin(ne)? (es|das rezept)|werbung|anzeige|affiliate|newsletter|link in bio|mehr rezepte|skip to content|zum inhalt springen|menü$|navigation$|suche$|startseite$)/iu;
   const isFluffLine = l => FLUFF_LINE.test(String(l).replace(EMOJI_RE, '').trim()) || /^[\s\p{P}\p{S}]*$/u.test(String(l).replace(EMOJI_RE, ''));
   const cleanIngredientText = l => clean(l).replace(/\(?\*?\s*(affiliate[- ]?link|werbung|anzeige|\*)\s*\)?/giu, ' ').replace(/\s*\*+\s*/g, ' ').replace(/\s+/g, ' ').replace(/\s+([,.;])/g, '$1').trim();
 
@@ -473,8 +477,19 @@
     const ingredients = [], st = [], other = [];
     let mode = '';
     let servingsFound = 0;
+    let skipAd = 0;
     for (const raw of lines) {
       let l = raw;
+      // Seitenende (Teilen-Knöpfe, "Über uns", Kommentare …): hier hört das Rezept auf
+      if ((ingredients.length || st.length) && /^(mit (?:familie|freunden).{0,30}teilen|(?:rezept )?teilen\b|share\b|über uns|kürzliche (?:posts|beiträge)|ähnliche (?:beiträge|rezepte)|neueste (?:beiträge|rezepte)|kommentare?\b|\d+ kommentare|hinterlasse einen kommentar|schreibe einen kommentar|related|tags:|schlagwörter|kategorien?:|copyright|©|impressum|datenschutz|newsletter|zurück zur übersicht|zurück zu allen|drucken$|skip to content)/i.test(l)) break;
+      // Werbung mitten im Rezept ("Probieren Sie auch: Nehmen Sie 1 Apfel …"): Überschrift und nächste Zeile überspringen
+      if (skipAd) { skipAd--; continue; }
+      if (/^(probieren sie auch|probier(?:e|t)? auch|das könnte (?:dich|sie|euch) auch interessieren|lesen sie auch|lies auch|auch lecker|weitere rezepte|mehr rezepte|ähnliche rezepte|passend dazu)\b.{0,40}:?$/i.test(l)) { skipAd = 1; continue; }
+      if (/^(werbung|anzeige|\*?affiliate)\b/i.test(l)) continue;
+      // Zwischenüberschrift bei den Zutaten ("Für die Streusel:", auch mit Tippfehler "Fur die …") -> weiter Zutaten
+      if (/^(für|fur|fuer|for|zum|zur)\s+(?:den|die|das|the)?\s*[\p{L} -]{2,30}:$/iu.test(l) && (mode === 'ing' || ingredients.length)) { mode = 'ing'; continue; }
+      // Nummerierter Schritt nach einem Einschub -> wieder Zubereitung
+      if (mode === 'other' && st.length && /^\d{1,2}[.)]\s/.test(l)) mode = 'step';
       const inlineHead = l.match(/^(zutaten|ingredients?|zubereitung|anleitung|so geht'?s)\s*:\s*(.+)$/i);
       if (inlineHead) {
         mode = /zut|ingr/i.test(inlineHead[1]) ? 'ing' : 'step';
