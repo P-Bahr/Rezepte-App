@@ -516,8 +516,8 @@
       facts.push(h('span', null, 'Original: ', h('a', { href: src, target: '_blank', rel: 'noopener noreferrer', class: 'source-link', text: host + ' ↗' })));
     }
     const reviewBar = r.review ? h('div', { class: 'notice review-notice', id: 'reviewNotice' },
-      h('p', null, h('b', { text: 'Automatisch importiert.' }), ' Bitte kurz prüfen. Passt alles, tippe auf „Passt“; sonst „Bearbeiten“.'),
-      h('button', { type: 'button', class: 'btn btn-primary', id: 'btnReviewed', onclick: () => {
+      h('p', null, h('b', { text: 'Automatisch importiert.' }), ' Bitte kurz prüfen. Passt alles, tippe unten auf „Passt ✓“; sonst „Bearbeiten“.')) : null;
+    function markReviewed() {
         // Nächstes ungeprüftes Rezept (in der Reihenfolge der Übersicht) direkt öffnen
         const order = [...document.querySelectorAll('#grid .tile[data-id]')].map(t => t.dataset.id);
         const pending = new Set(Store.recipes().filter(x => x.review && x.id !== id).map(x => x.id));
@@ -531,7 +531,7 @@
           closeDialog();
           toast('Alles geprüft ✓');
         }
-      } }, 'Passt ✓')) : null;
+    }
     const content = h('div', { class: 'detail' }, reviewBar,
       (r.imageId || safeUrl(r.imageUrl)) ? (() => {
         const img = h('img', { class: 'detail-img', alt: '', referrerpolicy: 'no-referrer' });
@@ -550,9 +550,12 @@
     const foot = h('div', { class: 'dlg-foot' });
     const normalFoot = () => {
       foot.textContent = '';
+      const reviewing = !!(Store.recipe(id) || {}).review;
       foot.append(
         h('button', { type: 'button', class: 'btn btn-danger', onclick: askDelete }, 'Löschen'),
-        h('button', { type: 'button', class: 'btn btn-primary', onclick: () => openEdit(id) }, 'Bearbeiten'));
+        h('button', { type: 'button', class: 'btn' + (reviewing ? '' : ' btn-primary'), onclick: () => openEdit(id) }, 'Bearbeiten'),
+        // Beim Prüfen immer unten sichtbar
+        reviewing ? h('button', { type: 'button', class: 'btn btn-primary', id: 'btnReviewed', onclick: markReviewed }, 'Passt ✓') : null);
     };
     function askDelete() {
       foot.textContent = '';
