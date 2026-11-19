@@ -25,10 +25,6 @@
       // Sammlungen ohne Zeitstempel (ältere Daten) bekommen einen festen, gleichen Wert
       data.collections = data.collections.map(c => (c.updatedAt ? c : { ...c, updatedAt: '2000-01-01T00:00:00.000Z' }));
       data.recipes = data.recipes.map(r => ({ ...r, ingredients: (r.ingredients || []).map(cleanIngredient).filter(Boolean), method: cleanMethod(r.method) }));
-      // Unsinnige Hauptzutaten aus früheren Importen ("Minuten", "1050") neu bestimmen
-      const I = window.RecipeImporter;
-      if (I && I.validMain) data.recipes = data.recipes.map(r => (!r.mainIngredient || I.validMain(r.mainIngredient)) ? r
-        : { ...r, mainIngredient: I.validMain(I.guessMain(r.ingredients, r.title)) });
       data.recipes = data.recipes.map(r => {
         if (typeof r.servings === 'number' || r.servings === null) return { ...r, servingsUnit: window.RecipeForms.normalizeUnit(r.servingsUnit) };
         const p = window.RecipeScale.parseServings(r.servings);
@@ -87,7 +83,15 @@
      Gibt true zurück, wenn sich etwas geändert hat. Auf jedem Gerät gleiches Ergebnis. */
   function autoSort(now) {
     const C = window.RecipeCollections;
+    const I = window.RecipeImporter;
     let changed = false;
+    // Unsinnige Hauptzutaten aus früheren Importen ("Minuten", "1050") neu bestimmen – als echte Änderung,
+    // damit sie auch im Online-Speicher und auf den anderen Geräten repariert wird
+    if (I && I.validMain) data.recipes = data.recipes.map(r => {
+      if (!r.mainIngredient || I.validMain(r.mainIngredient)) return r;
+      changed = true;
+      return { ...r, mainIngredient: I.validMain(I.guessMain(r.ingredients || [], r.title)), updatedAt: now };
+    });
     data.recipes = data.recipes.map(r => {
       const f = C.forRecipe(r);
       if (r.collectionId === f.id && (r.method || '') === f.method) return r;

@@ -240,7 +240,7 @@ const titles = p => p.$$eval('.tile-title', e => e.map(x => x.textContent));
   put('collections', 'c-alltag', { id: 'c-alltag', name: 'Alltag', updatedAt: '2026-11-01T10:00:00.000Z' });
   put('collections', 'c-oma', { id: 'c-oma', name: 'Von Oma', updatedAt: '2026-11-01T10:00:00.000Z' });
   put('recipes', 'r-suppe', { id: 'r-suppe', title: 'Kürbissuppe', collectionId: 'c-alltag', method: 'Kochen', ingredients: ['1 Kürbis'], steps: ['30 Minuten kochen.'], createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z' });
-  put('recipes', 'r-kuchen', { id: 'r-kuchen', title: 'Rührkuchen', collectionId: 'c-oma', method: '', ingredients: ['250 g Mehl'], steps: ['Im Ofen 50 Minuten backen.'], createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z' });
+  put('recipes', 'r-kuchen', { id: 'r-kuchen', title: 'Rührkuchen', collectionId: 'c-oma', method: '', mainIngredient: 'Minuten', ingredients: ['250 g Mehl', '3 Äpfel'], steps: ['Im Ofen 50 Minuten backen.'], createdAt: '2026-11-01T10:00:00.000Z', updatedAt: '2026-11-01T10:00:00.000Z' });
   const login = async (p) => { await p.fill('#authEmail', 'alt@beispiel.de'); await p.fill('#authPw', 'geheim123'); await p.click('.auth button[type=submit]'); await p.waitForSelector('.auth', { state: 'detached' }); await synced(p); };
   const C = await device(b, { viewport: { width: 1024, height: 900 } });
   const Dd = await device(b, devices['iPhone 13']);
@@ -251,6 +251,8 @@ const titles = p => p.$$eval('.tile-title', e => e.map(x => x.textContent));
   assert(!(await C.isVisible('.conflict')) && !(await Dd.isVisible('.conflict')), 'Kein Konflikt-Fenster durch das Umsortieren');
   const live = [...server.rows.collections.values()].filter(r => r.user_id === 'user-alt' && !r.deleted).map(r => r.data.name).sort().join(',');
   assert(live === 'Grill,Kalt,Ofen,Pfanne,Topf', 'Online: alte Sammlungen gelöscht, feste angelegt (' + live + ')');
+  const kuchen = server.rows.recipes.get('user-alt|r-kuchen').data;
+  assert(kuchen.mainIngredient === 'Äpfel' && await C.evaluate(() => Store.recipe('r-kuchen').mainIngredient) === 'Äpfel' && await Dd.evaluate(() => Store.recipe('r-kuchen').mainIngredient) === 'Äpfel', 'Unsinnige Hauptzutat „Minuten“ online und auf beiden Geräten repariert (' + kuchen.mainIngredient + ')');
   assert(C.errs.length === 0 && Dd.errs.length === 0, 'Keine Skriptfehler beim Umsortieren ' + C.errs.concat(Dd.errs).join('; '));
 
   // ---------- Teilen-Menü: Schlüssel erstellen, Kurzbefehl schickt etwas, anderes Gerät holt es ab ----------
