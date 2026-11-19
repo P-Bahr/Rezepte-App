@@ -5,8 +5,9 @@
   // Reihenfolge = Reihenfolge der Chips; die erste passende Regel gewinnt (Fisch vor Fleisch wegen "Lachsfilet")
   const RULES = [
     ['Süßes', /schoko|kakao|nougat|karamell|marzipan|nutella|keks|vanille|pudding|marmelade|konfitüre|honig|zucker|mandel|haselnuss|walnuss|erdnuss|pistazie|cashew|pekannuss|macadamia|nüsse|nuss\b/],
+    ['Käse & Eier', /hühnerei|eiklar|eiweiß|eigelb/],
     ['Fisch', /fisch|lachs|thunfisch|forelle|kabeljau|seelachs|zander|garnele|shrimp|scampi|muschel|tintenfisch|calamar|hering|makrele|sardine|krabbe|meeresfrücht|dorsch|pangasius|rotbarsch|scholle|sardelle|anchovi|surimi/],
-    ['Fleisch', /hähnchen|hühnchen|huhn|hühner|chicken|pute|truthahn|ente\b|gans|rind|kalb|schwein|hack|lamm|wild\b|reh\b|hirsch|wurst|würstchen|speck|schinken|bacon|salami|chorizo|fleisch|steak|schnitzel|gulasch|filet|leber|kassler|frikadell|krakauer|wiener|bratwurst|geflügel|gyros|döner|nacken|kotelett|braten|rouladen?/],
+    ['Fleisch', /hähnchen|hühnchen|huhn|hühner(?!ei)|chicken|pute|truthahn|ente\b|gans|rind|kalb|schwein|hack|lamm|wild\b|reh\b|hirsch|wurst|würstchen|speck|schinken|bacon|salami|chorizo|fleisch|steak|schnitzel|gulasch|filet|leber|kassler|frikadell|krakauer|wiener|bratwurst|geflügel|gyros|döner|nacken|kotelett|braten|rouladen?/],
     ['Nudeln', /nudel|spaghetti|pasta|penne|fusilli|tagliatelle|linguine|lasagne|makkaroni|maccaroni|farfalle|rigatoni|tortellini|ravioli|gnocchi|spätzle|orzo|tortiglioni|conchiglie|mie\b|glasnudel|ramen|udon/],
     ['Kartoffeln', /kartoffel|pommes|kroketten|rösti/],
     ['Reis & Getreide', /reis|risotto|couscous|bulgur|quinoa|hirse|hafer|grieß|polenta|graupen|dinkel|brot|toast|brötchen|tortilla|wraps?\b|teig|baguette|ciabatta|fladen|pizza|mehl/],

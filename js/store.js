@@ -54,10 +54,14 @@
   // "Bio" ist beim Einkaufen eigene Entscheidung und gehört nicht ins Rezept
   function cleanIngredient(text) {
     return packSize(clean(String(text || '').replace(/(^|[\s(])bio(?:-|\s+)(?=\p{L})/giu, '$1')
+      .replace(/\s*@[\w.]+/g, '')                                  // "@morenutrition.de" (Werbung) weg
+      .replace(/\bz\.\s?B\.\s+etwas\s+[\p{L}-]+\s+oder\s+/giu, '')  // "z. B. etwas Knobilicious oder" -> weg
+      .replace(/^(?:gewürze|toppings?|deko|dekoration|garnitur|optional|außerdem|dazu|sonstiges)\s*:?\s+(?=\p{L})/iu, '') // "Gewürze: Salz, Pfeffer" -> "Salz, Pfeffer"
       .replace(/(\p{L})\s*:(?=\s|$)/gu, '$1') // "Reis: 200 g" / "200 g Reis:" -> ohne Doppelpunkt
       .replace(/(^|[\s(–-])(\d+\s+)?(1\/2|1\/4|3\/4|1\/3|2\/3|1\/8)(?=[\s)–-]|$)/g, (m, pre, whole, fr) => pre + (whole ? whole.trim() : '') + { '1/2': '½', '1/4': '¼', '3/4': '¾', '1/3': '⅓', '2/3': '⅔', '1/8': '⅛' }[fr]) // "1/2" -> "½"
       .replace(/\(\s*\(+/g, '(').replace(/\)\s*\)+/g, ')')        // "((gerieben))" -> "(gerieben)"
       .replace(/\(\s*[=,;:]?\s*\)/g, '')                          // leere "()", "(= )"
+      .replace(/^(\d+)\s+Eier?\s+(\p{L}*eier)\b/u, '$1 $2')        // "4 Eier Hühnereier" -> "4 Hühnereier"
       .replace(/\s{2,}/g, ' ')))
       .replace(/\(([^()]*)\)\s*\(([^()]*)\)/g, '($1, $2)');       // "(Größe M) (verquirlt)" -> "(Größe M, verquirlt)"
   }

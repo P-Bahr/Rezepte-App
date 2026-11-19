@@ -273,6 +273,13 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(hs.some(x => /Seitentext/.test(x)) && hs.some(x => /Ohne Mengenangabe: Gurke\./.test(x)) && hs.some(x => /doppelt: Mehl/.test(x)) && hs.some(x => /Personen\?.*4/.test(x)) && hs.some(x => /Rezeptart nur geraten/.test(x)) && hs.some(x => /Keine Hauptzutat/.test(x)), 'Prüf-Hinweise sagen genau, worauf zu achten ist: ' + hs.join(' / '));
   ok(I.reviewHints({ title: 'Linsensuppe', ingredients: ['250 g Linsen', '1 Zwiebel', '1 l Brühe'], steps: ['Kochen.'], mainIngredient: 'Linsen', servings: 4 }).length === 0, 'Vollständiges Rezept: keine Hinweise');
 
+  // Hühnereier sind kein Hähnchen; Werbung und "Gewürze:" in Zutaten
+  ok(I.guessMain(['150 g Vollkorn-Sandwich-Toast', '4 Hühnereier', '100 g Eiklar', '60 g Gouda'], 'Sandwich') !== 'Hähnchen' && I.guessCourse('Sandwich', [], []) === 'Snack', 'Hühnereier -> nicht Hähnchen; Sandwich ist ein Snack');
+  for (const [a, b] of [['4 Eier Hühnereier', '4 Hühnereier'], ['Gewürze Salz, Pfeffer und z. B. etwas Knobilicious @morenutrition.de oder Gewürze nach Wahl', 'Salz, Pfeffer und Gewürze nach Wahl']]) {
+    const got = window.Store.saveRecipe({ title: 'T', ingredients: [a], steps: ['x'] }).ingredients[0];
+    ok(got === b, 'Aufgeräumt: „' + a.slice(0, 40) + '“ -> „' + got + '“');
+  }
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },

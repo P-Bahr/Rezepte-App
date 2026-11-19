@@ -108,7 +108,7 @@
     ['Sauce & Dip', /(sauce|soße|dip\b|pesto|dressing|aioli|hummus|guacamole|chutney|kräuterbutter|knoblauchbutter|aufstrich|tzatziki|remoulade|mayonnaise|mayo\b|ketchup|salsa\b|frischkäsecreme)/i],
     ['Beilage', /\b(beilage|kartoffelgratin|püree|pommes|ofenkartoffeln|reis|side)\b/i],
     ['Vorspeise', /\b(vorspeise|antipasti|bruschetta|starter|appetizer)\b/i],
-    ['Snack', /\b(snack|fingerfood|häppchen|wraps?)\b/i]
+    ['Snack', /(snack|fingerfood|häppchen|wraps?\b|sandwich|toast\b|stulle|panini|bagel)/i]
   ];
   const CATEGORY_MAP = [
     [/haupt|main|dinner|abendessen|mittagessen|lunch/i, 'Hauptgericht'], [/dessert|nachspeise|nachtisch|süßspeise/i, 'Dessert'],
@@ -142,7 +142,7 @@
   // Hauptzutat: die mengenmäßig größte Zutat, Grundzutaten ausgenommen
   // Grundzutaten: auch als Wortende ("Gemüsebrühe", "Puderzucker", "Olivenöl")
   const STAPLE_END = /(salz|pfeffer|zucker|wasser|öl|butter|mehl|backpulver|natron|hefe|essig|gewürz|gewürze|brühe|fond|milch|sahne|kräuter|zimt|muskat|honig|senf|pulver)$/i;
-  const STAPLE_WORD = /^(knoblauch|knoblauchzehen?|zehen?|zwiebeln?|ei|eier|eigelbe?|eiweiße?|petersilie|schnittlauch|chili|chiliflocken|vanilleschote|lorbeerblätter?|thymian|rosmarin|basilikum|dill)$/i;
+  const STAPLE_WORD = /^(knoblauch|knoblauchzehen?|zehen?|zwiebeln?|ei|eier|eigelbe?|eiweiße?|eiklar|hühnereier?|petersilie|schnittlauch|chili|chiliflocken|vanilleschote|lorbeerblätter?|thymian|rosmarin|basilikum|dill)$/i;
   // Hauptwort einer Zutat: vor Komma/Klammer, letztes Wort ("300 g Bergkäse, gerieben" -> "Bergkäse")
   function noun(name) {
     const words = String(name).split(/[,(]/)[0].trim().split(/\s+/).filter(Boolean);
@@ -231,7 +231,8 @@
     if (!best) return '';
     // "Hähnchenbrustfilets" -> "Hähnchen", "festkochende Kartoffeln" -> "Kartoffeln"
     const w = noun(best) || best;
-    const MAP = [[/hähnchen|huhn|hühner|chicken/i, 'Hähnchen'], [/rind/i, 'Rind'], [/schwein/i, 'Schwein'], [/hack/i, 'Hackfleisch'], [/lachs/i, 'Lachs'], [/garnele|shrimp/i, 'Garnelen'], [/nudel|spaghetti|pasta|penne|linguine|tagliatelle|fusilli/i, 'Nudeln'], [/kartoffel/i, 'Kartoffeln'], [/reis\b/i, 'Reis'], [/linse/i, 'Linsen'], [/tofu/i, 'Tofu'], [/apfel|äpfel/i, 'Äpfel'], [/schoko/i, 'Schokolade'], [/quark/i, 'Quark']];
+    if (/hühnerei|eiklar|eiweiß|eigelb/i.test(best)) return '';
+    const MAP = [[/hähnchen|huhn|hühner(?!ei)|chicken/i, 'Hähnchen'], [/rind/i, 'Rind'], [/schwein/i, 'Schwein'], [/hack/i, 'Hackfleisch'], [/lachs/i, 'Lachs'], [/garnele|shrimp/i, 'Garnelen'], [/nudel|spaghetti|pasta|penne|linguine|tagliatelle|fusilli/i, 'Nudeln'], [/kartoffel/i, 'Kartoffeln'], [/reis\b/i, 'Reis'], [/linse/i, 'Linsen'], [/tofu/i, 'Tofu'], [/apfel|äpfel/i, 'Äpfel'], [/schoko/i, 'Schokolade'], [/quark/i, 'Quark']];
     for (const [re, v] of MAP) if (re.test(best)) return v;
     return w.charAt(0).toUpperCase() + w.slice(1);
   }
