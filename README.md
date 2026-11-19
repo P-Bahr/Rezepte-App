@@ -40,6 +40,7 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 3. ✅ **Bildschirmfotos importieren (Pflicht):** Texterkennung auf dem Gerät (Tesseract, js/ocr.js), auch weiße TikTok-Schrift; räumt Bedienelemente/Nutzernamen weg, erkennt Rezeptname („Teil 7 …“), Portionen, umbrochene Zeilen und Zubereitung ohne Überschrift; KI-Variante noch offen. Foto(s) teilen oder auswählen; Texterkennung kostenlos in der App, optional per KI genauer (ca. 1 Cent)
 4. ~~Instagram~~ – gestrichen (nur mit Meta-Prüfung möglich, wird nicht genutzt)
 4b. ✅ **Pinterest:** Pin (auch Kurzlink pin.it) -> Link zur Rezeptseite folgen (Pinterest-Widget-Schnittstelle, sonst Pin-Seite); ohne Link Pin-Beschreibung
+4e. ✅ **Pinterest-Pinnwand** (neueste 50 Pins, Widget-Schnittstelle): automatisch gespeichert mit „Zu prüfen“, Liste „Nicht geklappt“, Import rückgängig
 4d. ✅ **Text einfügen** (WhatsApp, E-Mail, Facebook) im Import-Fenster; Erzählstil wird zu kurzen Anweisungen
 4c. ✅ **Teilen-Menü per Apple-Kurzbefehl:** Kurzbefehl schickt Link/Text mit persönlichem Teilen-Schlüssel an `share_add()` (supabase/eingang.sql) ins Eingangsfach; App zeigt „1 geteiltes Rezept“ (js/inbox.js). Schlüssel unter Einstellungen, online nur als SHA-256 gespeichert.
 5. Eigene Mini-KI für Rezeptart, Hauptzutat, Zubereitung (in der App, kostenlos)

@@ -19,6 +19,7 @@
     filters: { collectionId: new Set(), course: new Set(), mainIngredient: new Set() },
     mode: null,          // 'detail' | 'edit' | 'collections' | null
     favOnly: false,      // nur Favoriten zeigen
+    reviewOnly: false,   // nur "Zu prüfen"
     depth: 0,            // wie viele Rezepte nacheinander per Antippen geöffnet wurden (für "Zurück")
     pushing: false       // gerade öffnet die App selbst ein Rezept
   };
@@ -91,6 +92,7 @@
 
   function passesFilters(r, skipKey) {
     if (state.favOnly && skipKey !== 'fav' && !r.favorite) return false;
+    if (state.reviewOnly && skipKey !== 'review' && !r.review) return false;
     for (const f of FACETS) {
       if (f.key === skipKey) continue;
       const sel = state.filters[f.key];
@@ -146,11 +148,11 @@
     renderFilters(scored.map(x => x.r));
     renderGrid(results.map(x => x.r), all.length);
 
-    const active = state.query.trim() || state.favOnly || FACETS.some(f => state.filters[f.key].size);
+    const active = state.query.trim() || state.favOnly || state.reviewOnly || FACETS.some(f => state.filters[f.key].size);
     $('#count').textContent = results.length === 1 ? '1 Rezept' : results.length + ' Rezepte';
     $('#btnReset').hidden = !active;
     // Anzahl aktiver Filter am Filter-Knopf (wichtig, wenn zugeklappt)
-    const nActive = (state.favOnly ? 1 : 0) + FACETS.reduce((n, f) => n + state.filters[f.key].size, 0);
+    const nActive = (state.favOnly ? 1 : 0) + (state.reviewOnly ? 1 : 0) + FACETS.reduce((n, f) => n + state.filters[f.key].size, 0);
     $('#filterBadge').textContent = nActive ? String(nActive) : '';
     $('#filterBadge').hidden = !nActive;
     $('#qClear').hidden = !state.query;
@@ -215,6 +217,14 @@
           type: 'button', class: 'chip chip-fav', 'aria-pressed': state.favOnly ? 'true' : 'false',
           onclick: () => { state.favOnly = !state.favOnly; render(); }
         }, h('span', { class: 'star', 'aria-hidden': 'true', text: '★' }), 'Favoriten', h('span', { class: 'n', text: String(favCount) })));
+        // "Zu prüfen": nur sichtbar, solange es automatisch importierte, ungeprüfte Rezepte gibt
+        if (Store.recipes().some(r => r.review) || state.reviewOnly) {
+          const revCount = searchHits.filter(r => r.review && passesFilters(r, 'review')).length;
+          chips.children[0].after(h('button', {
+            type: 'button', class: 'chip chip-review', id: 'chipReview', 'aria-pressed': state.reviewOnly ? 'true' : 'false',
+            onclick: () => { state.reviewOnly = !state.reviewOnly; render(); }
+          }, 'Zu prüfen', h('span', { class: 'n', text: String(revCount) })));
+        }
       }
       const pos = facetOrder.indexOf(f.key);
       const label = arranging
@@ -296,6 +306,7 @@
       const meta = [window.RecipeTime.label(r), collectionName(r.collectionId)].filter(Boolean).join(' · ');
       const img = imageBox('tile-img', r);
       if (r.favorite) img.append(h('span', { class: 'fav-badge', 'aria-label': 'Favorit', text: '★' }));
+      if (r.review) img.append(h('span', { class: 'review-badge', text: 'neu' }));
       frag.append(h('button', { type: 'button', class: 'tile', onclick: () => openDetail(r.id) },
         img,
         h('div', { class: 'tile-body' },
@@ -308,6 +319,7 @@
   function resetAll() {
     state.query = '';
     state.favOnly = false;
+    state.reviewOnly = false;
     $('#q').value = '';
     for (const k in state.filters) state.filters[k].clear();
     render();
@@ -503,7 +515,12 @@
       try { host = new URL(src).hostname.replace(/^(www|m|vm)\./, ''); } catch (e) { /* egal */ }
       facts.push(h('span', null, 'Original: ', h('a', { href: src, target: '_blank', rel: 'noopener noreferrer', class: 'source-link', text: host + ' ↗' })));
     }
-    const content = h('div', { class: 'detail' },
+    const reviewBar = r.review ? h('div', { class: 'notice review-notice', id: 'reviewNotice' },
+      h('p', null, h('b', { text: 'Automatisch importiert.' }), ' Bitte kurz prüfen. Passt alles, tippe auf „Passt“; sonst „Bearbeiten“.'),
+      h('button', { type: 'button', class: 'btn btn-primary', id: 'btnReviewed', onclick: () => {
+        try { Store.setReviewed(id); reviewBar.remove(); toast('Als geprüft markiert'); } catch (e) { toast(e.message); }
+      } }, 'Passt ✓')) : null;
+    const content = h('div', { class: 'detail' }, reviewBar,
       (r.imageId || safeUrl(r.imageUrl)) ? (() => {
         const img = h('img', { class: 'detail-img', alt: '', referrerpolicy: 'no-referrer' });
         setImage(img, r, () => img.remove());
@@ -752,6 +769,27 @@
       openEdit(null, { ...d, fromText: true });
     });
 
+    // ---- Pinterest-Pinnwand (neueste 50 Pins) ----
+    let pinName = '';
+    try { pinName = localStorage.getItem('rezepte.pinterestName') || ''; } catch (e) { /* egal */ }
+    const pinUser = h('input', { id: 'pinUser', type: 'text', placeholder: 'z. B. oopusteblumeoo', value: pinName, autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
+    const pinBoard = h('input', { id: 'pinBoard', type: 'text', placeholder: 'z. B. Rezepte', autocomplete: 'off' });
+    const pinBtn = h('button', { type: 'button', class: 'btn', id: 'pinLoad' }, 'Pins laden');
+    pinBtn.addEventListener('click', async () => {
+      say(msg, ''); manual.hidden = true;
+      const user = pinUser.value.trim().replace(/^@/, ''), board = pinBoard.value.trim();
+      if (!user || !board) { say(msg, 'Bitte deinen Pinterest-Namen und den Namen der Pinnwand eintragen.'); (user ? pinBoard : pinUser).focus(); return; }
+      if (!S || !S.enabled || !S.pinterestBoard) { say(msg, 'Der Import braucht den Online-Speicher.'); return; }
+      try { localStorage.setItem('rezepte.pinterestName', user); } catch (e) { /* egal */ }
+      pinBtn.disabled = true; say(status, 'Pinnwand wird geladen …');
+      try {
+        const res = await S.pinterestBoard(user, board);
+        say(status, '');
+        if (!res.pins || !res.pins.length) { say(msg, 'Auf dieser Pinnwand wurden keine Pins gefunden.'); return; }
+        openBoardImport(res);
+      } catch (e) { say(status, ''); say(msg, e.message); } finally { pinBtn.disabled = false; }
+    });
+
     const form = h('form', { class: 'form', novalidate: true, onsubmit: e => { e.preventDefault(); run(); } },
       h('div', { class: 'field' },
         h('label', { for: 'importUrl', text: 'Link zum Rezept' }), input,
@@ -766,6 +804,12 @@
         h('span', { class: 'hint', text: 'Zum Beispiel aus WhatsApp, einer E-Mail oder einem Facebook-Beitrag: Text kopieren, hier lange tippen, dann „Einsetzen“.' }),
         textArea,
         h('div', { class: 'pick-actions' }, textBtn)),
+      h('div', { class: 'field import-board' },
+        h('span', { class: 'label', text: 'Oder ganze Pinterest-Pinnwand' }),
+        h('span', { class: 'hint', text: 'Holt die neuesten 50 Pins einer öffentlichen Pinnwand (mehr gibt Pinterest nicht heraus). Die Rezepte werden automatisch gespeichert und als „Zu prüfen“ markiert.' }),
+        h('label', { for: 'pinUser', class: 'pick-url-label', text: 'Dein Pinterest-Name (ohne @)' }), pinUser,
+        h('label', { for: 'pinBoard', class: 'pick-url-label', text: 'Name der Pinnwand' }), pinBoard,
+        h('div', { class: 'pick-actions' }, pinBtn)),
       msg, status);
     // Bild einfügen (lange tippen -> Einsetzen)
     form.addEventListener('paste', e => {
@@ -775,6 +819,85 @@
     showDialog('import', h('div', { style: 'display:contents' },
       head('Rezept importieren', closeDialog), h('div', { class: 'dlg-scroll' }, form)));
     if (autoRun && prefill) run(); else setTimeout(() => input.focus(), 50);
+  }
+
+  // ---------- Pinnwand-Import: alle Pins nacheinander ----------
+  function openBoardImport(res) {
+    const S = window.RecipeSync;
+    const pins = res.pins;
+    const total = res.board && res.board.count || pins.length;
+    const info = h('p', { text: 'Pinnwand „' + (res.board && res.board.name || '') + '“: ' + pins.length + (total > pins.length ? ' von ' + total + ' Pins (die neuesten; mehr gibt Pinterest nicht heraus).' : ' Pins.') });
+    const go = h('button', { type: 'button', class: 'btn btn-primary', id: 'boardGo' }, pins.length + ' Pins importieren');
+    const progress = h('p', { class: 'hint', id: 'boardProgress', 'aria-live': 'polite' });
+    const out = h('div', { id: 'boardResult' });
+    const box = h('div', { class: 'form' }, info,
+      h('p', { class: 'hint', text: 'Das dauert ein paar Minuten. Rezepte, die vollständig aussehen (Name, mindestens 2 Zutaten und 1 Schritt), werden gespeichert und als „Zu prüfen“ markiert. Doppelte werden übersprungen.' }),
+      h('div', { class: 'pick-actions' }, go), progress, out);
+    showDialog('board', h('div', { style: 'display:contents' }, head('Pinnwand importieren', closeDialog), h('div', { class: 'dlg-scroll' }, box)));
+
+    const complete = d => d && d.title && d.title !== 'Importiertes Rezept' && d.ingredients.length >= 2 && d.steps.length >= 1;
+    const norm = u => String(u || '').replace(/[?#].*$/, '').replace(/\/$/, '').toLowerCase();
+    go.addEventListener('click', async () => {
+      go.remove();
+      const batch = 'pin-' + Date.now().toString(36);
+      const saved = [], dup = [], failed = [];
+      let done = 0;
+      const queue = pins.slice();
+      const one = async pin => {
+        let d = null;
+        if (pin.link) {
+          try { const r = window.RecipeImporter.toDraft(await S.fetchPage(pin.link)); d = r && r.draft; } catch (e) { d = null; }
+        }
+        if (!complete(d) && pin.text) {
+          const t = window.RecipeImporter.fromText(pin.text, { image: pin.image, url: pin.link || pin.url });
+          if (complete(t)) d = t;
+        }
+        const label = (d && d.title && d.title !== 'Importiertes Rezept' ? d.title : (pin.text || '').split('\n')[0].slice(0, 60)) || 'Pin ohne Text';
+        if (!complete(d)) { failed.push({ pin, label }); return; }
+        d.sourceUrl = d.sourceUrl || pin.link || pin.url;
+        d.imageUrl = d.imageUrl || pin.image;
+        const same = Store.recipes().find(x => (x.sourceUrl && norm(x.sourceUrl) === norm(d.sourceUrl)) || (x.sourceUrl && pin.link && norm(x.sourceUrl) === norm(pin.link)))
+          || window.RecipeDupes.findDuplicate(d, Store.recipes());
+        if (same) { dup.push({ pin, label, same }); return; }
+        try { Store.saveRecipe({ ...d, review: true, importBatch: batch }); saved.push(label); }
+        catch (e) { failed.push({ pin, label }); }
+      };
+      const worker = async () => {
+        while (queue.length) {
+          const pin = queue.shift();
+          await one(pin);
+          done++;
+          progress.textContent = done + ' von ' + pins.length + ' Pins … (' + saved.length + ' gespeichert)';
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
+      progress.textContent = '';
+      showResult();
+
+      function showResult() {
+        out.textContent = '';
+        out.append(
+          h('p', null, h('b', { text: saved.length + ' importiert' }), ', ' + dup.length + ' schon vorhanden, ' + failed.length + ' nicht geklappt.'),
+          h('div', { class: 'pick-actions' },
+            saved.length ? h('button', { type: 'button', class: 'btn btn-primary', id: 'boardShowReview', onclick: () => { closeDialog(); resetAll(); state.reviewOnly = true; setFiltersOpen(true); render(); } }, '„Zu prüfen“ ansehen') : null,
+            saved.length ? h('button', { type: 'button', class: 'btn btn-danger', id: 'boardUndo', onclick: askUndo }, 'Import rückgängig') : null),
+          failed.length ? h('div', { class: 'field' },
+            h('span', { class: 'label', text: 'Nicht geklappt' }),
+            h('p', { class: 'hint', text: 'Hier stand kein vollständiges Rezept. Tippen öffnet den Pin; dann z. B. ein Bildschirmfoto vom Rezept importieren.' }),
+            h('ul', { class: 'board-failed' }, failed.map(f => h('li', null, h('a', { href: f.pin.url, target: '_blank', rel: 'noopener noreferrer', text: f.label }))))) : null);
+      }
+      function askUndo() {
+        out.querySelector('#boardUndo').replaceWith(h('div', { class: 'confirm' },
+          h('p', { text: 'Alle ' + saved.length + ' Rezepte aus diesem Import wieder löschen?' }),
+          h('button', { type: 'button', class: 'btn', onclick: showResult }, 'Abbrechen'),
+          h('button', { type: 'button', class: 'btn btn-danger-solid', id: 'boardUndoYes', onclick: () => {
+            const n = Store.deleteBatch(batch);
+            saved.length = 0;
+            toast(n + ' Rezepte gelöscht');
+            showResult();
+          } }, 'Ja, löschen')));
+      }
+    });
   }
 
   // ---------- Formular-Baustein: Foto ----------
@@ -1054,7 +1177,7 @@
           course: val('fCourse'), mainIngredient: val('fMain'), method: val('fMethod'),
           servings: val('fServings'), servingsUnit: unitSel.value, formSize,
           ingredients: ingRows.lines(), steps: lines('fSteps'), notes: val('fNotes'),
-          imageId, imageUrl: val('fImage'), sourceUrl: val('fSource'), dupOk: allowDuplicate
+          imageId, imageUrl: val('fImage'), sourceUrl: val('fSource'), dupOk: allowDuplicate, review: false
         });
         // Altes Foto aufräumen, wenn es ersetzt oder entfernt wurde
         if (v.imageId && v.imageId !== imageId) window.RecipeImages.remove(v.imageId);

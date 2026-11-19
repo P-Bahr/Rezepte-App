@@ -6,15 +6,27 @@ const assert = (c, m) => { if (!c) throw new Error('FEHLER: ' + m); console.log(
 
 const PAGES = {
   'https://www.chefkoch.de/rezepte/1/kaesespaetzle.html': `<html><head><meta property="og:image" content="https://img.example/k.jpg"><script type="application/ld+json">{"@type":"Recipe","name":"Allgäuer Käsespätzle","recipeYield":"4 Portionen","recipeIngredient":["500 g Mehl","5 Eier","1 TL Salz","300 g Bergkäse, gerieben","3 Zwiebeln"],"recipeInstructions":"Teig verrühren.\\nIn kochendes Salzwasser schaben.\\nMit Käse schichten.","recipeCategory":"Hauptspeise"}</script></head><body></body></html>`,
-  'https://blog.example/ohne-rezept': '<html><head><title>Über mich</title></head><body><p>Hallo!</p></body></html>'
+  'https://blog.example/ohne-rezept': '<html><head><title>Über mich</title></head><body><p>Hallo!</p></body></html>',
+  'https://www.lecker.example/linsensuppe': `<html><head><script type="application/ld+json">{"@type":"Recipe","name":"Rote Linsensuppe","recipeIngredient":["250 g rote Linsen","1 Zwiebel","1 l Gemüsebrühe"],"recipeInstructions":"Zwiebel andünsten.\\nLinsen und Brühe dazugeben, 15 Minuten kochen."}</script></head><body></body></html>`
 };
+// Nachgebaute Antwort der Pinterest-Widget-Schnittstelle (Pinnwand mit 4 Pins, insgesamt 120)
+const BOARD = JSON.stringify({ status: 'success', data: { board: { name: 'Rezepte', pin_count: 120 }, pins: [
+  { id: '1', link: 'https://www.chefkoch.de/rezepte/1/kaesespaetzle.html?utm_source=Pinterest', description: 'Käsespätzle' },
+  { id: '2', link: 'https://www.lecker.example/linsensuppe', description: 'Linsensuppe', images: { '564x': { url: 'https://i.pinimg.example/2.jpg' } } },
+  { id: '3', link: null, description: 'Bananenbrot Zutaten: 3 Bananen, 250 g Mehl, 2 Eier Zubereitung: Alles verrühren und 50 Minuten backen.' },
+  { id: '4', link: 'https://blog.example/ohne-rezept', description: 'Schöne Deko-Idee' }
+] } });
 const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutaten:\n250g Spaghetti\n200 g Tomaten\nZubereitung:\n1. Alles aufkochen.\n2. 10 Minuten köcheln.' };
 
 (async () => {
   const fn = await import('../supabase/functions/import/index.ts');
   const calls = [];
   const linkState = {}; // url -> 'ok' | 'gone' | 'unknown' (Standard: ok)
-  function serve(body) {
+  async function serve(body) {
+    if (body.pinterestBoard) {
+      const r = await fn.pinterestBoard(body.pinterestBoard.user, body.pinterestBoard.board, async u => ({ status: 200, url: u, text: /\/boards\/oopusteblumeoo\/rezepte\/pins\/$/.test(u) ? BOARD : '{"status":"failure"}' }));
+      return { status: r.error ? 404 : 200, body: r };
+    }
     if (Array.isArray(body.check)) {
       const results = {};
       body.check.forEach(u => { results[u] = linkState[u] || 'ok'; });
@@ -42,7 +54,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   } };`;
   const b = await chromium.launch();
   const ctx = await b.newContext(devices['iPhone 13']);
-  await ctx.exposeFunction('__fn', body => JSON.stringify(serve(JSON.parse(body))));
+  await ctx.exposeFunction('__fn', async body => JSON.stringify(await serve(JSON.parse(body))));
   await ctx.route('**/js/vendor/supabase.js', r => r.fulfill({ contentType: 'text/javascript', body: FAKE }));
   // sync.js absichtlich verzögern: so wie bei langsamem Netz auf dem Handy
   await ctx.route('**/js/sync.js', async r => { await new Promise(res => setTimeout(res, 400)); r.continue(); });
@@ -180,6 +192,38 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   await p.click('#btnImport'); await p.fill('#importText', 'Hallo, wie geht es dir?'); await p.click('#importTextGo');
   assert(await p.isVisible('.form-error:has-text("kein Rezept erkannt")'), 'Text ohne Rezept: verständliche Meldung');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+
+  // Pinterest-Pinnwand
+  await p.click('#btnImport');
+  await p.fill('#pinUser', '@oopusteblumeoo'); await p.fill('#pinBoard', 'Gibt es nicht'); await p.click('#pinLoad');
+  await p.waitForSelector('.form-error:has-text("Pinnwand nicht gefunden")');
+  assert(true, 'Pinnwand falsch geschrieben: verständliche Meldung');
+  await p.fill('#pinBoard', 'Rezepte'); await p.click('#pinLoad');
+  await p.waitForSelector('#boardGo');
+  assert((await p.textContent('.dlg-scroll')).includes('4 von 120 Pins'), 'Pinnwand gefunden: „4 von 120 Pins“');
+  const recipesBefore = await p.evaluate(() => Store.recipes().length);
+  await p.click('#boardGo');
+  await p.waitForSelector('#boardResult b', { timeout: 15000 });
+  assert((await p.textContent('#boardResult')).includes('2 importiert, 1 schon vorhanden, 1 nicht geklappt'), 'Ergebnis: 2 importiert, 1 doppelt, 1 nicht geklappt (' + (await p.textContent('#boardResult')).slice(0, 80) + ')');
+  const imported = await p.evaluate(() => Store.recipes().filter(r => r.review).map(r => r.title + '|' + r.sourceUrl + '|' + r.imageUrl).sort());
+  assert(imported.length === 2 && imported[0].startsWith('Bananenbrot|https://www.pinterest.com/pin/3/') && imported[1] === 'Rote Linsensuppe|https://www.lecker.example/linsensuppe|https://i.pinimg.example/2.jpg', 'Gespeichert mit „Zu prüfen“, Quelle und Bild: ' + imported.join(' ; '));
+  assert(await p.isVisible('.board-failed a:has-text("Schöne Deko-Idee")'), 'Liste „Nicht geklappt“ mit Link zum Pin');
+  assert(await p.evaluate(() => localStorage.getItem('rezepte.pinterestName')) === 'oopusteblumeoo', 'Pinterest-Name wird gemerkt');
+  await p.click('#boardShowReview');
+  await p.waitForSelector('#chipReview[aria-pressed=true]');
+  assert((await p.$$eval('.tile-title', e => e.map(x => x.textContent).sort())).join(',') === 'Bananenbrot,Rote Linsensuppe', 'Filter „Zu prüfen“ zeigt nur die neuen Rezepte');
+  await p.click('.tile:has-text("Rote Linsensuppe")');
+  await p.click('#btnReviewed');
+  assert(!(await p.isVisible('#reviewNotice')) && await p.evaluate(() => !Store.recipes().find(r => r.title === 'Rote Linsensuppe').review), '„Passt“ entfernt die Markierung');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  assert((await p.textContent('#chipReview .n')) === '1', 'Chip „Zu prüfen“ zählt nur noch 1');
+  // Import rückgängig (neuer Import derselben Pinnwand: jetzt alles doppelt -> Undo-Test über erneuten Import nicht möglich, daher direkt)
+  const batch = await p.evaluate(() => Store.recipes().find(r => r.title === 'Bananenbrot' && r.review).importBatch);
+  const undone = await p.evaluate(b => Store.deleteBatch(b), batch); const nowN = await p.evaluate(() => Store.recipes().length);
+  assert(undone === 2 && nowN === recipesBefore, 'Import rückgängig löscht genau die Rezepte dieses Imports (' + undone + ')');
+  await p.waitForTimeout(200);
+  assert(!(await p.isVisible('#chipReview')) || await p.evaluate(() => document.getElementById('chipReview').getAttribute('aria-pressed') === 'true'), 'Chip verschwindet, wenn nichts mehr zu prüfen ist');
+  await p.click('#btnReset').catch(() => {});
 
   // Kopfzeile auf dem Handy: keine seitliche Verschiebung
   assert(await p.evaluate(() => document.documentElement.scrollWidth) <= 390, 'Kopfzeile passt aufs Handy');

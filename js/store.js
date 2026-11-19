@@ -114,6 +114,9 @@
         favorite: existing ? !!existing.favorite : !!input.favorite,
         dupOk: existing ? !!existing.dupOk : !!input.dupOk, // bewusst als Doppel behalten (nicht aussortieren)
         example: existing ? !!existing.example : !!input.example, // Beispielrezept (lässt sich gesammelt entfernen)
+        // Automatisch importiert und noch nicht angesehen ("Zu prüfen"); Speichern im Formular gilt als geprüft
+        review: input.review !== undefined ? !!input.review : !!(existing && existing.review),
+        importBatch: existing ? clean(existing.importBatch) : clean(input.importBatch), // für "Import rückgängig"
         createdAt: existing ? existing.createdAt : now,
         updatedAt: now
       };
@@ -136,6 +139,22 @@
       data.recipes = before.map(x => (x.id === id ? { ...x, favorite: !x.favorite, updatedAt: new Date().toISOString() } : x));
       try { save(); } catch (e) { data.recipes = before; throw e; }
       return !r.favorite;
+    },
+
+    // "Passt": Markierung "Zu prüfen" entfernen
+    setReviewed(id) {
+      if (!this.recipe(id)) return;
+      const before = data.recipes;
+      data.recipes = before.map(x => (x.id === id ? { ...x, review: false, updatedAt: new Date().toISOString() } : x));
+      try { save(); } catch (e) { data.recipes = before; throw e; }
+    },
+
+    // "Import rückgängig": alle Rezepte eines Sammel-Imports löschen
+    deleteBatch(batch) {
+      if (!batch) return 0;
+      const gone = data.recipes.filter(r => r.importBatch === batch);
+      gone.forEach(r => this.deleteRecipe(r.id));
+      return gone.length;
     },
 
     deleteRecipe(id) {

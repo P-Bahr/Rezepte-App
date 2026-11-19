@@ -479,6 +479,19 @@
     if (!session) return;
     await client.from('inbox').delete().eq('id', id);
   };
+  // Pinterest-Pinnwand: neueste Pins über das Server-Programm
+  Sync.pinterestBoard = async (user, board) => {
+    if (!session) throw new Error('Bitte zuerst anmelden.');
+    if (!navigator.onLine) throw new Error('Kein Internet.');
+    const { data, error } = await client.functions.invoke('import', { body: { pinterestBoard: { user, board } } });
+    if (error) {
+      let msg = '';
+      try { const b = await error.context.json(); msg = b && b.error; } catch (_) { /* keine Details */ }
+      throw new Error(msg || 'Die Pinnwand konnte nicht geladen werden.');
+    }
+    if (!data || data.error) throw new Error((data && data.error) || 'Die Pinnwand konnte nicht geladen werden.');
+    return data;
+  };
   Sync.signOut = async () => {
     await client.auth.signOut();
   };

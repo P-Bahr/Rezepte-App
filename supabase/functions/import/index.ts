@@ -294,6 +294,44 @@ export async function pinterestInfo(url, fetcher) {
   return info;
 }
 
+// Link aufräumen: &amp; -> &, Werbe-Zusätze (utm_…) entfernen
+export function cleanLink(raw) {
+  if (!raw) return '';
+  try {
+    const u = new URL(decodeEntities(String(raw)));
+    for (const k of [...u.searchParams.keys()]) if (/^(utm_|fbclid|gclid|mibextid)/i.test(k)) u.searchParams.delete(k);
+    const s = u.toString().replace(/\?$/, '');
+    return checkUrl(s).error ? '' : s;
+  } catch (_) { return ''; }
+}
+
+// Pinnwand: die neuesten (max. 50) Pins über die öffentliche Widget-Schnittstelle
+export function boardSlug(name) {
+  return String(name || '').trim().toLowerCase().replace(/[\s_]+/g, '-').replace(/[^\p{L}\p{N}-]/gu, '');
+}
+export async function pinterestBoard(user, board, fetcher) {
+  const get = fetcher || fetchText;
+  const u = String(user || '').trim().replace(/^@/, '').toLowerCase();
+  const slug = boardSlug(board);
+  if (!/^[a-z0-9_.-]{1,40}$/.test(u) || !slug) return { error: 'Bitte Pinterest-Namen und Pinnwand angeben.' };
+  const r = await get('https://widgets.pinterest.com/v3/pidgets/boards/' + encodeURIComponent(u) + '/' + encodeURIComponent(slug) + '/pins/', 1024 * 1024);
+  let data = null;
+  try { data = JSON.parse(r.text); } catch (_) { /* unten */ }
+  if (!data || data.status !== 'success' || !data.data) return { error: 'Pinnwand nicht gefunden. Stimmen Name und Pinnwand, und ist sie öffentlich?' };
+  const b = data.data.board || {};
+  const pins = (data.data.pins || []).map(p => {
+    const imgs = p.images || {};
+    return {
+      id: String(p.id || ''),
+      url: 'https://www.pinterest.com/pin/' + p.id + '/',
+      link: cleanLink(p.link),
+      text: decodeEntities([p.title, p.description].filter(Boolean).join('\n')),
+      image: (imgs['736x'] || imgs['564x'] || imgs['237x'] || {}).url || ''
+    };
+  }).filter(p => p.id);
+  return { board: { name: decodeEntities(b.name || board), count: b.pin_count || pins.length }, pins };
+}
+
 export async function checkMany(urls, fetcher) {
   const list = (Array.isArray(urls) ? urls : []).slice(0, 25).map(String);
   const results = {};
@@ -312,6 +350,12 @@ export async function handle(req) {
   let body;
   try { body = await req.json(); } catch (_) { return json({ error: 'Ungültige Anfrage.' }, 400); }
   if (body && Array.isArray(body.check)) return json({ results: await checkMany(body.check) });
+  if (body && body.pinterestBoard) {
+    try {
+      const res = await pinterestBoard(body.pinterestBoard.user, body.pinterestBoard.board);
+      return json(res, res.error ? 404 : 200);
+    } catch (_) { return json({ error: 'Pinterest hat nicht geantwortet. Bitte später noch einmal versuchen.' }, 502); }
+  }
   const checked = checkUrl(body && body.url);
   if (checked.error) return json({ error: checked.error }, 400);
   try {
