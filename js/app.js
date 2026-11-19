@@ -613,7 +613,9 @@
     let factor = () => 1;
     let refresh = () => {};
 
-    if (base && F.switchable(unit)) {
+    // Springform ↔ Blech nur bei Kuchen (nicht bei Granola, Ofengemüse, Pizza …)
+    const cakeLike = unit === 'Springform' || /kuchen|torte|tarte|cheesecake|brownie|schnitten|streusel|blondie|biskuit|crumble/i.test(r.title || '');
+    if (base && F.switchable(unit) && cakeLike) {
       // Kuchen: zwischen Springform und Blech wechseln, Mengen nach Bodenfläche
       const baseSize = F.parseSize(unit, r.formSize);
       const baseArea = F.area(unit, baseSize) * base;
@@ -644,6 +646,7 @@
       const count = stepper('Menge', () => { target = Math.max(1, Math.ceil(target - 1e-9) - 1); update(); },
         () => { target = Math.floor(target + 1e-9) + 1; update(); });
       controls.append(count.el);
+      if (unit === 'Blech') controls.append(h('span', { class: 'size-info', text: 'Blech ' + F.formatSize('Blech', F.parseSize('Blech', r.formSize)) }));
       if (unit === 'Kastenform') controls.append(h('span', { class: 'size-info', text: 'Kastenform ' + F.formatSize('Kastenform', F.parseSize('Kastenform', r.formSize)) }));
       // Gläser: Glasgröße umstellbar, Mengen nach Gesamtinhalt
       let glassFactor = () => 1;

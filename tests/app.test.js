@@ -131,6 +131,14 @@ const OUT = process.argv[2] || '.';
   await p.click('[aria-label="Menge: mehr"]');
   assert((await ing())[0] === '216,67 g Zartbitterschokolade' || (await ing())[0].startsWith('215 g'), 'Brownies 13 Stück: ' + (await ing())[0]);
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  // Blech ohne Kuchen (Granola): kein Umschalter, sondern Anzahl Bleche
+  const gid = await p.evaluate(() => Store.saveRecipe({ title: 'Granola', servings: 1, servingsUnit: 'Blech', formSize: '30 × 40 cm', ingredients: ['200 g Haferflocken'], steps: ['Backen.'] }).id);
+  await p.evaluate(id => { location.hash = 'rezept-' + id; }, gid); await p.waitForSelector('dialog h2:has-text("Granola")');
+  assert(!(await p.isVisible('.segmented')) && await p.isVisible('.size-info:has-text("Blech 30 × 40 cm")') && (await p.textContent('.stepper-value')) === '1 Blech', 'Granola: kein Springform-Umschalter, Anzahl Bleche + Größe');
+  await p.click('[aria-label="Menge: mehr"]');
+  assert((await p.textContent('.stepper-value')) === '2 Bleche' && (await p.textContent('.ingredients li')).startsWith('400 g'), '2 Bleche: doppelte Menge');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  await p.evaluate(id => Store.deleteRecipe(id), gid);
   // Springform <-> Blech
   const segOn = () => p.textContent('.seg[aria-pressed=true]');
   await p.fill('#q', 'apfelkuchen'); await p.click('.tile'); await p.waitForTimeout(200);
