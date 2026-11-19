@@ -258,12 +258,15 @@ dialog::backdrop { background: rgba(10, 20, 15, .45); }
 }
 
 /* Rezeptansicht */
-.detail { display: grid; gap: 20px; }
+.detail { display: grid; gap: 20px; grid-template-columns: minmax(0, 1fr); }
+.detail > * { min-width: 0; }
 .detail-img { width: 100%; max-width: 100%; aspect-ratio: 16 / 9; object-fit: cover; border-radius: var(--radius); background: var(--tile-ph); }
 .tags { display: flex; flex-wrap: wrap; gap: 8px; }
 .tag { padding: 4px 12px; border-radius: 16px; background: var(--chip); color: var(--chip-fg); font-size: 15px; }
 .facts { display: flex; flex-wrap: wrap; gap: 8px 24px; color: var(--muted); font-size: 16px; }
 .facts b { color: var(--fg); font-weight: 600; }
+.facts > span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
+.facts .source-link { color: var(--accent); overflow-wrap: anywhere; }
 .detail h3 { margin: 0 0 8px; font-size: 19px; }
 .detail ul, .detail ol { margin: 0; padding-left: 1.4em; display: grid; gap: 6px; }
 .detail ol li { padding-left: 4px; }

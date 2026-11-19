@@ -82,6 +82,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   assert(await p.inputValue('#fSource') === 'https://www.chefkoch.de/rezepte/1/kaesespaetzle.html' && await p.inputValue('#fImage') === 'https://img.example/k.jpg', 'Quelle und Bild übernommen');
   await p.click('dialog button[type=submit]'); await p.waitForTimeout(400);
   assert(await p.isVisible('dialog h2:has-text("Allgäuer Käsespätzle")'), 'Gespeichert und geöffnet');
+  assert(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth && document.querySelector('#dlgBody').scrollWidth <= window.innerWidth), 'Rezept mit langem Quellen-Link passt aufs Handy (nicht breiter als der Bildschirm)');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
 
   // 2. Gleicher Link noch einmal -> schon vorhanden, ohne Laden
@@ -173,7 +174,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   const rec = await p.evaluate(() => Store.recipes().find(r => r.title === 'One-Pot-Pasta'));
   assert(rec && rec.sourceUrl === '' && rec.deadSourceUrl === tt && rec.ingredients.length === 2, 'Rezept bleibt erhalten, nur der Link ist weg');
   await p.fill('#q', 'one-pot'); await p.click('.tile'); await p.waitForTimeout(300);
-  assert(await p.isVisible('dialog .gone-source:has-text("TikTok-Video nicht mehr verfügbar")') && await p.locator('dialog .source a').count() === 0, 'Im Rezept: „TikTok-Video nicht mehr verfügbar“ statt Link');
+  assert(await p.isVisible('dialog .gone-source:has-text("TikTok-Video nicht mehr verfügbar")') && await p.locator('dialog .source a, dialog .source-link').count() === 0, 'Im Rezept: „TikTok-Video nicht mehr verfügbar“ statt Link');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200); await p.fill('#q', '');
   // Gesperrte Seite wird nie entfernt
   linkState['https://www.chefkoch.de/rezepte/1/kaesespaetzle.html'] = 'unknown';

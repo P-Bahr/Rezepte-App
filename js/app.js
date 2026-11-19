@@ -544,7 +544,6 @@
       r.steps.length ? h('section', null, h('h3', { text: 'Zubereitung' }),
         h('ol', null, r.steps.map(s => h('li', null, withTerms(s, glossSeen))))) : null,
       r.notes ? notesSection(r) : null,
-      src ? h('p', { class: 'source' }, 'Quelle: ', h('a', { href: src, target: '_blank', rel: 'noopener noreferrer', text: src })) : null,
       !src && r.deadSourceUrl ? h('p', { class: 'source gone-source', text: (/tiktok\.com/i.test(r.deadSourceUrl) ? 'TikTok-Video' : 'Quelle (' + (() => { try { return new URL(r.deadSourceUrl).hostname.replace(/^www\./, ''); } catch (e) { return 'Internetseite'; } })() + ')') + ' nicht mehr verfügbar' }) : null
     );
 
