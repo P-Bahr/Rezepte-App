@@ -33,7 +33,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(d.servings === 4 && d.servingsUnit === 'Personen', 'Portionen: ' + d.servings + ' ' + d.servingsUnit);
   ok(d.course === 'Hauptgericht' && d.method === 'Kochen', 'Kategorien: ' + d.course + ' / ' + d.method);
   ok(d.mainIngredient === 'Bergkäse', 'Hauptzutat: Bergkäse (Mehl, Eier, Salz zählen als Grundzutaten): ' + d.mainIngredient);
-  ok(d.notes === 'Klassiker aus dem Allgäu & Schwaben.' && d.imageUrl === 'https://img.example/kaese-gross.jpg', 'Beschreibung und Bild übernommen');
+  ok(d.notes === '' && d.imageUrl === 'https://img.example/kaese-gross.jpg', 'Bild übernommen, Werbebeschreibung nicht in den Notizen');
 
   // ---------- Seite 2: wie WordPress-Blogs (@graph, Abschnitte, Springform) ----------
   const blog = `<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebPage","name":"Blog"},
@@ -76,7 +76,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   d = tt.draft;
   ok(tt.how === 'tiktok' && d.ingredients.join(' | ') === '250 g Spaghetti | 200 g Cherrytomaten | 2 Knoblauchzehen | 500 ml Gemüsebrühe | 50 g Parmesan', 'TikTok: Zutaten erkannt und geordnet: ' + d.ingredients.join(' | '));
   ok(d.steps.length === 3 && d.steps[0] === 'Alles in einen Topf geben und aufkochen.', 'TikTok: Schritte ohne Nummern');
-  ok(d.title === 'Cremige One-Pot-Pasta in 15 Minuten' && !/#/.test(JSON.stringify(d)), 'TikTok: Titel, Emojis und Hashtags entfernt: ' + d.title);
+  ok(d.title === 'Cremige One-Pot-Pasta' && !/#/.test(JSON.stringify(d)), 'TikTok: Titel ohne „in 15 Minuten“, Emojis und Hashtags entfernt: ' + d.title);
   ok(d.mainIngredient === 'Nudeln' && d.notes.includes('@koch'), 'TikTok: Hauptzutat Nudeln, Urheber vermerkt');
 
   // Alles in einer Zeile
@@ -85,6 +85,22 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
 
   // TikTok ohne Rezept
   ok(I.toDraft({ kind: 'tiktok', url: 'x', text: 'Heute gibt es was Leckeres 😍 #food' }).how === 'tiktok-empty', 'TikTok ohne Rezept wird erkannt');
+
+  // ---------- Werbesprüche herausfiltern (Blog im Stil des gemeldeten Beispiels) ----------
+  const blogFluff = `<script type="application/ld+json">{"@context":"https://schema.org/","@type":"Recipe","name":"Ofenpfannkuchen – das einfachste Rezept",
+  "description":"Das einfachste Rezept für Ofenpfannkuchen: super fluffig und in 5 Minuten vorbereitet!","recipeYield":["4","4 Portionen"],
+  "recipeIngredient":["4 Eier","250 ml Milch","125 g Mehl*","1 Prise Salz","2 EL Butter (*Affiliate-Link)"],
+  "recipeInstructions":[{"@type":"HowToStep","text":"Ofen auf 220 °C vorheizen."},{"@type":"HowToStep","text":"Alle Zutaten glatt rühren und in die heiße Form gießen."},{"@type":"HowToStep","text":"20 Minuten backen."},{"@type":"HowToStep","text":"Guten Appetit! 😊"}]}</script>`;
+  d = I.toDraft({ kind: 'page', ...fn.extract(blogFluff, 'https://blog.example/ofen-pfannkuchen/') }).draft;
+  ok(d.title === 'Ofenpfannkuchen', 'Werbung im Namen entfernt: ' + d.title);
+  ok(d.notes === '', 'Werbebeschreibung nicht übernommen');
+  ok(d.steps.length === 3 && !d.steps.some(x => /appetit/i.test(x)), '„Guten Appetit!“ aus den Schritten entfernt');
+  ok(d.ingredients.join(' | ') === '4 Eier | 250 ml Milch | 125 g Mehl | 1 Prise Salz | 2 EL Butter', 'Sternchen und Affiliate-Hinweise aus Zutaten entfernt: ' + d.ingredients.join(' | '));
+  const titles = [['Das einfachste Rezept: Ofenpfannkuchen', 'Ofenpfannkuchen'], ['Super leckere schnelle Pfannkuchen in 10 Minuten', 'Pfannkuchen'], ['Spaghetti Carbonara Rezept', 'Spaghetti Carbonara'], ['Der beste Käsekuchen der Welt', 'Käsekuchen'], ['Omas Apfelkuchen | Gaumenfreundin', 'Omas Apfelkuchen'], ['Einfacher Hefezopf – gelingsicher & fluffig', 'Hefezopf'], ['Schnelles Abendessen: Gnocchi-Pfanne mit Spinat', 'Gnocchi-Pfanne mit Spinat'], ['Pfannkuchen (Grundrezept)', 'Pfannkuchen'], ['Vegan: Linsen-Dal', 'Linsen-Dal'], ['Kartoffelsalat ohne Mayo', 'Kartoffelsalat ohne Mayo'], ['Hähnchenbrust in Zitronen-Sahne', 'Hähnchenbrust in Zitronen-Sahne']];
+  const badT = titles.filter(([a, e]) => I.cleanTitle(a) !== e);
+  ok(!badT.length, 'Titel bereinigt (' + titles.length + ' Fälle)' + (badT.length ? ': ' + badT.map(([a]) => a + ' → ' + I.cleanTitle(a)).join('; ') : ''));
+  d = I.fromText('Die BESTEN Brownies ever 🤤\nZutaten:\n200g Schokolade\n150 g Butter\n3 Eier\nZubereitung:\n1. Schmelzen.\n2. 25 Minuten backen.\nLasst es euch schmecken! 💕\nFolge mir für mehr Rezepte');
+  ok(d.title === 'Brownies' && d.steps.length === 2 && d.notes === '', 'TikTok-Text: Lob im Titel und Schlusssätze entfernt (' + d.title + ' / ' + d.steps.length + ' Schritte / Notizen: ' + JSON.stringify(d.notes) + ')');
 
   // ---------- Links prüfen (nachgebaute Antworten, kein Netz) ----------
   const fake = map => async (url) => {

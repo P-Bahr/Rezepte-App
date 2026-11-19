@@ -168,16 +168,57 @@
     return d;
   }
 
+  // ---------- Werbesprüche herausfiltern ----------
+  // Lobende Füllwörter, die nichts über das Gericht sagen ("das einfachste", "super lecker", "in 10 Minuten")
+  const PRAISE = '(?:super|mega|total|richtig|extra|echt|ganz|unglaublich|wirklich)?\\s*(?:einfach(?:st)?(?:e[nmrs]?)?|schnell(?:st)?(?:e[nmrs]?)?|lecker(?:st)?(?:e[nmrs]?)?|best(?:e[nmrs]?)?|perfekt(?:e[nmrs]?)?|gelingsicher(?:e[nmrs]?)?|genial(?:e[nmrs]?)?|himmlisch(?:e[nmrs]?)?|traumhaft(?:e[nmrs]?)?|ultimativ(?:e[nmrs]?)?|unwiderstehlich(?:e[nmrs]?)?|köstlich(?:e[nmrs]?)?|blitzschnell(?:e[nmrs]?)?|sensationell(?:e[nmrs]?)?|fantastisch(?:e[nmrs]?)?|easy)';
+  const FLUFF_SEGMENT = new RegExp('(\\brezept\\b|\\bgrundrezept\\b|\\b' + PRAISE + '\\b|\\bin\\s+\\d+\\s*(min|minuten)\\b|\\bnur\\s+\\d+\\s+zutaten\\b|\\bso\\s+geht\'?s\\b|\\bwie\\s+bei\\s+oma\\b|\\bgarantiert\\b|\\bohne\\s+schnickschnack\\b|\\bschritt\\s+für\\s+schritt\\b|\\bmit\\s+video\\b)', 'iu');
+  const GENERIC_SEG = /^(abendessen|mittagessen|frühstück|brunch|feierabend(küche|essen|rezept)?|meal ?prep|familienessen|sonntags(essen|braten)?|reste(verwertung|essen|küche)?|party(rezept|food|snack)?|fingerfood|weihnachts(rezept|essen|bäckerei|plätzchen)?|oster(rezept|brunch)?|soul ?food|comfort ?food|low ?carb|vegan|vegetarisch|glutenfrei|kinderleicht|alltags(rezept|küche)|wochenend(rezept|küche)|one ?pot|dessert|nachtisch|beilage|snack|ofengericht|pfannengericht|sommerrezept|winterrezept)$/iu;
+  const LEADING_PRAISE = new RegExp('^(?:(?:das|der|die|mein|meine|unser|unsere)\\s+)?(?:' + PRAISE + '\\s+)+', 'iu');
+  const EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu;
+
+  /* "Ofenpfannkuchen – das einfachste Rezept" -> "Ofenpfannkuchen"
+     "Das einfachste Rezept: Ofenpfannkuchen" -> "Ofenpfannkuchen"
+     "Super leckere schnelle Pfannkuchen in 10 Minuten" -> "Pfannkuchen"
+     "Spaghetti Carbonara Rezept" -> "Spaghetti Carbonara" */
+  function cleanTitle(raw) {
+    let t = clean(raw).replace(EMOJI_RE, ' ').replace(/\s+/g, ' ').trim();
+    if (!t) return t;
+    // Teile an Trennzeichen; Werbe-Teile weglassen
+    const parts = t.split(/\s+[–—|•]\s+|\s+-\s+|:\s+|\s*!\s*/).map(x => x.trim()).filter(Boolean);
+    const rest = x => x.replace(new RegExp(FLUFF_SEGMENT.source, 'giu'), '').replace(/\b(das|der|die|für|ein|eine|einfach|so|und|&|mit|ohne|von|aus|zum|zur|alle|jeden|tag)\b/giu, '').replace(/[^\p{L}]+/gu, ' ').trim();
+    const fluff = x => FLUFF_SEGMENT.test(x) && rest(x).replace(/\s+/g, '').length < 4;
+    // Oberbegriffe statt Gericht ("Schnelles Abendessen: Gnocchi-Pfanne") nur behalten, wenn nichts anderes da ist
+    const generic = x => GENERIC_SEG.test(rest(x).toLowerCase());
+    let keep = parts.filter(x => !fluff(x));
+    if (keep.length > 1) keep = keep.filter(x => !generic(x)).concat(keep.filter(generic));
+    t = (keep[0] || parts[0] || t);
+    // Lob am Anfang und Rezept/Minuten-Angaben am Ende entfernen
+    t = t.replace(LEADING_PRAISE, '')
+      .replace(/\s*\((?:grund)?rezept\)\s*$/iu, '')
+      .replace(/\s+(?:grund)?rezept(?:\s+(?:von|nach)\s+.+)?$/iu, '')
+      .replace(/^(?:grund)?rezept\s+(?:für\s+)?/iu, '')
+      .replace(/\s+in\s+\d+\s*(?:min\.?|minuten)$/iu, '')
+      .replace(/\s+(?:der\s+welt|aller\s+zeiten|ever|überhaupt|für\s+jeden\s+(?:tag|anlass))$/iu, '')
+      .replace(/[\s,.;:!]+$/, '').trim();
+    return t ? t.charAt(0).toUpperCase() + t.slice(1) : clean(raw);
+  }
+
+  // Sätze ohne Rezeptinhalt am Ende/Anfang von Schritten und Texten
+  const FLUFF_LINE = /^(guten appetit|viel spa(ß|ss)|lasst es euch|lass es dir|enjoy|bon app[ée]tit|und fertig|fertig ist|mahlzeit|have fun|happy (baking|cooking)|ich wünsche|wenn (du|ihr) (dieses|das) rezept|hast du (dieses|das) rezept|teile? (gerne )?(dein|ein) foto|markiere mich|folge mir|speicher(e|t)? (dir )?(das|dieses) rezept|pin(ne)? (es|das rezept)|werbung|anzeige|affiliate|newsletter|link in bio|mehr rezepte)/iu;
+  const isFluffLine = l => FLUFF_LINE.test(String(l).replace(EMOJI_RE, '').trim()) || /^[\s\p{P}\p{S}]*$/u.test(String(l).replace(EMOJI_RE, ''));
+  const cleanIngredientText = l => clean(l).replace(/\(?\*?\s*(affiliate[- ]?link|werbung|anzeige|\*)\s*\)?/giu, ' ').replace(/\s*\*+\s*/g, ' ').replace(/\s+/g, ' ').replace(/\s+([,.;])/g, '$1').trim();
+
   // ---------- Rezeptseite (JSON-LD) ----------
   function fromPage(page) {
     let r = null;
     for (const block of page.jsonld || []) { r = findRecipe(block); if (r) break; }
     if (!r) return null;
-    const title = clean(r.name || r.headline || page.title);
-    const ingredients = arr(r.recipeIngredient || r.ingredients).map(clean).filter(Boolean);
-    const st = steps(r.recipeInstructions);
+    const title = cleanTitle(r.name || r.headline || page.title);
+    const ingredients = arr(r.recipeIngredient || r.ingredients).map(cleanIngredientText).filter(Boolean);
+    const st = steps(r.recipeInstructions).filter(x => !isFluffLine(x));
     const sv = servingsFrom(r.recipeYield, title);
-    const notes = clean(r.description || '').slice(0, 500);
+    // Die Kurzbeschreibung der Seite ist fast immer Werbung ("Das einfachste Rezept für …") -> nicht übernehmen
+    const notes = '';
     const d = {
       title, ingredients, steps: st, notes,
       servings: sv.servings, servingsUnit: sv.servingsUnit, formSize: sv.formSize,
@@ -226,6 +267,9 @@
       else other.push(l);
     }
     if (!title) title = (other.shift() || '').replace(/[:!]+$/, '').slice(0, 80);
+    title = cleanTitle(title);
+    for (let i = other.length - 1; i >= 0; i--) if (isFluffLine(other[i])) other.splice(i, 1);
+    for (let i = st.length - 1; i >= 0; i--) if (isFluffLine(st[i])) st.splice(i, 1);
     const d = {
       title: title || 'Importiertes Rezept', ingredients, steps: st,
       notes: other.join('\n').slice(0, 500),
@@ -256,5 +300,5 @@
     return null;
   }
 
-  window.RecipeImporter = { findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean };
+  window.RecipeImporter = { findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();
