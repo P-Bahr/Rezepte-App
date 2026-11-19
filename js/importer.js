@@ -238,6 +238,19 @@
   const STEP_VERB = /(?<![\p{L}])(kochen|durchpressen|pressen|rühren|verrühren|unterrühren|unterheben|würzen|formen|backen|ausbacken|braten|anbraten|schneiden|hacken|geben|mischen|vermischen|vermengen|kneten|schälen|reiben|servieren|garen|köcheln|erhitzen|schmelzen|abgießen|abschrecken|vorheizen|bestreuen|anrichten|füllen|legen|verteilen|stellen|pürieren|aufkochen|abschmecken|fetten|einfetten|wenden|zugeben|hinzufügen|dünsten|anschwitzen|ablöschen|ruhen|abkühlen|abtropfen|zerdrücken|aufschlagen|schlagen)(?![\p{L}])/iu;
   // Lange Absätze in einzelne Schritte teilen: erst nach Sätzen, dann an Kommas nach einem Kochverb
   // ("Kartoffeln weich kochen, durchpressen, Eigelbe … unterheben, würzen, …" -> mehrere Schritte)
+  // Erzählstil straffen: "Zuerst nehmen wir …", "– ich hatte einen großen Kohlrabi –", "Zum Schluss nur noch anrichten und genießen!"
+  function tidyStep(t) {
+    let x = String(t)
+      .replace(/\s*[–—]\s*(ich|wir)\b[^–—]*[–—]\s*/gi, ' ')
+      .replace(/\s*\((ich|wir)\b[^)]*\)/gi, '')
+      .replace(/^(zuerst|zunächst|anschließend|danach|dann|nun|jetzt|als nächstes|zum schluss|im nächsten schritt|als erstes)\s*,?\s+/i, '')
+      .replace(/\bnur noch\s+/gi, '')
+      .replace(/\s+und\s+(genießen|servieren und genießen|guten appetit)\s*([.!]+)?$/i, '.')
+      .replace(/\s{2,}/g, ' ').trim();
+    x = x.charAt(0).toUpperCase() + x.slice(1);
+    return x;
+  }
+
   function splitSteps(list) {
     const out = [];
     const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
@@ -321,12 +334,14 @@
         continue;
       }
       // Bildschirmfoto: "Teil 7 Kartoffelplätzchen" ist der Rezeptname einer Serie
+      if (!hint.ocr && /^te[il]l\s*\d+\s*([|:–-]|$)/i.test(l)) continue;
       if (hint.ocr && !title) { const m = l.match(/\bte[il]l\s*\d+\s*[|:–-]?\s*(\p{L}.+)$/iu); if (m) { title = m[1]; continue; } }
       // "4 Portionen" -> Portionsangabe, keine Zutat
       const sv = l.match(/^(?:für\s+)?(\d{1,3})\s*(portionen|personen|pers\.?|servings?)\.?$/i);
       if (sv) { servingsFound = { n: parseInt(sv[1], 10), unit: 'Personen' }; continue; }
 
       if (hint.ocr) l = l.replace(/^(etwa|ca\.?|circa)\s+(?=\d)/i, '');
+      l = l.replace(/\s*\((?:ich|wir)\b[^)]*\)/gi, '').trim();
       const norm = Sc.normalizeIngredient(l);
       const p = Sc.parseIngredient(norm);
       const hasVerb = STEP_VERB.test(l) && !p.amount && l.split(' ').length >= 3;
@@ -336,7 +351,7 @@
 
       // Fortsetzung einer umbrochenen Zeile
       if (mode === 'step' && prevStep && !numbered && !/[.!?:]$/.test(prevStep)) { st[st.length - 1] = prevStep + ' ' + l; continue; }
-      if (mode === 'ing' && prevIng && !p.amount && !hasVerb &&
+      if (hint.ocr && mode === 'ing' && prevIng && !p.amount && !hasVerb && !/^(etwas|eine?\s|prise|salz|pfeffer|nach belieben|n\.\s?b\.)/i.test(l) &&
           (/[,(/-]$/.test(prevIng) || /\b(ohne|mit|und|oder|in|aus|für|à|ca\.?|etwa)$/i.test(prevIng) || /^\p{Ll}/u.test(l))) {
         ingredients[ingredients.length - 1] = prevIng + ' ' + l; continue;
       }
@@ -376,7 +391,7 @@
     }
     for (let i = st.length - 1; i >= 0; i--) if (isFluffLine(st[i])) st.splice(i, 1);
     const d = {
-      title: title || 'Importiertes Rezept', ingredients, steps: splitSteps(st),
+      title: title || 'Importiertes Rezept', ingredients, steps: splitSteps(st.map(tidyStep)).filter(x => x && !/^(anrichten|servieren)?[.!]*$/i.test(x) || /^(anrichten|servieren)/i.test(x)),
       notes: hint.ocr ? '' : cutNotes(other.join('\n'), 3000), // bei Fotos ist der Rest meist Begleittext
       servings: 4, servingsUnit: 'Personen', formSize: '',
       imageUrl: hint.image || '', sourceUrl: hint.url || ''
@@ -409,7 +424,7 @@
       const t = fromText(res.text || '', { image: res.image, url: res.link || res.url });
       return { draft: t, how: t.ingredients.length ? 'pin' : 'pin-empty' };
     }
-    if (res.kind === 'tiktok') {
+    if (res.kind === 'tiktok' || res.kind === 'social') {
       const t = fromText(res.text || '', { image: res.image, url: res.url });
       return { draft: t, how: t.ingredients.length || t.steps.length ? 'tiktok' : 'tiktok-empty' };
     }

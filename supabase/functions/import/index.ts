@@ -229,6 +229,18 @@ export function tiktokFromHtml(html) {
   return out;
 }
 
+// ---------- Facebook: Beitragstext steht in og:title/og:description ----------
+export const isFacebook = host => /(^|\.)(facebook\.com|fb\.watch|fb\.com)$/.test(host);
+export function facebookFromHtml(html) {
+  const cands = [metaContent(html, ['og:title']), metaContent(html, ['og:description', 'description'])].filter(Boolean);
+  let text = cands.sort((a, b) => b.length - a.length)[0] || '';
+  text = text.replace(/\.\.\.$/, '')
+    .replace(/\s*\|\s*[^|\n]{1,60}\s*\|\s*Facebook\s*$/i, '')   // "… | Joes Kochwelt | Facebook"
+    .replace(/\s*\|\s*Facebook\s*$/i, '');
+  const author = ((cands[0] || '').match(/\|\s*([^|\n]{1,60})\s*\|\s*Facebook\s*$/i) || [])[1] || '';
+  return { text: text.trim(), author: author.trim(), image: metaContent(html, ['og:image']) || '' };
+}
+
 // ---------- Pinterest: Pin -> Link zur eigentlichen Rezeptseite ----------
 export const isPinterest = host => /(^|\.)pinterest\.[a-z.]+$/.test(host) || host === 'pin.it';
 export function pinFromHtml(html) {
@@ -318,6 +330,13 @@ export async function handle(req) {
       if (!info.desc) return json({ error: 'Die TikTok-Beschreibung konnte nicht geladen werden. Ist das Video öffentlich? Sonst ein Bildschirmfoto vom Rezept im Video machen.' }, 502);
       if (!info.author) info.author = (long.match(/@([^/]+)/) || [])[1] || '';
       return json({ kind: 'tiktok', url: long, title: info.desc, author: info.author, image: info.image, jsonld: [], text: info.desc, description: info.desc });
+    }
+    // Facebook (Beiträge, Reels): Beschreibung aus den Vorschau-Angaben der Seite
+    if (isFacebook(checked.host)) {
+      const page = await fetchText(checked.url, 2 * 1024 * 1024);
+      const fb = facebookFromHtml(page.text || '');
+      if (!fb.text || /^(facebook|log in|anmelden)/i.test(fb.text)) return json({ error: 'Der Facebook-Beitrag konnte nicht gelesen werden. Ist er öffentlich? Sonst ein Bildschirmfoto vom Rezept machen.' }, 502);
+      return json({ kind: 'social', site: 'Facebook', url: checked.url, title: fb.text, author: fb.author, image: fb.image, jsonld: [], text: fb.text });
     }
     // Pinterest: dem Pin zur Rezeptseite folgen; ohne Link die Pin-Beschreibung nehmen
     if (isPinterest(checked.host)) {

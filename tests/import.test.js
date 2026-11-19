@@ -162,6 +162,17 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   d = I.fromText('Kuchen\nZutaten:\n200 g Mehl\nHaltbarkeit:\n' + 'Luftdicht verschlossen hält er sich lange. '.repeat(20) + 'Ende der Haltbarkeit.');
   ok(/Ende der Haltbarkeit\.$/.test(d.notes), 'Lange Notizen (z. B. Haltbarkeit) werden vollständig übernommen');
 
+  // ---------- Facebook ----------
+  const fbHtml = '<meta property="og:title" content="Cremige Nudeln 🍝\nTeil 5 | Kinderrezepte\nAnzeige - eigene Gewürze\n\nZutaten\n\n✳️1 Zwiebel\n✳️1–2 Kohlrabi (ich hatte einen großen)\n✳️4 Karotten\n✳️etwas Öl\n✳️200 ml Sahne\n✳️etwas Salz\n\nZubereitung\n\nZuerst nehmen wir uns eine Zwiebel und schneiden sie klein.\n\nZum Schluss nur noch anrichten und genießen! 😋\n\n#nudeln #kinderrezepte | Testküche | Facebook"><meta property="og:description" content="Cremige Nudeln...">';
+  const fbr = fn.facebookFromHtml(fbHtml);
+  ok(fn.isFacebook('www.facebook.com') && fn.isFacebook('m.facebook.com') && !fn.isFacebook('facebook.com.example'), 'Facebook-Adressen erkannt');
+  ok(fbr.author === 'Testküche' && !/Facebook$/.test(fbr.text) && /Zutaten/.test(fbr.text), 'Facebook: ganzer Beitragstext, „| Seite | Facebook“ entfernt');
+  d = I.toDraft({ kind: 'social', url: 'u', text: fbr.text }).draft;
+  ok(d.title === 'Cremige Nudeln', 'Facebook: Name ohne „Teil 5 | Kinderrezepte“: ' + d.title);
+  ok(JSON.stringify(d.ingredients) === JSON.stringify(['1 Zwiebel', '1–2 Kohlrabi', '4 Karotten', 'etwas Öl', '200 ml Sahne', 'etwas Salz']), 'Facebook: Zutaten einzeln, „(ich hatte …)“ entfernt: ' + JSON.stringify(d.ingredients));
+  ok(d.mainIngredient !== 'Kinderrezepte' && !/Kinderrezepte|Anzeige/.test(d.notes), 'Facebook: keine Kategorie als Hauptzutat, keine Werbung in den Notizen');
+  ok(d.steps[0] === 'Nehmen wir uns eine Zwiebel und schneiden sie klein.' && d.steps[1] === 'Anrichten.', 'Schritte gestrafft: „Zuerst“, „nur noch“, „und genießen“ entfernt: ' + JSON.stringify(d.steps));
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },
