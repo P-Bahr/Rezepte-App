@@ -307,7 +307,7 @@
       const img = imageBox('tile-img', r);
       if (r.favorite) img.append(h('span', { class: 'fav-badge', 'aria-label': 'Favorit', text: '★' }));
       if (r.review) img.append(h('span', { class: 'review-badge', text: 'neu' }));
-      frag.append(h('button', { type: 'button', class: 'tile', onclick: () => openDetail(r.id) },
+      frag.append(h('button', { type: 'button', class: 'tile', 'data-id': r.id, onclick: () => openDetail(r.id) },
         img,
         h('div', { class: 'tile-body' },
           h('span', { class: 'tile-title', text: r.title }),
@@ -518,7 +518,19 @@
     const reviewBar = r.review ? h('div', { class: 'notice review-notice', id: 'reviewNotice' },
       h('p', null, h('b', { text: 'Automatisch importiert.' }), ' Bitte kurz prüfen. Passt alles, tippe auf „Passt“; sonst „Bearbeiten“.'),
       h('button', { type: 'button', class: 'btn btn-primary', id: 'btnReviewed', onclick: () => {
-        try { Store.setReviewed(id); reviewBar.remove(); toast('Als geprüft markiert'); } catch (e) { toast(e.message); }
+        // Nächstes ungeprüftes Rezept (in der Reihenfolge der Übersicht) direkt öffnen
+        const order = [...document.querySelectorAll('#grid .tile[data-id]')].map(t => t.dataset.id);
+        const pending = new Set(Store.recipes().filter(x => x.review && x.id !== id).map(x => x.id));
+        const after = order.slice(order.indexOf(id) + 1).concat(order.slice(0, Math.max(0, order.indexOf(id))));
+        const next = after.find(x => pending.has(x)) || [...pending][0];
+        try { Store.setReviewed(id); } catch (e) { toast(e.message); return; }
+        if (next) {
+          toast('Geprüft ✓ – noch ' + pending.size);
+          location.replace(location.pathname + location.search + '#rezept-' + encodeURIComponent(next));
+        } else {
+          closeDialog();
+          toast('Alles geprüft ✓');
+        }
       } }, 'Passt ✓')) : null;
     const content = h('div', { class: 'detail' }, reviewBar,
       (r.imageId || safeUrl(r.imageUrl)) ? (() => {

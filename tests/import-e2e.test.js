@@ -222,11 +222,15 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   assert((await p.$$eval('.tile-title', e => e.map(x => x.textContent).sort())).join(',') === 'Bananenbrot,Rote Linsensuppe', 'Filter „Zu prüfen“ zeigt nur die neuen Rezepte');
   await p.click('.tile:has-text("Rote Linsensuppe")');
   await p.click('#btnReviewed');
-  assert(!(await p.isVisible('#reviewNotice')) && await p.evaluate(() => !Store.recipes().find(r => r.title === 'Rote Linsensuppe').review), '„Passt“ entfernt die Markierung');
-  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  await p.waitForSelector('dialog h2:has-text("Bananenbrot")');
+  assert(await p.evaluate(() => !Store.recipes().find(r => r.title === 'Rote Linsensuppe').review) && await p.isVisible('#reviewNotice'), '„Passt“ entfernt die Markierung und öffnet direkt das nächste ungeprüfte Rezept');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(300);
+  assert(!(await p.isVisible('dialog[open]')), 'Schließen führt zurück zur Übersicht (kein Rezept dazwischen)');
   assert((await p.textContent('#chipReview .n')) === '1', 'Chip „Zu prüfen“ zählt nur noch 1');
+  await p.click('.tile:has-text("Bananenbrot")'); await p.click('#btnReviewed'); await p.waitForTimeout(300);
+  assert(!(await p.isVisible('dialog[open]')) && await p.isVisible('#toast:has-text("Alles geprüft")'), 'Letztes geprüft: Fenster schließt, „Alles geprüft“');
   // Import rückgängig (neuer Import derselben Pinnwand: jetzt alles doppelt -> Undo-Test über erneuten Import nicht möglich, daher direkt)
-  const batch = await p.evaluate(() => Store.recipes().find(r => r.title === 'Bananenbrot' && r.review).importBatch);
+  const batch = await p.evaluate(() => Store.recipes().find(r => r.sourceUrl === 'https://www.lecker.example/linsensuppe').importBatch);
   const undone = await p.evaluate(b => Store.deleteBatch(b), batch); const nowN = await p.evaluate(() => Store.recipes().length);
   assert(undone === 2 && nowN === recipesBefore, 'Import rückgängig löscht genau die Rezepte dieses Imports (' + undone + ')');
   await p.waitForTimeout(200);
