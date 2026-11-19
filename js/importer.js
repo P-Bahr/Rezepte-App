@@ -127,7 +127,7 @@
   function guessMethod(stepsList, title) {
     const t = (title + ' ' + stepsList.join(' ')).toLowerCase();
     const score = {
-      Backen: (t.match(/\b(backen|backofen|ofen|überbacken|gratin|°c|grad|umluft|ober-\/unterhitze)/g) || []).length,
+      Backen: (t.match(/\b(backen|backofen|ofen|überbacken|gratin|°c|grad|umluft|ober-\/unterhitze|waffeleisen|waffeln?|muffinform|backform|springform|backblech|blech)/g) || []).length,
       Braten: (t.match(/\b(braten|anbraten|pfanne|wok|rösten)/g) || []).length,
       Kochen: (t.match(/\b(koch(en|t|end\w*)|köcheln|garen|aufkochen|sieden|topf|salzwasser)/g) || []).length,
       Schmoren: (t.match(/\bschmor/g) || []).length * 2,
@@ -157,7 +157,17 @@
     let best = '', bestPos = -1;
     for (const line of ingredients) {
       const p = Sc.parseIngredient(Sc.normalizeIngredient(line));
-      if (!p.name || isStaple(p.name)) continue;
+      if (!p.name) continue;
+      if (isStaple(p.name)) {
+        // "Dinkelmehl" + "Dinkelwaffeln", "Kokosmilch" + "Kokos-Curry": der besondere Teil steht im Namen
+        const n = (noun(p.name) || '').toLowerCase();
+        const front = n.replace(STAPLE_END, '');
+        if (front.length >= 4 && front !== n && head.includes(front)) {
+          const pos = head.lastIndexOf(front);
+          if (pos > bestPos) { bestPos = pos; best = p.name; }
+        }
+        continue;
+      }
       const name = p.name.replace(/\s+(nach (wahl|belieben|geschmack)|zum \p{L}+|für \p{L}+.*)$/iu, '');
       const stemOf = x => x.toLowerCase().replace(/(innen|en|n|e|s)$/, '');
       const headWords = head.split(/[\s-]+/).filter(w => w.length >= 4);
@@ -201,6 +211,7 @@
       let g = isNaN(v) ? 0 : v;
       const u = (p.unit || '').toLowerCase();
       if (u === 'kg' || u === 'l') g *= 1000; else if (u === 'g' || u === 'ml') g *= 1; else if (!u) g *= 120; else g *= 15;
+      if (g < 50) return; // Gewürzmengen ("½ TL Zitronenschale") sind nie die Hauptzutat
       const score = g - i; // bei Gleichstand: weiter oben gewinnt
       if (score > bestScore) { bestScore = score; best = p.name; }
     });

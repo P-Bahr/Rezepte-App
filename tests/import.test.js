@@ -249,6 +249,12 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(d.steps.length === 4 && /backen/.test(d.steps[3]) && !d.steps.some(x => /Apfel|ÜBER UNS|Posts/i.test(x)), 'Werbung und Seitenende nicht in den Schritten: ' + JSON.stringify(d.steps));
   ok(d.course === 'Gebäck' && d.method === 'Backen' && !d.notes, 'Gebäck, Backen, keine Notizen wie „Skip to content“');
 
+  // Dinkelwaffeln: Hauptzutat aus dem Namen (auch Grundzutat wie Dinkelmehl), nie eine Gewürzmenge; Waffeleisen = Backen
+  const waffelIng = ['125 g Dinkelmehl', '½ TL Backpulver', '1 Ei', '175 ml fettarme Milch', '¼ TL Vanilleextrakt', '30 ml Kokosöl', '½ TL Orangen- oder Zitronenschale'];
+  ok(I.guessMain(waffelIng, 'Gesunde Dinkelwaffeln') === 'Dinkelmehl', 'Dinkelwaffeln -> Hauptzutat Dinkelmehl (' + I.guessMain(waffelIng, 'Gesunde Dinkelwaffeln') + ')');
+  ok(I.guessMain(['1 TL Zimt', '½ TL Zitronenschale'], 'Gewürzmischung') === '', 'Nur Gewürzmengen -> keine Hauptzutat');
+  ok(I.guessMethod(['Teig ins heiße Waffeleisen geben.'], 'Waffeln') === 'Backen', 'Waffeleisen = Backen');
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },

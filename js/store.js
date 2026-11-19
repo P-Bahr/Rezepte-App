@@ -92,6 +92,19 @@
       changed = true;
       return { ...r, mainIngredient: I.validMain(I.guessMain(r.ingredients || [], r.title)), updatedAt: now };
     });
+    // Noch nicht geprüfte Importe: Schätzungen (Rezeptart, Zubereitung, Hauptzutat) mit den aktuellen Regeln neu berechnen
+    if (I && I.guessMethod) data.recipes = data.recipes.map(r => {
+      if (!r.review) return r;
+      const title = I.tidyTitle ? I.tidyTitle(r.title) : r.title;
+      const next = {
+        course: I.guessCourse(title, [], []) === 'Hauptgericht' ? (r.course || 'Hauptgericht') : I.guessCourse(title, [], []),
+        method: I.guessMethod(r.steps || [], title),
+        mainIngredient: I.validMain(I.guessMain(r.ingredients || [], title)) || r.mainIngredient
+      };
+      if (next.course === r.course && next.method === r.method && next.mainIngredient === r.mainIngredient) return r;
+      changed = true;
+      return { ...r, ...next, updatedAt: now };
+    });
     // Namen ohne "für Kinder und Familie", "nach Omas bestem Rezept" …
     if (I && I.tidyTitle) data.recipes = data.recipes.map(r => {
       const t = I.tidyTitle(r.title);
