@@ -143,7 +143,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(d.servings === 4, 'Foto: „4 Portionen“ ist die Portionszahl, keine Zutat');
   ok(JSON.stringify(d.ingredients) === JSON.stringify(['1 kg Kartoffeln, mehlig kochende', '3 Eigelb', '4 EL Speisestärke', '150 g Reibekäse',
     'Reichlich Knobi, fein gehackt, ohne Keim/Strunk', 'Pfeffer, Salz und Muskat', '0,5 Bund Petersilie', 'Öl']), 'Foto: Zutaten richtig, umbrochene Zeile zusammengefügt: ' + JSON.stringify(d.ingredients));
-  ok(d.steps.length === 1 && /^Kartoffeln weich kochen.*beiden Seiten backen\.$/.test(d.steps[0]), 'Foto: Zubereitung ohne Überschrift erkannt und zusammengefügt');
+  ok(JSON.stringify(d.steps) === JSON.stringify(['Kartoffeln weich kochen, durchpressen.', 'Eigelbe nacheinander mit Holzlöffel unterheben, würzen.', 'Knobi, Käse, Petersilie verrühren.', 'Formen und von beiden Seiten backen.']), 'Foto: Zubereitung ohne Überschrift erkannt und in Schritte geteilt: ' + JSON.stringify(d.steps));
   ok(!d.notes, 'Foto: Begleittext landet nicht in den Notizen');
 
   if (fail) { console.log(fail + ' Fehler'); process.exit(1); } else console.log('Alle Import-Prüfungen ok');

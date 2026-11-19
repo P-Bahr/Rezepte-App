@@ -215,7 +215,7 @@
     if (!r) return null;
     const title = cleanTitle(r.name || r.headline || page.title);
     const ingredients = arr(r.recipeIngredient || r.ingredients).map(cleanIngredientText).filter(Boolean);
-    const st = steps(r.recipeInstructions).filter(x => !isFluffLine(x));
+    const st = splitSteps(steps(r.recipeInstructions).filter(x => !isFluffLine(x)));
     const sv = servingsFrom(r.recipeYield, title);
     // Die Kurzbeschreibung der Seite ist fast immer Werbung ("Das einfachste Rezept für …") -> nicht übernehmen
     const notes = '';
@@ -234,6 +234,39 @@
   const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu;
   // Typische Verben in Zubereitungsschritten (ganze Wörter)
   const STEP_VERB = /(?<![\p{L}])(kochen|durchpressen|pressen|rühren|verrühren|unterrühren|unterheben|würzen|formen|backen|ausbacken|braten|anbraten|schneiden|hacken|geben|mischen|vermischen|vermengen|kneten|schälen|reiben|servieren|garen|köcheln|erhitzen|schmelzen|abgießen|abschrecken|vorheizen|bestreuen|anrichten|füllen|legen|verteilen|stellen|pürieren|aufkochen|abschmecken|fetten|einfetten|wenden|zugeben|hinzufügen|dünsten|anschwitzen|ablöschen|ruhen|abkühlen|abtropfen|zerdrücken|aufschlagen|schlagen)(?![\p{L}])/iu;
+  // Lange Absätze in einzelne Schritte teilen: erst nach Sätzen, dann an Kommas nach einem Kochverb
+  // ("Kartoffeln weich kochen, durchpressen, Eigelbe … unterheben, würzen, …" -> mehrere Schritte)
+  function splitSteps(list) {
+    const out = [];
+    const cap = x => x.charAt(0).toUpperCase() + x.slice(1);
+    for (const step of list) {
+      if (step.length < 120) { out.push(step); continue; }
+      const sentences = step.split(/(?<=[.!?])\s+(?=\p{Lu})/u);
+      for (const sen of sentences) {
+        if (sen.length < 90) { out.push(cap(sen)); continue; }
+        const end = (sen.match(/[.!?]$/) || [''])[0];
+        const parts = sen.replace(/[.!?]$/, '').split(/,\s+/);
+        const segs = [];
+        let cur = '';
+        for (const part of parts) {
+          cur = cur ? cur + ', ' + part : part;
+          const last = cur.split(/\s+/).pop();
+          if (STEP_VERB.test(last) && new RegExp('^' + STEP_VERB.source + '$', 'iu').test(last)) { segs.push(cur); cur = ''; }
+        }
+        if (cur) { if (segs.length) segs[segs.length - 1] += ', ' + cur; else segs.push(cur); }
+        // Einzelwörter ("durchpressen", "würzen") gehören zum Schritt davor
+        const merged = [];
+        for (const sg of segs) {
+          if (merged.length && sg.split(/\s+/).length <= 2) merged[merged.length - 1] += ', ' + sg;
+          else merged.push(sg);
+        }
+        if (merged.length < 2) { out.push(cap(sen)); continue; }
+        merged.forEach(m => out.push(cap(m) + (end || '.')));
+      }
+    }
+    return out;
+  }
+
   function fromText(text, hint) {
     hint = hint || {};
     let lines = String(text || '').replace(EMOJI, ' ')
@@ -311,7 +344,7 @@
     for (let i = other.length - 1; i >= 0; i--) if (isFluffLine(other[i])) other.splice(i, 1);
     for (let i = st.length - 1; i >= 0; i--) if (isFluffLine(st[i])) st.splice(i, 1);
     const d = {
-      title: title || 'Importiertes Rezept', ingredients, steps: st,
+      title: title || 'Importiertes Rezept', ingredients, steps: splitSteps(st),
       notes: hint.ocr ? '' : other.join('\n').slice(0, 500), // bei Fotos ist der Rest meist Begleittext
       servings: 4, servingsUnit: 'Personen', formSize: '',
       imageUrl: hint.image || '', sourceUrl: hint.url || ''
