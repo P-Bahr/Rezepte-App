@@ -146,6 +146,8 @@
     ingredients.forEach((line, i) => {
       const p = Sc.parseIngredient(Sc.normalizeIngredient(line));
       if (!p.name || isStaple(p.name)) return;
+      // Kategorie-Wörter von Webseiten sind keine Zutat ("Kinderrezepte", "Familienessen", "Abendessen")
+      if (/rezept|kinder|familie|essen\b|ideen|gericht|küche|snack|dessert|frühstück/i.test(p.name)) return;
       const v = Sc.parseNum(String(p.amount).split('–')[0]);
       let g = isNaN(v) ? 0 : v;
       const u = (p.unit || '').toLowerCase();
@@ -365,8 +367,9 @@
     }
     if (!title) title = (other.shift() || '').replace(/[:!]+$/, '').slice(0, 80);
     title = cleanTitle(title);
+    const sameAsTitle = x => title && String(x).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '') === String(title).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
     for (let i = other.length - 1; i >= 0; i--) {
-      if (isFluffLine(other[i])) { other.splice(i, 1); continue; }
+      if (isFluffLine(other[i]) || sameAsTitle(other[i]) || sameAsTitle(cleanTitle(other[i]))) { other.splice(i, 1); continue; }
       // Werbesätze auch mitten in einer Zeile entfernen ("… Snack! Speichere dir das Rezept …! Folg mir")
       const kept = other[i].split(/(?<=[.!?])\s+/).filter(x => !isFluffLine(x)).join(' ');
       if (kept) other[i] = kept; else other.splice(i, 1);
