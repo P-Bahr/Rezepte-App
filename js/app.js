@@ -497,6 +497,12 @@
     facts.push(h('span', null, 'Sammlung: ', h('b', { text: collectionName(r.collectionId) })));
 
     const src = safeUrl(r.sourceUrl);
+    // Quelle gut sichtbar oben bei den Eckdaten ("Original: tiktok.com ↗")
+    if (src) {
+      let host = 'Internetseite';
+      try { host = new URL(src).hostname.replace(/^(www|m|vm)\./, ''); } catch (e) { /* egal */ }
+      facts.push(h('span', null, 'Original: ', h('a', { href: src, target: '_blank', rel: 'noopener noreferrer', class: 'source-link', text: host + ' ↗' })));
+    }
     const content = h('div', { class: 'detail' },
       (r.imageId || safeUrl(r.imageUrl)) ? (() => {
         const img = h('img', { class: 'detail-img', alt: '', referrerpolicy: 'no-referrer' });
