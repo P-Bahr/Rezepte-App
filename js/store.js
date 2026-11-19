@@ -25,6 +25,10 @@
       // Sammlungen ohne Zeitstempel (ältere Daten) bekommen einen festen, gleichen Wert
       data.collections = data.collections.map(c => (c.updatedAt ? c : { ...c, updatedAt: '2000-01-01T00:00:00.000Z' }));
       data.recipes = data.recipes.map(r => ({ ...r, ingredients: (r.ingredients || []).map(cleanIngredient).filter(Boolean), method: cleanMethod(r.method) }));
+      // Unsinnige Hauptzutaten aus früheren Importen ("Minuten", "1050") neu bestimmen
+      const I = window.RecipeImporter;
+      if (I && I.validMain) data.recipes = data.recipes.map(r => (!r.mainIngredient || I.validMain(r.mainIngredient)) ? r
+        : { ...r, mainIngredient: I.validMain(I.guessMain(r.ingredients, r.title)) });
       data.recipes = data.recipes.map(r => {
         if (typeof r.servings === 'number' || r.servings === null) return { ...r, servingsUnit: window.RecipeForms.normalizeUnit(r.servingsUnit) };
         const p = window.RecipeScale.parseServings(r.servings);

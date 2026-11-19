@@ -212,10 +212,16 @@
     return w.charAt(0).toUpperCase() + w.slice(1);
   }
 
+  // Hauptzutat muss ein echtes Wort sein (keine Zahl, keine Zeit- oder Mengenangabe)
+  const NOT_MAIN = /^(minuten?|min|stunden?|std|sekunden|portionen?|personen|pers|stück|stk|gläser|zutaten|zubereitung|rezepte?|kcal|kj|bis|zu|ca|etwa|und|oder|mit|für|von|grad|gramm|liter|zeit|schritt|anleitung|hinweis|tipp|kinderrezepte?|familienessen|abendessen|mittagessen|ideen)$/i;
+  function validMain(v) {
+    const t = clean(v);
+    return /^\p{L}[\p{L}\s'’-]{1,40}$/u.test(t) && !NOT_MAIN.test(t) ? t : '';
+  }
   function withGuesses(d, category, keywords) {
     d.course = d.course || guessCourse(d.title, category, keywords);
     d.method = d.method || guessMethod(d.steps, d.title);
-    d.mainIngredient = d.mainIngredient || guessMain(d.ingredients, d.title);
+    d.mainIngredient = validMain(d.mainIngredient) || validMain(guessMain(d.ingredients, d.title));
     return d;
   }
 
@@ -625,5 +631,5 @@
     throw new Error('Pinnwand nicht gefunden. Stimmen Name und Pinnwand, und ist sie öffentlich?');
   }
 
-  window.RecipeImporter = { boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

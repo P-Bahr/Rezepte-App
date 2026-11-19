@@ -235,6 +235,9 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
     ok(got === b, 'Aufgeräumt: „' + a + '“ -> „' + got + '“');
   }
 
+  for (const [v, want] of [['Minuten', ''], ['1050', ''], ['63 g', ''], ['Kartoffeln', 'Kartoffeln'], ['Rote Linsen', 'Rote Linsen'], ['Kinderrezepte', '']])
+    ok(I.validMain(v) === want, 'Hauptzutat gültig? „' + v + '“ -> „' + I.validMain(v) + '“');
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },
