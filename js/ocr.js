@@ -110,7 +110,7 @@
         const W = variant.width;
         for (const bl of data.blocks || []) for (const pa of bl.paragraphs || []) for (const li of pa.lines || []) {
           // Rechter Rand: Zähler und Symbole der App (Likes, Kommentare, Lesezeichen) weglassen
-          const words = (li.words || []).filter(wd => !(wd.bbox && wd.bbox.x0 > W * 0.8 && !/\p{L}{3}/u.test(wd.text || '')));
+          const words = (li.words || []).filter(wd => !(wd.bbox && wd.bbox.x0 > W * 0.8 && !/\p{L}{3}/u.test(wd.text || '') && !/^(°C|°|C|g|ml|l|kg|EL|TL|cm)\.?$/.test(wd.text || '')));
           const t = (words.length ? words.map(wd => wd.text).join(' ') : String(li.text || '')).replace(/\s+/g, ' ').trim();
           if (t) all.push({ t, c: li.confidence || 0, b: li.bbox });
         }
@@ -147,6 +147,8 @@
   function fixUnits(l) {
     return l
       .replace(/(^|\s)Ol(?=$|[\s,])/g, '$1Öl')
+      .replace(/\b(1[2-9]0|2[0-5]0)\s*(?:°|"|″|º)?\s*(?=Ober|Umluft|Unterhitze|Grad\b|$)/g, (m, t) => t + ' °C ')
+      .replace(/\s+$/, '')
       .replace(/(\d)\s*(?:mi|mI|m1|rnl|mL)\b/g, '$1 ml')
       .replace(/(\d)\s+[9q]\s+(?=\p{Lu})/gu, '$1 g ')
       .replace(/(\d)\s*(?:E1|EI)\b/g, '$1 EL')
@@ -164,7 +166,11 @@
       let l = raw.trim();
       if (!l) continue;
       // Nutzername (kochen_mit_k, lea.kocht)
-      if (/^[\p{Ll}\d._]{3,30}$/u.test(l) && /[._]/.test(l)) continue;
+      if (/^[\p{Ll}\d._]{3,30}$/u.test(l) && /[\p{Ll}\d][._][\p{Ll}\d]/u.test(l)) continue;
+      // Kopfzeile der App mit Zurück-Pfeil ("< Fitmitkev - Abnehmen … Beitr...")
+      if (/^[<‹←]\s/.test(l)) continue;
+      // Aufzählungszeichen, die als ‚ . - gelesen werden; "½" wird oft als "%" gelesen
+      l = l.replace(/^[‚,.\-–—•·*»]+\s*(?=[\d%½¼¾⅓⅔\p{L}])/u, '').replace(/^%\s*(?=(?:TL|EL|Tasse|Pck|Prise|l\b|kg\b))/u, '½ ').replace(/^(\d)\s*%(?=\s)/, '$1½');
       l = l.replace(/[|_~^`´¦]+/g, ' ').replace(/\s+/g, ' ').trim();
       // Statusleiste mit Uhrzeit
       if (/^\W{0,3}\d{1,2}:\d{2}\b/.test(l)) continue;

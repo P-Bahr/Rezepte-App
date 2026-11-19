@@ -280,6 +280,19 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
     ok(got === b, 'Aufgeräumt: „' + a.slice(0, 40) + '“ -> „' + got + '“');
   }
 
+  // Bildschirmfoto eines Beitrags (echter Text nach der Texterkennung): Einleitung mit Zahlen vor "Zutaten"
+  const ocr2 = ['Schmeckt wie Milchschnitte, nur als Bowl für', 'dich allein: unten saftiger Schoko-Biskuit,', 'oben kühle Milchcreme mit einem Hauch', 'Honig. 12 Minuten backen, kurz kalt stellen,', 'fertig: 335 kcal und 29 g Eiweiß die ganze', 'Bowl statt 470 für vier Milchschnitten!',
+    'Zutaten (1 Portion, Glasform 15 x 10 cm):', '1 Stück Ei', '10 g Backkakao', '15 g Dinkelmehl', '½ TL Backpulver', 'etwas Vanille', "So geht's:",
+    '1. Ei, Kakao, Mehl und das', 'Backpulver glatt rühren und 12 Minuten backen.', '2. Den Schoko-Biskuit vollständig abkühlen', 'lassen.'].join('\n');
+  d = I.fromText(ocr2, { ocr: true });
+  ok(d.title === 'Milchschnitte-Bowl', 'Foto: Name aus „Schmeckt wie Milchschnitte, nur als Bowl“: ' + d.title);
+  ok(d.ingredients.length === 5 && d.ingredients[0] === '1 Stück Ei' && d.servings === 1, 'Foto: Einleitung („12 Minuten“, „335 kcal“) keine Zutaten, 1 Portion: ' + d.ingredients.join(' | '));
+  ok(d.steps[d.steps.length - 1] === 'Den Schoko-Biskuit vollständig abkühlen lassen.', 'Foto: umbrochenes „lassen.“ gehört zum Schritt');
+  global.document = global.document || { baseURI: 'http://x/' };
+  require('../js/ocr.js');
+  const cleaned2 = window.RecipeOCR.cleanOcr('< Fitmitkev - Abnehmen ohne Verzichts Beitr...\n‚1 Stück Ei\n. 10 g Backkakao\n.% TL Backpulver\n- etwas Vanille\nlassen.\nGlasform füllen und bei 180 Ober-/Unterhitze backen.\nkochen_mit_k');
+  ok(cleaned2 === '1 Stück Ei\n10 g Backkakao\n½ TL Backpulver\netwas Vanille\nlassen.\nGlasform füllen und bei 180 °C Ober-/Unterhitze backen.', 'Texterkennung aufgeräumt: Kopfzeile, Aufzählungszeichen, ½, °C, kurze Wörter: ' + JSON.stringify(cleaned2));
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },

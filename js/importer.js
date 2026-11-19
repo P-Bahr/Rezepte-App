@@ -602,6 +602,8 @@
     let mode = '';
     let servingsFound = 0;
     let skipAd = 0;
+    // Gibt es eine Überschrift "Zutaten", ist alles davor Einleitung ("12 Minuten backen, 335 kcal …")
+    const hasIngHead = lines.some(l => HEAD_ING.test(l) || /^(zutaten|ingredients?)\b/i.test(l));
     for (const raw of lines) {
       let l = raw;
       // Seitenende (Teilen-Knöpfe, "Über uns", Kommentare …): hier hört das Rezept auf
@@ -631,7 +633,7 @@
       // "ZUTATEN für etwa 16 Plätzchen" -> Überschrift (mit Mengenangabe)
       else if (/^(zutaten|ingredients?)\b/i.test(l)) {
         mode = 'ing';
-        const y = l.match(/(\d{1,3})\s*(portionen|personen|pers\.?|stück|stk\.?|plätzchen|muffins|gläser|bleche?|servings?)/i);
+        const y = l.match(/(\d{1,3})\s*(portionen|portion|personen|person|pers\.?|stück|stk\.?|plätzchen|muffins|gläser|bleche?|servings?)/i);
         if (y && !servingsFound) servingsFound = { n: parseInt(y[1], 10), unit: y[2] };
         continue;
       }
@@ -644,6 +646,7 @@
 
       if (hint.ocr) l = l.replace(/^(etwa|ca\.?|circa)\s+(?=\d)/i, '');
       l = l.replace(/\s*\((?:ich|wir)\b[^)]*\)/gi, '').trim();
+      if (hasIngHead && mode === '' ) { other.push(l); continue; }
       const norm = Sc.normalizeIngredient(l);
       const p = Sc.parseIngredient(norm);
       const hasVerb = STEP_VERB.test(l) && !p.amount && l.split(' ').length >= 3;
@@ -675,7 +678,8 @@
     // sonst die erste Zeile, die nicht nur aus Großbuchstaben besteht (Serientitel wie "WAS MEINE KINDER LIEBEN")
     if (!title && hint.ocr) {
       for (const o of other) { const m = o.match(/\bte[il]l\s*\d+\s*[|:–-]?\s*(.+)$/i); if (m) { title = m[1]; break; } }
-      if (!title) title = other.find(o => o !== o.toUpperCase() && o.split(' ').length <= 8) || '';
+      if (!title) { const m = other.join(' ').match(/schmeckt wie (?:eine?n? )?([\p{L}-]{4,})\b.{0,40}?\bals (?:eine?n? )?([\p{L}-]{3,})/iu); if (m) title = m[1] + '-' + m[2]; }
+      if (!title) title = other.find(o => o !== o.toUpperCase() && o.split(' ').length <= 5 && !/[,.!?]$|,/.test(o)) || '';
     }
     // Nur Fließtext mit Arbeitsschritten (keine Zutatenliste): die Sätze mit Kochverben als Schritte nehmen
     if (!ingredients.length && !st.length) {
