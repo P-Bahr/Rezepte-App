@@ -133,5 +133,18 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(res['https://seite.example/rezept-da'] === 'ok' && res['https://seite.example/rezept-weg'] === 'gone' && res['https://seite.example/umgeleitet'] === 'gone', 'Seiten: vorhanden ok, 404 und Umleitung auf Startseite „gone“');
   ok(res['https://gesperrt.example/x'] === 'unknown' && res['https://langsam.example/x'] === 'unknown' && res['http://localhost/x'] === 'unknown', 'Gesperrt, Zeitüberschreitung, interne Adresse: unklar');
 
+  // ---------- Bildschirmfoto (echter TikTok-Text nach der Texterkennung) ----------
+  const ocrText = ['WASMEINE KINDER LIEBE', 'Teil 7 Kartoffelplätzchen', 'Kartoffelplätzchen nicht nur, weil sie die', 'mit den Fingern essen dürfen',
+    'ZUTATEN für etwa 16 Plätzchen', '4 Portionen', '1 kg Kartoffeln, mehlig kochende', '3 Eigelb', '4 EL Speisestärke', '150 g Reibekäse',
+    'Reichlich Knobi, fein gehackt, ohne', 'Keim/Strunk', 'Pfeffer, Salz und Muskat', 'Etwa 0,5 Bund Petersilie', 'Öl',
+    'Kartoffeln weich kochen, durchpressen,', 'Eigelbe nacheinander mit Holzlöffel', 'unterheben, würzen, Knobi, Käse,', 'Petersilie verrühren, formen und von', 'beiden Seiten backen.'].join('\n');
+  d = I.fromText(ocrText, { ocr: true });
+  ok(d.title === 'Kartoffelplätzchen', 'Foto: Name aus „Teil 7 …“: ' + d.title);
+  ok(d.servings === 4, 'Foto: „4 Portionen“ ist die Portionszahl, keine Zutat');
+  ok(JSON.stringify(d.ingredients) === JSON.stringify(['1 kg Kartoffeln, mehlig kochende', '3 Eigelb', '4 EL Speisestärke', '150 g Reibekäse',
+    'Reichlich Knobi, fein gehackt, ohne Keim/Strunk', 'Pfeffer, Salz und Muskat', '0,5 Bund Petersilie', 'Öl']), 'Foto: Zutaten richtig, umbrochene Zeile zusammengefügt: ' + JSON.stringify(d.ingredients));
+  ok(d.steps.length === 1 && /^Kartoffeln weich kochen.*beiden Seiten backen\.$/.test(d.steps[0]), 'Foto: Zubereitung ohne Überschrift erkannt und zusammengefügt');
+  ok(!d.notes, 'Foto: Begleittext landet nicht in den Notizen');
+
   if (fail) { console.log(fail + ' Fehler'); process.exit(1); } else console.log('Alle Import-Prüfungen ok');
 })();

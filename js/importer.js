@@ -232,6 +232,8 @@
   const HEAD_ING = /^(zutaten|ingredients?|du brauchst|ihr braucht|für den teig|für die füllung|einkaufsliste)\b[:\s]*$/i;
   const HEAD_STEP = /^(zubereitung|anleitung|so geht'?s|so wird'?s gemacht|instructions?|steps?|method|schritte)\b[:\s]*$/i;
   const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu;
+  // Typische Verben in Zubereitungsschritten (ganze Wörter)
+  const STEP_VERB = /(?<![\p{L}])(kochen|durchpressen|pressen|rühren|verrühren|unterrühren|unterheben|würzen|formen|backen|ausbacken|braten|anbraten|schneiden|hacken|geben|mischen|vermischen|vermengen|kneten|schälen|reiben|servieren|garen|köcheln|erhitzen|schmelzen|abgießen|abschrecken|vorheizen|bestreuen|anrichten|füllen|legen|verteilen|stellen|pürieren|aufkochen|abschmecken|fetten|einfetten|wenden|zugeben|hinzufügen|dünsten|anschwitzen|ablöschen|ruhen|abkühlen|abtropfen|zerdrücken|aufschlagen|schlagen)(?![\p{L}])/iu;
   function fromText(text, hint) {
     hint = hint || {};
     let lines = String(text || '').replace(EMOJI, ' ')
@@ -243,6 +245,7 @@
     let title = hint.title || '';
     const ingredients = [], st = [], other = [];
     let mode = '';
+    let servingsFound = 0;
     for (const raw of lines) {
       let l = raw;
       const inlineHead = l.match(/^(zutaten|ingredients?|zubereitung|anleitung|so geht'?s)\s*:\s*(.+)$/i);
@@ -257,14 +260,51 @@
       }
       else if (HEAD_ING.test(l)) { mode = 'ing'; continue; }
       else if (HEAD_STEP.test(l)) { mode = 'step'; continue; }
+      // "ZUTATEN für etwa 16 Plätzchen" -> Überschrift (mit Mengenangabe)
+      else if (/^(zutaten|ingredients?)\b/i.test(l)) {
+        mode = 'ing';
+        const y = l.match(/(\d{1,3})\s*(portionen|personen|pers\.?|stück|stk\.?|plätzchen|muffins|gläser|servings?)/i);
+        if (y && !servingsFound) servingsFound = { n: parseInt(y[1], 10), unit: y[2] };
+        continue;
+      }
+      // Bildschirmfoto: "Teil 7 Kartoffelplätzchen" ist der Rezeptname einer Serie
+      if (hint.ocr && !title) { const m = l.match(/\bte[il]l\s*\d+\s*[|:–-]?\s*(\p{L}.+)$/iu); if (m) { title = m[1]; continue; } }
+      // "4 Portionen" -> Portionsangabe, keine Zutat
+      const sv = l.match(/^(?:für\s+)?(\d{1,3})\s*(portionen|personen|pers\.?|servings?)\.?$/i);
+      if (sv) { servingsFound = { n: parseInt(sv[1], 10), unit: 'Personen' }; continue; }
+
+      if (hint.ocr) l = l.replace(/^(etwa|ca\.?|circa)\s+(?=\d)/i, '');
       const norm = Sc.normalizeIngredient(l);
       const p = Sc.parseIngredient(norm);
-      const looksIngredient = !!p.amount && p.name.split(' ').length <= 6 && !/[.!?]$/.test(l);
-      // Vor der ersten Überschrift zählen nur nummerierte Zeilen als Schritt (sonst Titel/Text)
-      const looksStep = /^\d{1,2}[.)]\s/.test(l) || (mode !== '' && (l.split(' ').length >= 6 || /[.!]$/.test(l)));
-      if ((mode === 'ing' && !looksStep) || (mode !== 'step' && looksIngredient)) ingredients.push(norm);
-      else if (mode === 'step' || looksStep) st.push(l.replace(/^\d{1,2}[.)]\s*/, ''));
+      const hasVerb = STEP_VERB.test(l) && !p.amount && l.split(' ').length >= 3;
+      const numbered = /^\d{1,2}[.)]\s/.test(l);
+      const prevIng = ingredients[ingredients.length - 1];
+      const prevStep = st[st.length - 1];
+
+      // Fortsetzung einer umbrochenen Zeile
+      if (mode === 'step' && prevStep && !numbered && !/[.!?:]$/.test(prevStep)) { st[st.length - 1] = prevStep + ' ' + l; continue; }
+      if (mode === 'ing' && prevIng && !p.amount && !hasVerb &&
+          (/[,(/-]$/.test(prevIng) || /\b(ohne|mit|und|oder|in|aus|für|à|ca\.?|etwa)$/i.test(prevIng) || /^\p{Ll}/u.test(l))) {
+        ingredients[ingredients.length - 1] = prevIng + ' ' + l; continue;
+      }
+
+      // Kochverb ohne Mengenangabe -> Zubereitung beginnt (auch ohne Überschrift)
+      if (numbered || (hasVerb && (mode === 'ing' || ingredients.length))) {
+        mode = 'step';
+        st.push(l.replace(/^\d{1,2}[.)]\s*/, ''));
+        continue;
+      }
+      const looksIngredient = !!p.amount && p.name && /\p{L}{2}/u.test(p.name) && p.name.split(' ').length <= 8 && !/[.!?]$/.test(l);
+      if (mode === 'ing' && !/[.!?]$/.test(l)) ingredients.push(norm);
+      else if (mode !== 'step' && looksIngredient) ingredients.push(norm);
+      else if (mode === 'step') st.push(l);
       else other.push(l);
+    }
+    // Rezeptname bei Bildschirmfotos: "Teil 7 | Kartoffelplätzchen" -> "Kartoffelplätzchen";
+    // sonst die erste Zeile, die nicht nur aus Großbuchstaben besteht (Serientitel wie "WAS MEINE KINDER LIEBEN")
+    if (!title && hint.ocr) {
+      for (const o of other) { const m = o.match(/\bte[il]l\s*\d+\s*[|:–-]?\s*(.+)$/i); if (m) { title = m[1]; break; } }
+      if (!title) title = other.find(o => o !== o.toUpperCase() && o.split(' ').length <= 8) || '';
     }
     if (!title) title = (other.shift() || '').replace(/[:!]+$/, '').slice(0, 80);
     title = cleanTitle(title);
@@ -272,12 +312,15 @@
     for (let i = st.length - 1; i >= 0; i--) if (isFluffLine(st[i])) st.splice(i, 1);
     const d = {
       title: title || 'Importiertes Rezept', ingredients, steps: st,
-      notes: other.join('\n').slice(0, 500),
+      notes: hint.ocr ? '' : other.join('\n').slice(0, 500), // bei Fotos ist der Rest meist Begleittext
       servings: 4, servingsUnit: 'Personen', formSize: '',
       imageUrl: hint.image || '', sourceUrl: hint.url || ''
     };
     const sv = String(text).match(/(?:für|for)\s+(\d{1,2})\s*(personen|portionen|pers\.?|servings?|people)/i);
-    if (sv) d.servings = parseInt(sv[1], 10);
+    if (servingsFound) {
+      d.servings = servingsFound.n;
+      d.servingsUnit = /stück|stk|plätzchen|muffins/i.test(servingsFound.unit) ? 'Stück' : /gläser/i.test(servingsFound.unit) ? 'Gläser' : 'Personen';
+    } else if (sv) d.servings = parseInt(sv[1], 10);
     return withGuesses(d);
   }
 

@@ -705,7 +705,7 @@
       try {
         const text = await window.RecipeOCR.recognize(files, t => say(status, t));
         say(status, '');
-        const d = window.RecipeImporter.fromText(text);
+        const d = window.RecipeImporter.fromText(text, { ocr: true });
         if (!d.ingredients.length && !d.steps.length) {
           say(msg, 'Auf ' + (files.length > 1 ? 'den Fotos' : 'dem Foto') + ' wurde kein Rezept erkannt. Tipp: ein Bildschirmfoto machen, wenn die Zutaten groß im Bild stehen.');
           manual.hidden = false;

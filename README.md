@@ -37,7 +37,7 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 **Als Nächstes (Import), abgesprochene Reihenfolge:**
 1. ✅ Rezeptseiten importieren über die eingebetteten Rezeptangaben (schema.org), kostenlos – gebaut und eingerichtet (Edge Function `import`, prüft die Anmeldung selbst; `verify_jwt` aus, weil neuere Projekte asymmetrische Schlüssel nutzen)
 2. ✅ TikTok-Beschreibung abrufen (oEmbed) und mit der eigenen Zutatenerkennung zerlegen, kostenlos – gebaut
-3. ✅ **Bildschirmfotos importieren (Pflicht):** Texterkennung auf dem Gerät (Tesseract, js/ocr.js), auch weiße TikTok-Schrift; KI-Variante noch offen. Foto(s) teilen oder auswählen; Texterkennung kostenlos in der App, optional per KI genauer (ca. 1 Cent)
+3. ✅ **Bildschirmfotos importieren (Pflicht):** Texterkennung auf dem Gerät (Tesseract, js/ocr.js), auch weiße TikTok-Schrift; räumt Bedienelemente/Nutzernamen weg, erkennt Rezeptname („Teil 7 …“), Portionen, umbrochene Zeilen und Zubereitung ohne Überschrift; KI-Variante noch offen. Foto(s) teilen oder auswählen; Texterkennung kostenlos in der App, optional per KI genauer (ca. 1 Cent)
 4. Instagram prüfen (offizieller Zugang nötig)
 5. Eigene Mini-KI für Rezeptart, Hauptzutat, Zubereitung (in der App, kostenlos)
 6. Zählen pro Konto und Obergrenze für KI-Importe gleich mit einbauen
