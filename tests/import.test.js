@@ -102,6 +102,13 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   d = I.fromText('Die BESTEN Brownies ever 🤤\nZutaten:\n200g Schokolade\n150 g Butter\n3 Eier\nZubereitung:\n1. Schmelzen.\n2. 25 Minuten backen.\nLasst es euch schmecken! 💕\nFolge mir für mehr Rezepte');
   ok(d.title === 'Brownies' && d.steps.length === 2 && d.notes === '', 'TikTok-Text: Lob im Titel und Schlusssätze entfernt (' + d.title + ' / ' + d.steps.length + ' Schritte / Notizen: ' + JSON.stringify(d.notes) + ')');
 
+  // ---------- Texterkennung: Aufräumen der erkannten Zeilen ----------
+  global.document = { baseURI: 'http://x/' };
+  require('../js/ocr.js');
+  const O = window.RecipeOCR;
+  const cleaned = O.cleanOcr('Fluffige Pancakes\n200g Mehl\n250 mi Milch\n200 9 Zucker\n1EL Öl\n1 Ei\nl TL Salz\n12,3K v Folgen\n@kochmitlea\nXS\n0 A6\nOriginalton - kochmitlea\n1234\nSchmelzen.');
+  ok(cleaned === 'Fluffige Pancakes\n200g Mehl\n250 ml Milch\n200 g Zucker\n1EL Öl\n1 Ei\n1 TL Salz\nSchmelzen.', 'Erkannter Text: Verwechsler korrigiert (mi→ml, 9→g, l→1), App-Oberfläche und Reste entfernt, kurze Zutaten bleiben: ' + JSON.stringify(cleaned));
+
   // ---------- Links prüfen (nachgebaute Antworten, kein Netz) ----------
   const fake = map => async (url) => {
     const k = Object.keys(map).find(x => url.startsWith(x));

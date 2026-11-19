@@ -693,12 +693,51 @@
       }
     }
 
+    // ---- Aus Bildschirmfotos (Texterkennung auf dem Gerät) ----
+    const photos = h('input', { type: 'file', id: 'importPhotos', accept: 'image/*', multiple: true, class: 'visually-hidden' });
+    const photoBtn = h('label', { for: 'importPhotos', class: 'btn pick-btn', role: 'button', tabindex: '0' }, 'Bildschirmfotos auswählen');
+    photoBtn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); photos.click(); } });
+    async function fromPhotos(files) {
+      files = [...files].filter(f => /^image\//.test(f.type || 'image/'));
+      if (!files.length) return;
+      say(msg, ''); manual.hidden = true; go.disabled = true; photoBtn.classList.add('busy');
+      say(status, 'Fotos werden gelesen …');
+      try {
+        const text = await window.RecipeOCR.recognize(files, t => say(status, t));
+        say(status, '');
+        const d = window.RecipeImporter.fromText(text);
+        if (!d.ingredients.length && !d.steps.length) {
+          say(msg, 'Auf ' + (files.length > 1 ? 'den Fotos' : 'dem Foto') + ' wurde kein Rezept erkannt. Tipp: ein Bildschirmfoto machen, wenn die Zutaten groß im Bild stehen.');
+          manual.hidden = false;
+          manual.onclick = () => openEdit(null, { title: '', notes: text.slice(0, 1000), fromPhoto: true });
+          return;
+        }
+        if (d.title === 'Importiertes Rezept') d.title = '';
+        openEdit(null, { ...d, fromPhoto: true });
+      } catch (e) {
+        say(status, '');
+        say(msg, e.message || 'Die Fotos konnten nicht gelesen werden.');
+      } finally {
+        go.disabled = false; photoBtn.classList.remove('busy'); photos.value = '';
+      }
+    }
+    photos.addEventListener('change', () => fromPhotos(photos.files));
+
     const form = h('form', { class: 'form', novalidate: true, onsubmit: e => { e.preventDefault(); run(); } },
       h('div', { class: 'field' },
         h('label', { for: 'importUrl', text: 'Link zum Rezept' }), input,
         h('span', { class: 'hint', text: 'Von einer Rezeptseite (z. B. Chefkoch) oder einem TikTok-Video. Lange tippen, dann „Einsetzen“.' })),
-      msg, status,
-      h('div', { class: 'pick-actions' }, go, manual));
+      h('div', { class: 'pick-actions' }, go, manual),
+      h('div', { class: 'field import-photos' },
+        h('span', { class: 'label', text: 'Oder aus Bildschirmfotos' }),
+        h('span', { class: 'hint', text: 'Zum Beispiel aus einem TikTok-Video, in dem das Rezept eingeblendet ist. Mehrere Fotos gehen auch. Der Text wird direkt auf deinem Gerät erkannt, kostenlos.' }),
+        h('div', { class: 'pick-actions' }, photoBtn, photos)),
+      msg, status);
+    // Bild einfügen (lange tippen -> Einsetzen)
+    form.addEventListener('paste', e => {
+      const imgs = [...((e.clipboardData && e.clipboardData.files) || [])].filter(f => /^image\//.test(f.type));
+      if (imgs.length) { e.preventDefault(); fromPhotos(imgs); }
+    });
     showDialog('import', h('div', { style: 'display:contents' },
       head('Rezept importieren', closeDialog), h('div', { class: 'dlg-scroll' }, form)));
     if (autoRun && prefill) run(); else setTimeout(() => input.focus(), 50);
@@ -867,9 +906,13 @@
     if (draft) {
       let host = '';
       try { host = new URL(draft.sourceUrl).hostname.replace(/^www\./, ''); } catch (e) { /* egal */ }
-      importNote = h('div', { class: 'notice', id: 'importNotice' },
-        h('p', null, h('b', { text: 'Importiert' + (host ? ' von ' + host : '') + '.' }),
-          ' Bitte kurz prüfen ' + (draft.ingredients && draft.ingredients.length ? 'und speichern.' : ', die Zutaten ergänzen und speichern.')));
+      importNote = draft.fromPhoto
+        ? h('div', { class: 'notice', id: 'importNotice' },
+            h('p', null, h('b', { text: 'Aus Bildschirmfoto erkannt.' }),
+              ' Bitte prüfen, vor allem die Mengen – die Texterkennung kann sich bei Zahlen vertun.' + (draft.title ? '' : ' Den Namen bitte noch eintragen.')))
+        : h('div', { class: 'notice', id: 'importNotice' },
+            h('p', null, h('b', { text: 'Importiert' + (host ? ' von ' + host : '') + '.' }),
+              ' Bitte kurz prüfen ' + (draft.ingredients && draft.ingredients.length ? 'und speichern.' : ', die Zutaten ergänzen und speichern.')));
     }
     const form = h('form', { class: 'form', id: 'recipeForm', novalidate: true },
       importNote,
