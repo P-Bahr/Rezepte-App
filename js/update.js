@@ -1,7 +1,7 @@
 /* Neue Version erkennen: Beim Öffnen (und beim Zurückkehren in die App) wird
    version.json ohne Zwischenspeicher abgefragt. Ist sie neuer als die laufende
-   Version, werden Seite, Skripte und Stile frisch geholt und die App neu geladen.
-   Wird gerade ein Rezept bearbeitet, erscheint stattdessen ein Hinweis. */
+   Version, erscheint oben ein Hinweis mit "Jetzt laden"; erst beim Antippen werden
+   Seite, Skripte und Stile frisch geholt und die App neu geladen. */
 (function () {
   'use strict';
   const meta = document.querySelector('meta[name="app-version"]');
@@ -10,10 +10,7 @@
   const TRIED = 'rezepte.update.versucht';
   let busy = false;
 
-  function editing() {
-    const dlg = document.getElementById('dlg');
-    return dlg && dlg.open && !!document.getElementById('recipeForm');
-  }
+  let dismissed = '';
 
   async function refreshFiles() {
     const urls = ['./', './index.html']
@@ -22,48 +19,60 @@
     await Promise.all(urls.map(u => fetch(u, { cache: 'reload' }).catch(() => null)));
   }
 
-  function banner(text, withButton) {
+  function banner(text, latest) {
     let el = document.getElementById('updateBanner');
     if (!el) {
       el = document.createElement('div');
       el.id = 'updateBanner';
       el.className = 'update-banner';
       el.setAttribute('role', 'status');
-      document.body.appendChild(el);
     }
-    el.textContent = text + ' ';
-    if (withButton) {
-      const b = document.createElement('button');
-      b.type = 'button'; b.className = 'btn btn-primary'; b.textContent = 'Jetzt laden';
-      b.addEventListener('click', () => apply(true));
-      el.appendChild(b);
+    // Über offenen Fenstern (Rezept, Anmeldung) liegen: dann im obersten Fenster anzeigen
+    const open = [...document.querySelectorAll('dialog[open]')].pop();
+    (open || document.body).appendChild(el);
+    el.textContent = '';
+    const t = document.createElement('span');
+    t.textContent = text;
+    el.appendChild(t);
+    if (latest) {
+      const go = document.createElement('button');
+      go.type = 'button'; go.className = 'btn btn-primary'; go.textContent = 'Jetzt laden';
+      go.addEventListener('click', () => apply(latest));
+      const later = document.createElement('button');
+      later.type = 'button'; later.className = 'btn'; later.textContent = 'Später';
+      later.addEventListener('click', () => { dismissed = latest; el.remove(); });
+      el.append(go, later);
     }
   }
 
-  async function apply(force) {
-    banner('Neue Version wird geladen …', false);
+  async function apply(latest) {
+    try { sessionStorage.setItem(TRIED, latest); } catch (e) { /* egal */ }
+    banner('Neue Version wird geladen …');
     await refreshFiles();
     location.reload();
   }
 
-  async function check() {
-    if (busy || !navigator.onLine) return;
+  // Rückgabe: 'neu' | 'aktuell' | 'offline'
+  async function check(manual) {
+    if (busy) return 'aktuell';
+    if (!navigator.onLine) return 'offline';
     busy = true;
     try {
       const res = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' });
-      if (!res.ok) return;
+      if (!res.ok) return 'offline';
       const latest = (await res.json()).version;
-      if (!latest || latest === current) { try { sessionStorage.removeItem(TRIED); } catch (e) { /* egal */ } return; }
+      if (!latest || latest === current) { try { sessionStorage.removeItem(TRIED); } catch (e) { /* egal */ } return 'aktuell'; }
+      if (latest === dismissed && !manual) return 'neu';
       let tried = null;
       try { tried = sessionStorage.getItem(TRIED); } catch (e) { /* egal */ }
-      if (tried === latest) { banner('Neue Version verfügbar. Bitte die App schließen und neu öffnen.', false); return; }
-      try { sessionStorage.setItem(TRIED, latest); } catch (e) { /* egal */ }
-      if (editing()) banner('Neue Version verfügbar.', true);
-      else await apply();
-    } catch (e) { /* offline o. ä.: später erneut */ } finally { busy = false; }
+      // Laden hat schon einmal nicht geholfen (Zwischenspeicher des Geräts) -> erklären statt wiederholen
+      if (tried === latest) banner('Neue Version verfügbar, aber noch nicht geladen. Bitte die App schließen und in ein paar Minuten neu öffnen.');
+      else banner('Neue Version verfügbar.', latest);
+      return 'neu';
+    } catch (e) { return 'offline'; } finally { busy = false; }
   }
 
-  window.addEventListener('load', () => setTimeout(check, 500));
+  window.addEventListener('load', () => setTimeout(() => check(), 500));
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(); });
   window.RecipeUpdate = { check, current };
 })();

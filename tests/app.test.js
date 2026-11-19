@@ -5,6 +5,31 @@ const OUT = process.argv[2] || '.';
 (async () => {
   const b = await chromium.launch();
   const ctx = await b.newContext({ viewport: { width: 1024, height: 1366 } });
+  // ---------- Neue Version: Hinweis zum Antippen ----------
+  {
+    const uc = await b.newContext({ viewport: { width: 1024, height: 900 } });
+    await uc.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.APP_CONFIG = { supabaseUrl: '', supabaseKey: '' };" }));
+    const up = await uc.newPage();
+    let loads = 0; up.on('load', () => loads++);
+    await up.goto(URL); await up.waitForTimeout(1200);
+    assert(!(await up.isVisible('#updateBanner')) && loads === 1, 'Gleiche Version: kein Hinweis');
+    await up.click('#btnCollections');
+    await up.click('#btnCheckUpdate');
+    await up.waitForSelector('.examples:has-text("neueste Version")');
+    assert(true, '„Nach neuer Version suchen“: neueste Version');
+    await uc.route('**/version.json*', r => r.fulfill({ contentType: 'application/json', body: '{"version":"2099-01-01T00:00:00"}' }));
+    await up.click('#btnCheckUpdate'); await up.waitForTimeout(300);
+    assert(await up.isVisible('#updateBanner:has-text("Neue Version verfügbar") >> text=Jetzt laden') && loads === 1, 'Neue Version: Hinweis mit „Jetzt laden“, kein automatisches Neuladen');
+    assert(await up.evaluate(() => document.getElementById('updateBanner').parentElement.tagName) === 'DIALOG', 'Hinweis liegt über dem offenen Fenster');
+    await up.click('#updateBanner >> text=Später');
+    assert(!(await up.isVisible('#updateBanner')), '„Später“ blendet den Hinweis aus');
+    await up.click('#btnCheckUpdate'); await up.waitForTimeout(300);
+    await up.click('#updateBanner >> text=Jetzt laden'); await up.waitForTimeout(2500);
+    assert(loads === 2, '„Jetzt laden“ lädt die App neu');
+    assert(await up.isVisible('#updateBanner:has-text("noch nicht geladen")'), 'Hilft Neuladen nicht: Erklärung statt Endlosschleife');
+    await uc.close();
+  }
+
   // Diese Tests prüfen die App ohne Online-Speicher (der hat eigene Tests)
   const noCloud = c => c.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.APP_CONFIG = { supabaseUrl: '', supabaseKey: '' };" }));
   await noCloud(ctx);

@@ -1062,6 +1062,23 @@
     return box;
   }
 
+  // App-Version und Suche nach neuer Version
+  function versionBox() {
+    const U = window.RecipeUpdate;
+    if (!U) return null;
+    const v = U.current && U.current !== '0' ? new Date(U.current + 'Z') : null;
+    const label = v && !isNaN(v) ? v.toLocaleDateString('de-DE') + ', ' + v.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr' : 'Entwicklungsstand';
+    const info = h('p', { class: 'hint', 'aria-live': 'polite', text: 'Stand: ' + label });
+    const btn = h('button', { type: 'button', class: 'btn', id: 'btnCheckUpdate' }, 'Nach neuer Version suchen');
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; info.textContent = 'Suche …';
+      const r = await U.check(true);
+      btn.disabled = false;
+      info.textContent = r === 'neu' ? 'Eine neue Version ist da – oben auf „Jetzt laden“ tippen.' : r === 'offline' ? 'Keine Verbindung. Bitte später noch einmal versuchen.' : 'Du hast die neueste Version (Stand: ' + label + ').';
+    });
+    return h('div', { class: 'field examples' }, h('span', { class: 'label', text: 'App-Version' }), info, h('div', { class: 'pick-actions' }, btn));
+  }
+
   // Konto (nur mit Online-Speicher)
   function accountBox() {
     const S = window.RecipeSync;
@@ -1116,7 +1133,8 @@
       Store.collections().length ? list : h('p', { text: 'Noch keine Sammlungen. Lege unten deine erste an.' }),
       h('div', { class: 'field' }, h('span', { class: 'label', text: 'Neue Sammlung' }), addForm),
       examplesBox(),
-      accountBox());
+      accountBox(),
+      versionBox());
 
     showDialog('collections', h('div', { style: 'display:contents' },
       head('Sammlungen', closeDialog), h('div', { class: 'dlg-scroll' }, content)));

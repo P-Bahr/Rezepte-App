@@ -167,11 +167,13 @@ dialog.auth::backdrop { background: var(--bg); }
 
 /* Hinweis: neue Version */
 .update-banner {
-  position: fixed; left: 50%; transform: translateX(-50%); z-index: 60;
+  position: fixed; left: 50%; transform: translateX(-50%); z-index: 2147483000;
   top: calc(8px + env(safe-area-inset-top, 0px)); max-width: calc(100% - 32px);
   display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
   padding: 10px 14px; border-radius: 14px; background: var(--fg); color: var(--bg); box-shadow: var(--shadow); font-size: 16px;
+  width: max-content;
 }
+.update-banner .btn:not(.btn-primary) { background: transparent; color: var(--bg); border-color: var(--bg); }
 
 /* Buttons */
 .btn {
