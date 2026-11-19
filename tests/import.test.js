@@ -133,6 +133,26 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(res['https://seite.example/rezept-da'] === 'ok' && res['https://seite.example/rezept-weg'] === 'gone' && res['https://seite.example/umgeleitet'] === 'gone', 'Seiten: vorhanden ok, 404 und Umleitung auf Startseite „gone“');
   ok(res['https://gesperrt.example/x'] === 'unknown' && res['https://langsam.example/x'] === 'unknown' && res['http://localhost/x'] === 'unknown', 'Gesperrt, Zeitüberschreitung, interne Adresse: unklar');
 
+  // ---------- Pinterest ----------
+  const pinAnswers = {
+    'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },
+    'https://widgets.pinterest.com/v3/pidgets/pins/info/?pin_ids=987654321': { status: 200, text: JSON.stringify({ data: [{ link: 'https://www.chefkoch.de/rezepte/1/kaese.html', description: 'Leckere Spätzle', images: { '736x': { url: 'https://i.pinimg.com/736x/a.jpg' } } }] }) },
+    'https://widgets.pinterest.com/v3/pidgets/pins/info/?pin_ids=111': { status: 200, text: JSON.stringify({ data: [{ link: null, description: 'Bananenbrot Zutaten: 3 Bananen, 250 g Mehl, 2 Eier' }] }) },
+    'https://widgets.pinterest.com/v3/pidgets/pins/info/?pin_ids=222': { status: 500, text: '' },
+    'https://www.pinterest.com/pin/222/': { status: 200, text: '<meta property="og:description" content="Pfannkuchen"><script>{"link":"https://www.pinterest.com/x","b":{"link":"https:\/\/www.lecker.de\/pfannkuchen-123.html"}}</script>' }
+  };
+  const pinGet = async u => { const a = pinAnswers[u]; if (!a) throw new Error('unerwartet ' + u); return { url: u, ...a }; };
+  ok(fn.isPinterest('www.pinterest.de') && fn.isPinterest('pin.it') && fn.isPinterest('pinterest.com') && !fn.isPinterest('notpinterest.example'), 'Pinterest-Adressen erkannt');
+  let pin = await fn.pinterestInfo('https://pin.it/abc', pinGet);
+  ok(pin.link === 'https://www.chefkoch.de/rezepte/1/kaese.html' && pin.pinUrl === 'https://www.pinterest.com/pin/987654321/' && pin.image.endsWith('a.jpg'), 'Pin-Kurzlink: Weiterleitung, Link zur Rezeptseite und Bild gefunden');
+  pin = await fn.pinterestInfo('https://www.pinterest.com/pin/111/', pinGet);
+  ok(!pin.link && /250 g Mehl/.test(pin.description), 'Pin ohne Link: Beschreibung übernommen');
+  d = I.toDraft({ kind: 'pin', url: pin.pinUrl, text: pin.description, image: '' }).draft;
+  ok(d.ingredients.length === 3, 'Pin ohne Link: Zutaten aus der Beschreibung');
+  ok(I.toDraft({ kind: 'pin', url: 'x', text: 'Sieht toll aus' }).how === 'pin-empty', 'Pin ohne Rezept: Hinweis aufs Bildschirmfoto');
+  pin = await fn.pinterestInfo('https://www.pinterest.com/pin/222/', pinGet);
+  ok(pin.link === 'https://www.lecker.de/pfannkuchen-123.html', 'Pin-Schnittstelle gestört: Link aus der Pin-Seite, Pinterest-eigene Links übersprungen');
+
   // ---------- Bildschirmfoto (echter TikTok-Text nach der Texterkennung) ----------
   const ocrText = ['WASMEINE KINDER LIEBE', 'Teil 7 Kartoffelplätzchen', 'Kartoffelplätzchen nicht nur, weil sie die', 'mit den Fingern essen dürfen',
     'ZUTATEN für etwa 16 Plätzchen', '4 Portionen', '1 kg Kartoffeln, mehlig kochende', '3 Eigelb', '4 EL Speisestärke', '150 g Reibekäse',

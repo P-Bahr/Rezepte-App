@@ -174,6 +174,59 @@ export async function checkOne(raw, fetcher) {
   }
 }
 
+// ---------- Pinterest: Pin -> Link zur eigentlichen Rezeptseite ----------
+export const isPinterest = host => /(^|\.)pinterest\.[a-z.]+$/.test(host) || host === 'pin.it';
+export function pinFromHtml(html) {
+  const out = { link: '', description: '', title: '', image: '' };
+  const want = s => s && /^https?:\/\//.test(s) && !/(^|\.)(pinterest\.[a-z.]+|pinimg\.com|pin\.it)(\/|$)/i.test(new URL(s).host + '/');
+  for (const m of html.matchAll(/"link"\s*:\s*"(https?:[^"]+)"/g)) {
+    let u = m[1].replace(/\\u002F/gi, '/').replace(/\\\//g, '/');
+    try { if (want(u)) { out.link = u; break; } } catch (_) { /* weiter */ }
+  }
+  if (!out.link) { const s = metaContent(html, ['og:see_also']); try { if (want(s)) out.link = s; } catch (_) { /* nichts */ } }
+  out.description = metaContent(html, ['og:description', 'description']) || '';
+  out.title = metaContent(html, ['og:title']) || '';
+  out.image = metaContent(html, ['og:image']) || '';
+  return out;
+}
+export async function pinterestInfo(url, fetcher) {
+  const get = fetcher || fetchText;
+  let pinUrl = url;
+  let id = (url.match(/\/pin\/(\d+)/) || [])[1];
+  let html = '';
+  if (!id) {
+    // Kurzlink pin.it -> Weiterleitung auf die Pin-Seite
+    const r = await get(url);
+    pinUrl = r.url || url;
+    html = r.text || '';
+    id = (pinUrl.match(/\/pin\/(\d+)/) || [])[1];
+  }
+  const info = { pinUrl: id ? 'https://www.pinterest.com/pin/' + id + '/' : pinUrl, link: '', description: '', title: '', image: '' };
+  if (id) {
+    // Öffentliche Schnittstelle der Pinterest-Widgets
+    try {
+      const w = await get('https://widgets.pinterest.com/v3/pidgets/pins/info/?pin_ids=' + id, 256 * 1024);
+      const pin = JSON.parse(w.text).data[0];
+      if (pin) {
+        info.link = pin.link || '';
+        info.description = pin.description || (pin.rich_metadata && pin.rich_metadata.description) || '';
+        info.title = pin.title || (pin.rich_metadata && pin.rich_metadata.title) || '';
+        const imgs = pin.images || {};
+        info.image = (imgs['736x'] || imgs['564x'] || imgs.orig || imgs['237x'] || {}).url || '';
+      }
+    } catch (_) { /* Seite unten versuchen */ }
+    if (!info.link) {
+      try {
+        if (!html) html = (await get(info.pinUrl)).text || '';
+        const p = pinFromHtml(html);
+        for (const k of ['link', 'description', 'title', 'image']) if (!info[k]) info[k] = p[k];
+      } catch (_) { /* nichts gefunden */ }
+    }
+  } else if (html) Object.assign(info, pinFromHtml(html));
+  if (info.link && (checkUrl(info.link).error || isPinterest(new URL(info.link).host))) info.link = '';
+  return info;
+}
+
 export async function checkMany(urls, fetcher) {
   const list = (Array.isArray(urls) ? urls : []).slice(0, 25).map(String);
   const results = {};
@@ -202,6 +255,19 @@ export async function handle(req) {
       try { data = JSON.parse(o.text); } catch (_) { /* unten behandelt */ }
       if (!data || !data.title) return json({ error: 'Die TikTok-Beschreibung konnte nicht geladen werden. Ist das Video öffentlich?' }, 502);
       return json({ kind: 'tiktok', url: checked.url, title: data.title, author: data.author_name || '', image: data.thumbnail_url || '', jsonld: [], text: data.title, description: data.title });
+    }
+    // Pinterest: dem Pin zur Rezeptseite folgen; ohne Link die Pin-Beschreibung nehmen
+    if (isPinterest(checked.host)) {
+      const pin = await pinterestInfo(checked.url);
+      const text = [pin.title, pin.description].filter(Boolean).join('\n');
+      if (pin.link) {
+        try {
+          const target = await fetchText(pin.link);
+          if (target.status < 400) return json({ kind: 'page', status: target.status, ...extract(target.text, target.url), via: 'pinterest', pinUrl: pin.pinUrl, pinText: text, pinImage: pin.image });
+        } catch (_) { /* Rezeptseite nicht erreichbar -> Beschreibung */ }
+      }
+      if (!text) return json({ error: 'Dieser Pin konnte nicht gelesen werden. Ist er öffentlich?' }, 502);
+      return json({ kind: 'pin', url: pin.pinUrl, title: pin.title, image: pin.image, text, link: pin.link });
     }
     const page = await fetchText(checked.url);
     if (page.status >= 400) return json({ error: 'Die Seite antwortet mit Fehler ' + page.status + '.' }, 502);

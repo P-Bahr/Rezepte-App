@@ -6,7 +6,15 @@ const URL = process.env.APP_URL || 'http://127.0.0.1:8123/';
 const assert = (c, m) => { if (!c) throw new Error('FEHLER: ' + m); console.log('ok  ', m); };
 
 // ---------- Nachgebauter Server ----------
-const server = { users: {}, rows: { recipes: new Map(), collections: new Map() }, files: new Map(), uploads: 0 };
+const server = { users: {}, rows: { recipes: new Map(), collections: new Map() }, files: new Map(), uploads: 0, share_keys: [], inbox: [] };
+const sha = t => require('crypto').createHash('sha256').update(t, 'utf8').digest('hex');
+// So wie share_add() im Online-Speicher (wird vom Kurzbefehl aufgerufen)
+function shareAdd(key, input) {
+  const k = server.share_keys.find(x => x.key_hash === sha(key || ''));
+  if (!k) return 'Teilen-Schlüssel ungültig';
+  server.inbox.push({ id: 'in-' + server.inbox.length + '-' + Date.now(), user_id: k.user_id, input, created_at: new Date().toISOString() });
+  return 'Gespeichert';
+}
 function handle(op, a) {
   if (op === 'signup') {
     if (server.users[a.email]) return { error: 'User already registered' };
@@ -35,6 +43,16 @@ function handle(op, a) {
     if (!a.path.startsWith(a.uid + '/') || !server.files.has(a.path)) return { error: { message: 'not found' } };
     return { b64: server.files.get(a.path) };
   }
+  if (op === 'insert') {
+    if (a.row.user_id !== a.uid) return { error: { message: 'row-level security' } };
+    server[a.table].push({ ...a.row, id: 'k' + server[a.table].length });
+    return { error: null };
+  }
+  if (op === 'list') return { data: server[a.table].filter(r => r.user_id === a.uid), error: null };
+  if (op === 'delete') {
+    server[a.table] = server[a.table].filter(r => !(r.user_id === a.uid && r[a.col] === a.val));
+    return { error: null };
+  }
   return { error: 'unbekannt' };
 }
 
@@ -56,7 +74,9 @@ window.supabase = { createClient() {
       signOut: async () => { session = null; localStorage.removeItem('fake.session'); emit(); return { error: null }; }
     },
     from(table) { return {
-      select() { return { range: (a, b) => call('select', { table, uid: uid(), a, b }) }; },
+      select() { return { range: (a, b) => call('select', { table, uid: uid(), a, b }), order: () => call('list', { table, uid: uid() }) }; },
+      insert: row => call('insert', { table, uid: uid(), row }),
+      delete() { return { eq: (col, val) => call('delete', { table, uid: uid(), col, val }) }; },
       upsert: rows => call('upsert', { table, uid: uid(), rows })
     }; },
     storage: { from() { return {
@@ -232,6 +252,31 @@ const titles = p => p.$$eval('.tile-title', e => e.map(x => x.textContent));
   const live = [...server.rows.collections.values()].filter(r => r.user_id === 'user-alt' && !r.deleted).map(r => r.data.name).sort().join(',');
   assert(live === 'Grill,Kalt,Ofen,Pfanne,Topf', 'Online: alte Sammlungen gelöscht, feste angelegt (' + live + ')');
   assert(C.errs.length === 0 && Dd.errs.length === 0, 'Keine Skriptfehler beim Umsortieren ' + C.errs.concat(Dd.errs).join('; '));
+
+  // ---------- Teilen-Menü: Schlüssel erstellen, Kurzbefehl schickt etwas, anderes Gerät holt es ab ----------
+  await C.click('#btnCollections');
+  await C.click('#btnShareKey');
+  await C.waitForSelector('#shareKey');
+  const key = (await C.textContent('#shareKey')).trim();
+  assert(key.length >= 30 && server.share_keys.length === 1 && server.share_keys[0].key_hash === sha(key) && !server.share_keys.some(k => k.key_hash === key), 'Teilen-Schlüssel erstellt, online nur als Fingerabdruck gespeichert');
+  assert((await C.textContent('#shareUrl')).endsWith('/rest/v1/rpc/share_add'), 'Adresse für den Kurzbefehl wird angezeigt');
+  await C.click('dialog .dlg-head button, dialog button[aria-label="Schließen"]').catch(() => {});
+  assert(shareAdd('falscher-schluessel-1234567890', 'https://x.example') === 'Teilen-Schlüssel ungültig' && server.inbox.length === 0, 'Falscher Schlüssel: nichts landet im Eingangsfach');
+  assert(shareAdd(key, 'Schau mal https://www.pinterest.com/pin/123456/ lecker') === 'Gespeichert', 'Kurzbefehl: Link abgelegt');
+  await Dd.evaluate(() => window.RecipeInbox.check());
+  await Dd.waitForSelector('#inboxBanner');
+  assert((await Dd.textContent('#inboxBanner')).includes('1 geteiltes Rezept'), 'Anderes Gerät: Hinweis „1 geteiltes Rezept“');
+  await Dd.click('#inboxBanner button:has-text("Ansehen")');
+  await Dd.waitForSelector('#importUrl');
+  assert(await Dd.inputValue('#importUrl') === 'https://www.pinterest.com/pin/123456/', 'Ansehen startet den Import mit dem geteilten Link');
+  assert(server.inbox.length === 0, 'Eingangsfach danach leer');
+  await Dd.keyboard.press('Escape');
+  shareAdd(key, 'Omas Nudelauflauf\nZutaten:\n200 g Nudeln\n1 EL Butter\nZubereitung:\nNudeln 10 Minuten kochen.');
+  await Dd.evaluate(() => window.RecipeInbox.check());
+  await Dd.click('#inboxBanner button:has-text("Ansehen")');
+  await Dd.waitForSelector('#fTitle');
+  assert(await Dd.inputValue('#fTitle') === 'Omas Nudelauflauf' && (await Dd.inputValue('#fIngredients')).includes('200 g Nudeln'), 'Geteilter Text wird als Rezept zum Prüfen geöffnet');
+  assert(Dd.errs.length === 0 && C.errs.length === 0, 'Keine Skriptfehler beim Teilen ' + C.errs.concat(Dd.errs).join('; '));
 
   assert(A.errs.length === 0 && B.errs.length === 0, 'Keine Skriptfehler ' + A.errs.concat(B.errs).join('; '));
   await b.close();

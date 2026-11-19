@@ -38,7 +38,9 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 1. ✅ Rezeptseiten importieren über die eingebetteten Rezeptangaben (schema.org), kostenlos – gebaut und eingerichtet (Edge Function `import`, prüft die Anmeldung selbst; `verify_jwt` aus, weil neuere Projekte asymmetrische Schlüssel nutzen)
 2. ✅ TikTok-Beschreibung abrufen (oEmbed) und mit der eigenen Zutatenerkennung zerlegen, kostenlos – gebaut
 3. ✅ **Bildschirmfotos importieren (Pflicht):** Texterkennung auf dem Gerät (Tesseract, js/ocr.js), auch weiße TikTok-Schrift; räumt Bedienelemente/Nutzernamen weg, erkennt Rezeptname („Teil 7 …“), Portionen, umbrochene Zeilen und Zubereitung ohne Überschrift; KI-Variante noch offen. Foto(s) teilen oder auswählen; Texterkennung kostenlos in der App, optional per KI genauer (ca. 1 Cent)
-4. Instagram prüfen (offizieller Zugang nötig)
+4. ~~Instagram~~ – gestrichen (nur mit Meta-Prüfung möglich, wird nicht genutzt)
+4b. ✅ **Pinterest:** Pin (auch Kurzlink pin.it) -> Link zur Rezeptseite folgen (Pinterest-Widget-Schnittstelle, sonst Pin-Seite); ohne Link Pin-Beschreibung
+4c. ✅ **Teilen-Menü per Apple-Kurzbefehl:** Kurzbefehl schickt Link/Text mit persönlichem Teilen-Schlüssel an `share_add()` (supabase/eingang.sql) ins Eingangsfach; App zeigt „1 geteiltes Rezept“ (js/inbox.js). Schlüssel unter Einstellungen, online nur als SHA-256 gespeichert.
 5. Eigene Mini-KI für Rezeptart, Hauptzutat, Zubereitung (in der App, kostenlos)
 6. Zählen pro Konto und Obergrenze für KI-Importe gleich mit einbauen
 
@@ -87,6 +89,8 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/collections.js` | Feste Sammlungen aus der Zubereitung |
 | `js/ocr.js` | Text aus Bildschirmfotos erkennen (auf dem Gerät) |
 | `js/vendor/tesseract/` | Tesseract.js 5.1.1 + deutsche Sprachdaten (Apache-2.0) |
+| `js/inbox.js` | Eingangsfach für geteilte Rezepte (Kurzbefehl) |
+| `supabase/eingang.sql` | Einrichtung Eingangsfach + Teilen-Schlüssel (einmal ausführen) |
 | `js/dupes.js` | Doppelte Rezepte erkennen |
 | `js/images.js` | Fotos verkleinern und im Bildspeicher (IndexedDB) ablegen |
 | `js/app.js` | Bedienoberfläche |

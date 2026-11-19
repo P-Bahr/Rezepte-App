@@ -445,6 +445,40 @@
     if (data && data.error) throw new Error(data.error);
     return data;
   };
+  // ---------- Teilen-Menü: persönlicher Schlüssel + Eingangsfach ----------
+  const KEY_LOCAL = 'rezepte.teilenschluessel';
+  async function sha256hex(text) {
+    const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+    return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+  }
+  Sync.shareKey = () => { try { const v = JSON.parse(localStorage.getItem(KEY_LOCAL) || 'null'); return v && session && v.user === session.user.id ? v.key : ''; } catch (e) { return ''; } };
+  Sync.createShareKey = async label => {
+    if (!session) throw new Error('Bitte zuerst anmelden.');
+    if (!navigator.onLine) throw new Error('Kein Internet.');
+    const bytes = crypto.getRandomValues(new Uint8Array(24));
+    const key = btoa(String.fromCharCode(...bytes)).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const { error } = await client.from('share_keys').insert({ user_id: session.user.id, key_hash: await sha256hex(key), label: label || '' });
+    if (error) throw new Error(/share_keys|relation|schema cache/i.test(error.message || '') ? 'Das Eingangsfach ist im Online-Speicher noch nicht eingerichtet (supabase/eingang.sql).' : 'Schlüssel konnte nicht gespeichert werden.');
+    try { localStorage.setItem(KEY_LOCAL, JSON.stringify({ user: session.user.id, key })); } catch (e) { /* egal */ }
+    return key;
+  };
+  Sync.revokeShareKeys = async () => {
+    if (!session) throw new Error('Bitte zuerst anmelden.');
+    const { error } = await client.from('share_keys').delete().eq('user_id', session.user.id);
+    if (error) throw new Error('Löschen fehlgeschlagen.');
+    try { localStorage.removeItem(KEY_LOCAL); } catch (e) { /* egal */ }
+  };
+  Sync.shareEndpoint = () => cfg.supabaseUrl.replace(/\/$/, '') + '/rest/v1/rpc/share_add';
+  Sync.shareApiKey = () => cfg.supabaseKey;
+  Sync.inbox = async () => {
+    if (!session || !navigator.onLine) return [];
+    const { data, error } = await client.from('inbox').select('id,input,created_at').order('created_at', { ascending: true });
+    return error || !Array.isArray(data) ? [] : data;
+  };
+  Sync.inboxDone = async id => {
+    if (!session) return;
+    await client.from('inbox').delete().eq('id', id);
+  };
   Sync.signOut = async () => {
     await client.auth.signOut();
   };

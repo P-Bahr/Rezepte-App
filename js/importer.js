@@ -366,7 +366,16 @@
       // Keine Rezeptangaben: mit dem sichtbaren Text versuchen
       const t = fromText(res.text || '', { title: res.title, image: res.image, url: res.url });
       if (t.ingredients.length >= 2) return { draft: t, how: 'text' };
+      // Von Pinterest gekommen, Zielseite ohne Rezept: Beschreibung des Pins versuchen
+      if (res.pinText) {
+        const p = fromText(res.pinText, { image: res.pinImage || res.image, url: res.url });
+        if (p.ingredients.length) return { draft: p, how: 'pin' };
+      }
       return null;
+    }
+    if (res.kind === 'pin') {
+      const t = fromText(res.text || '', { image: res.image, url: res.link || res.url });
+      return { draft: t, how: t.ingredients.length ? 'pin' : 'pin-empty' };
     }
     if (res.kind === 'tiktok') {
       const t = fromText(res.text || '', { image: res.image, url: res.url });

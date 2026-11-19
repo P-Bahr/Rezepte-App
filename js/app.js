@@ -675,9 +675,11 @@
       try {
         const res = await S.fetchPage(url);
         const r = window.RecipeImporter.toDraft(res);
-        if (!r || r.how === 'tiktok-empty') {
+        if (!r || r.how === 'tiktok-empty' || r.how === 'pin-empty') {
           say(status, '');
-          say(msg, r ? 'In der Beschreibung dieses TikTok-Videos steht kein Rezept. Mach ein Bildschirmfoto vom Rezept im Video und füge es als Foto hinzu.' : 'Auf dieser Seite wurde kein Rezept gefunden.');
+          say(msg, r && r.how === 'tiktok-empty' ? 'In der Beschreibung dieses TikTok-Videos steht kein Rezept. Mach ein Bildschirmfoto vom Rezept im Video und füge es als Foto hinzu.'
+            : r ? 'Dieser Pin führt zu keiner Rezeptseite und in seiner Beschreibung steht kein Rezept. Mach ein Bildschirmfoto vom Pin und füge es als Foto hinzu.'
+            : 'Auf dieser Seite wurde kein Rezept gefunden.');
           manual.hidden = false;
           manual.onclick = () => openEdit(null, { title: (res && res.title) || '', sourceUrl: url, imageUrl: (res && res.image) || '' });
           return;
@@ -1129,12 +1131,63 @@
         h('button', { type: 'button', class: 'btn', onclick: () => { S.syncNow(); toast('Abgleich gestartet'); } }, 'Jetzt abgleichen'), out));
   }
 
+  // Teilen-Menü: Schlüssel für den Apple-Kurzbefehl "Zu Rezepten"
+  function shareBox() {
+    const S = window.RecipeSync;
+    if (!S || !S.enabled || !S.email() || !S.createShareKey) return null;
+    const box = h('div', { class: 'field examples', id: 'shareBox' });
+    const copy = (text, what) => {
+      const ok = () => toast(what + ' kopiert');
+      if (navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(text).then(ok, () => toast('Bitte lange auf den Text drücken und „Kopieren“ wählen'));
+      else toast('Bitte lange auf den Text drücken und „Kopieren“ wählen');
+    };
+    const err = h('div', { class: 'form-error', role: 'alert', hidden: true });
+    function draw() {
+      box.textContent = '';
+      const key = S.shareKey();
+      box.append(h('span', { class: 'label', text: 'Teilen-Menü (Kurzbefehl)' }),
+        h('p', { class: 'hint', text: 'Damit du Rezepte aus TikTok, Pinterest oder Safari über „Teilen“ schicken kannst. Pro Gerät einmal einen Kurzbefehl einrichten; dafür brauchst du den Schlüssel und die Adresse unten.' }));
+      if (key) {
+        box.append(
+          h('p', { class: 'hint', text: 'Teilen-Schlüssel (geheim halten):' }),
+          h('div', { class: 'share-key', id: 'shareKey', text: key }),
+          h('div', { class: 'pick-actions' }, h('button', { type: 'button', class: 'btn', onclick: () => copy(key, 'Schlüssel') }, 'Schlüssel kopieren')),
+          h('p', { class: 'hint', text: 'Adresse:' }),
+          h('div', { class: 'share-key', id: 'shareUrl', text: S.shareEndpoint() }),
+          h('div', { class: 'pick-actions' }, h('button', { type: 'button', class: 'btn', onclick: () => copy(S.shareEndpoint(), 'Adresse') }, 'Adresse kopieren')),
+          h('p', { class: 'hint', text: 'apikey (öffentlich, kein Geheimnis):' }),
+          h('div', { class: 'share-key', id: 'shareApikey', text: S.shareApiKey() }),
+          h('div', { class: 'pick-actions' }, h('button', { type: 'button', class: 'btn', onclick: () => copy(S.shareApiKey(), 'apikey') }, 'apikey kopieren')));
+      } else {
+        box.append(h('div', { class: 'pick-actions' }, h('button', { type: 'button', class: 'btn btn-primary', id: 'btnShareKey', onclick: async e => {
+          e.target.disabled = true; err.hidden = true;
+          try { await S.createShareKey(/ipad/i.test(navigator.userAgent) || (navigator.maxTouchPoints > 1 && /mac/i.test(navigator.platform)) ? 'iPad' : 'iPhone'); draw(); }
+          catch (x) { err.textContent = x.message; err.hidden = false; e.target.disabled = false; }
+        } }, 'Teilen-Schlüssel erstellen')));
+      }
+      const revoke = h('button', { type: 'button', class: 'btn btn-danger' }, 'Alle Teilen-Schlüssel ungültig machen');
+      revoke.addEventListener('click', () => {
+        const row = revoke.parentElement;
+        row.textContent = '';
+        row.append(h('p', { class: 'confirm-text', text: 'Danach funktioniert kein Kurzbefehl mehr, bis du einen neuen Schlüssel erstellst und im Kurzbefehl einträgst.' }),
+          h('button', { type: 'button', class: 'btn', onclick: draw }, 'Abbrechen'),
+          h('button', { type: 'button', class: 'btn btn-danger-solid', onclick: async () => {
+            try { await S.revokeShareKeys(); toast('Alle Teilen-Schlüssel gelöscht'); draw(); } catch (x) { err.textContent = x.message; err.hidden = false; }
+          } }, 'Ja, ungültig machen'));
+      });
+      box.append(h('div', { class: 'pick-actions' }, revoke), err);
+    }
+    draw();
+    return box;
+  }
+
   function openSettings() {
     const content = h('div', { class: 'form' },
       h('p', { class: 'hint', text: 'Die Sammlungen Ofen, Pfanne, Topf, Grill und Kalt ergeben sich automatisch aus der Zubereitung.' }),
       examplesBox(),
       linksBox(),
       accountBox(),
+      shareBox(),
       versionBox());
     showDialog('settings', h('div', { style: 'display:contents' },
       head('Einstellungen', closeDialog), h('div', { class: 'dlg-scroll' }, content)));
@@ -1198,6 +1251,7 @@
   syncFromHash();
 
   window.RecipeToast = toast;
+  window.RecipeApp = { openImport, openEdit };
 
   // Für automatische Tests
   window.__app = { state, render };
