@@ -71,6 +71,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .titlebar { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .titlebar h1 { margin: 0; font-size: 28px; line-height: 1.2; letter-spacing: -.01em; }
 .titlebar-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.titlebar .short { display: none; }
+@media (max-width: 600px) {
+  .titlebar .long { display: none; }
+  .titlebar .short { display: inline; }
+}
 
 .searchbar { position: relative; }
 .searchbar input {

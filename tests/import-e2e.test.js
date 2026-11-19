@@ -1,0 +1,102 @@
+// Import im Browser mit nachgebautem Server: node --experimental-strip-types tests/import-e2e.test.js
+// Das echte Server-Programm (supabase/functions/import/index.ts) wertet gespeicherte Testseiten aus.
+const { chromium, devices } = require('playwright');
+const URL = process.env.APP_URL || 'http://127.0.0.1:8123/';
+const assert = (c, m) => { if (!c) throw new Error('FEHLER: ' + m); console.log('ok  ', m); };
+
+const PAGES = {
+  'https://www.chefkoch.de/rezepte/1/kaesespaetzle.html': `<html><head><meta property="og:image" content="https://img.example/k.jpg"><script type="application/ld+json">{"@type":"Recipe","name":"Allgäuer Käsespätzle","recipeYield":"4 Portionen","recipeIngredient":["500 g Mehl","5 Eier","1 TL Salz","300 g Bergkäse, gerieben","3 Zwiebeln"],"recipeInstructions":"Teig verrühren.\\nIn kochendes Salzwasser schaben.\\nMit Käse schichten.","recipeCategory":"Hauptspeise"}</script></head><body></body></html>`,
+  'https://blog.example/ohne-rezept': '<html><head><title>Über mich</title></head><body><p>Hallo!</p></body></html>'
+};
+const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutaten:\n250g Spaghetti\n200 g Tomaten\nZubereitung:\n1. Alles aufkochen.\n2. 10 Minuten köcheln.' };
+
+(async () => {
+  const fn = await import('../supabase/functions/import/index.ts');
+  const calls = [];
+  function serve(body) {
+    calls.push(body.url);
+    const c = fn.checkUrl(body.url);
+    if (c.error) return { status: 400, body: { error: c.error } };
+    if (/tiktok\.com$/.test(c.host)) return TIKTOK[c.url] ? { status: 200, body: { kind: 'tiktok', url: c.url, title: TIKTOK[c.url], author: 'koch', image: '', jsonld: [], text: TIKTOK[c.url] } } : { status: 502, body: { error: 'Die TikTok-Beschreibung konnte nicht geladen werden. Ist das Video öffentlich?' } };
+    if (!PAGES[c.url]) return { status: 502, body: { error: 'Die Seite antwortet mit Fehler 404.' } };
+    return { status: 200, body: { kind: 'page', status: 200, ...fn.extract(PAGES[c.url], c.url) } };
+  }
+  const FAKE = `window.supabase = { createClient() {
+    const session = { user: { id: 'u1', email: 'a@b.de' } };
+    return {
+      auth: { getSession: async () => ({ data: { session } }), onAuthStateChange() { return { data: { subscription: { unsubscribe() {} } } }; }, signOut: async () => ({}) },
+      from() { return { select() { return { range: async () => ({ data: [], error: null }) }; }, upsert: async () => ({ error: null }) }; },
+      storage: { from() { return { upload: async () => ({ error: null }), download: async () => ({ data: null, error: {} }) }; } },
+      functions: { invoke: async (name, opts) => {
+        const r = JSON.parse(await window.__fn(JSON.stringify(opts.body)));
+        if (r.status >= 400) return { data: null, error: { context: { status: r.status, json: async () => r.body } } };
+        return { data: r.body, error: null };
+      } }
+    };
+  } };`;
+  const b = await chromium.launch();
+  const ctx = await b.newContext(devices['iPhone 13']);
+  await ctx.exposeFunction('__fn', body => JSON.stringify(serve(JSON.parse(body))));
+  await ctx.route('**/js/vendor/supabase.js', r => r.fulfill({ contentType: 'text/javascript', body: FAKE }));
+  await ctx.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.APP_CONFIG={supabaseUrl:'https://t.example',supabaseKey:'k'};" }));
+  const p = await ctx.newPage();
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  await p.goto(URL);
+  await p.click('button:has-text("Beispielrezepte laden")'); await p.waitForTimeout(300);
+
+  // 1. Rezeptseite
+  await p.click('#btnImport');
+  await p.fill('#importUrl', 'Schau mal: https://www.chefkoch.de/rezepte/1/kaesespaetzle.html, lecker!');
+  await p.click('dialog button[type=submit]');
+  await p.waitForSelector('#importNotice');
+  assert(await p.isVisible('#importNotice:has-text("Importiert von chefkoch.de")'), 'Link aus Text herausgelöst, Rezept geladen, Hinweis „Importiert von chefkoch.de“');
+  assert(await p.inputValue('#fTitle') === 'Allgäuer Käsespätzle' && (await p.inputValue('#fIngredients')).split('\n').length === 5, 'Formular ausgefüllt: Name und 5 Zutaten');
+  assert(await p.inputValue('#fCourse') === 'Hauptgericht' && await p.inputValue('#fMethod') === 'Kochen' && await p.inputValue('#fMain') === 'Bergkäse', 'Kategorien vorausgefüllt');
+  assert(await p.inputValue('#fSource') === 'https://www.chefkoch.de/rezepte/1/kaesespaetzle.html' && await p.inputValue('#fImage') === 'https://img.example/k.jpg', 'Quelle und Bild übernommen');
+  await p.selectOption('#fCollection', { label: 'Alltag' });
+  await p.click('dialog button[type=submit]'); await p.waitForTimeout(400);
+  assert(await p.isVisible('dialog h2:has-text("Allgäuer Käsespätzle")'), 'Gespeichert und geöffnet');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+
+  // 2. Gleicher Link noch einmal -> schon vorhanden, ohne Laden
+  const before = calls.length;
+  await p.click('#btnImport'); await p.fill('#importUrl', 'https://www.chefkoch.de/rezepte/1/kaesespaetzle.html');
+  await p.click('dialog button[type=submit]'); await p.waitForTimeout(200);
+  assert(await p.isVisible('.form-error:has-text("Dieses Rezept hast du schon")') && calls.length === before, 'Schon vorhanden: Hinweis, nichts geladen');
+  await p.click('.form-error >> text=Öffnen'); await p.waitForTimeout(300);
+  assert(await p.isVisible('dialog h2:has-text("Allgäuer Käsespätzle")'), '„Öffnen“ zeigt das vorhandene Rezept');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+
+  // 3. TikTok-Beschreibung
+  await p.click('#btnImport'); await p.fill('#importUrl', 'https://www.tiktok.com/@koch/video/1');
+  await p.click('dialog button[type=submit]'); await p.waitForSelector('#importNotice');
+  assert(await p.inputValue('#fTitle') === 'One-Pot-Pasta' && await p.inputValue('#fIngredients') === '250 g Spaghetti\n200 g Tomaten' && await p.inputValue('#fSteps') === 'Alles aufkochen.\n10 Minuten köcheln.', 'TikTok: Titel, Zutaten, Schritte übernommen');
+  await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
+
+  // 4. Seite ohne Rezept -> Meldung + selbst eintragen
+  await p.click('#btnImport'); await p.fill('#importUrl', 'https://blog.example/ohne-rezept');
+  await p.click('dialog button[type=submit]'); await p.waitForTimeout(300);
+  assert(await p.isVisible('.form-error:has-text("kein Rezept gefunden")'), 'Ohne Rezept: verständliche Meldung');
+  await p.click('dialog >> text=Selbst eintragen'); await p.waitForTimeout(200);
+  assert(await p.inputValue('#fSource') === 'https://blog.example/ohne-rezept' && await p.inputValue('#fTitle') === 'Über mich', 'Selbst eintragen: Quelle schon ausgefüllt');
+  await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
+
+  // 5. Fehler vom Server und ungültiger Link
+  await p.click('#btnImport'); await p.fill('#importUrl', 'https://gibt-es-nicht.example/x');
+  await p.click('dialog button[type=submit]'); await p.waitForTimeout(300);
+  assert(await p.isVisible('.form-error:has-text("Fehler 404")'), 'Server-Fehler wird angezeigt');
+  await p.fill('#importUrl', 'kein link'); await p.click('dialog button[type=submit]');
+  assert(await p.isVisible('.form-error:has-text("mit https:// beginnt")'), 'Ungültiger Link wird gemeldet');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+
+  // 6. Link beim Öffnen übergeben (Teilen-Menü)
+  await p.goto(URL + '?url=' + encodeURIComponent('https://www.tiktok.com/@koch/video/1'));
+  await p.waitForSelector('#importNotice', { timeout: 5000 });
+  assert(await p.inputValue('#fTitle') === 'One-Pot-Pasta' && !p.url().includes('?url='), 'Übergebener Link wird sofort importiert, Adresse aufgeräumt');
+
+  // Kopfzeile auf dem Handy: keine seitliche Verschiebung
+  await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
+  assert(await p.evaluate(() => document.documentElement.scrollWidth) <= 390, 'Kopfzeile passt aufs Handy');
+  assert(errs.length === 0, 'Keine Skriptfehler ' + errs.join('; '));
+  await b.close();
+})().catch(e => { console.error(e.message); process.exit(1); });

@@ -417,17 +417,37 @@
   function hideLogin() { if (panel) { if (panel.open) panel.close(); panel.remove(); panel = null; } }
 
   Sync.email = () => (session ? session.user.email : '');
+
+  // Wartet, bis jemand angemeldet ist (für Links, die beim Öffnen übergeben werden)
+  const readyWaiters = [];
+  Sync.whenSignedIn = () => (session ? Promise.resolve() : new Promise(res => readyWaiters.push(res)));
+  const releaseWaiters = () => { while (readyWaiters.length) readyWaiters.shift()(); };
+
+  // Rezeptseite über das Server-Programm "import" abrufen
+  Sync.fetchPage = async url => {
+    if (!session) throw new Error('Bitte zuerst anmelden.');
+    if (!navigator.onLine) throw new Error('Kein Internet. Der Import braucht eine Verbindung.');
+    const { data, error } = await client.functions.invoke('import', { body: { url } });
+    if (error) {
+      let msg = '';
+      try { const b = await error.context.json(); msg = b && b.error; } catch (_) { /* keine Details */ }
+      if (!msg && error.context && error.context.status === 404) msg = 'Das Import-Programm ist im Online-Speicher noch nicht eingerichtet.';
+      throw new Error(msg || 'Die Seite konnte nicht geladen werden. Bitte später noch einmal versuchen.');
+    }
+    if (data && data.error) throw new Error(data.error);
+    return data;
+  };
   Sync.signOut = async () => {
     await client.auth.signOut();
   };
 
   client.auth.onAuthStateChange((event, s) => {
     session = s;
-    if (session) { hideLogin(); schedule(50); }
+    if (session) { hideLogin(); schedule(50); releaseWaiters(); }
     else { showLogin(); const el = statusEl(); if (el) el.hidden = true; }
   });
   client.auth.getSession().then(({ data }) => {
     session = data.session;
-    if (session) { hideLogin(); schedule(50); } else showLogin();
+    if (session) { hideLogin(); schedule(50); releaseWaiters(); } else showLogin();
   });
 })();

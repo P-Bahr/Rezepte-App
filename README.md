@@ -34,8 +34,8 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Online-Abgleich (Supabase): Anmeldung mit E-Mail und Passwort, Rezepte, Sammlungen und Fotos auf allen Geräten; funktioniert auch offline und gleicht später ab; wurde ein Rezept auf zwei Geräten geändert, zeigt ein Fenster beide Versionen zur Auswahl
 
 **Als Nächstes (Import), abgesprochene Reihenfolge:**
-1. Rezeptseiten importieren über die eingebetteten Rezeptangaben (schema.org), kostenlos
-2. TikTok-Beschreibung abrufen (oEmbed) und mit der eigenen Zutatenerkennung zerlegen, kostenlos
+1. ✅ Rezeptseiten importieren über die eingebetteten Rezeptangaben (schema.org), kostenlos – gebaut, Server-Programm muss einmalig eingerichtet werden
+2. ✅ TikTok-Beschreibung abrufen (oEmbed) und mit der eigenen Zutatenerkennung zerlegen, kostenlos – gebaut
 3. **Bildschirmfotos importieren (Pflicht):** Foto(s) teilen oder auswählen; Texterkennung kostenlos in der App, optional per KI genauer (ca. 1 Cent)
 4. Instagram prüfen (offizieller Zugang nötig)
 5. Eigene Mini-KI für Rezeptart, Hauptzutat, Zubereitung (in der App, kostenlos)
@@ -74,6 +74,8 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/config.js` | Zugangsdaten für den Online-Speicher |
 | `supabase/einrichtung.sql` | Datenbank-Einrichtung (einmal in Supabase ausführen) |
 | `js/vendor/supabase.js` | Supabase-Bibliothek 2.45.4 (MIT-Lizenz) |
+| `js/importer.js` | Import: Rezeptseiten und freien Text in Rezepte umwandeln |
+| `supabase/functions/import/index.ts` | Server-Programm: Rezeptseite abrufen (Supabase Edge Function) |
 | `js/dupes.js` | Doppelte Rezepte erkennen |
 | `js/images.js` | Fotos verkleinern und im Bildspeicher (IndexedDB) ablegen |
 | `js/app.js` | Bedienoberfläche |
@@ -81,6 +83,8 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `tests/app.test.js` | Automatischer Test im Browser |
 | `tests/sync.test.js` | Regeln für das Zusammenführen (`node tests/sync.test.js`) |
 | `tests/sync-e2e.test.js` | Zwei Geräte mit nachgebautem Online-Speicher |
+| `tests/import.test.js` | Import ohne Netz (`node --experimental-strip-types tests/import.test.js`) |
+| `tests/import-e2e.test.js` | Import im Browser mit nachgebautem Server |
 | `tests/scale.test.js` | Test der Mengen-Umrechnung (`node tests/scale.test.js`) |
 
 Lokal starten: `python3 -m http.server 8123 --bind 127.0.0.1`, dann `node tests/app.test.js` für den Test.

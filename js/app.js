@@ -657,6 +657,67 @@
     return section;
   }
 
+  // ---------- Import über Link ----------
+  function openImport(prefill, autoRun) {
+    const S = window.RecipeSync;
+    const input = h('input', { id: 'importUrl', type: 'url', inputmode: 'url', placeholder: 'https://…', autocomplete: 'off', autocapitalize: 'off', value: prefill || '' });
+    const msg = h('div', { class: 'form-error', role: 'alert', hidden: true });
+    const status = h('p', { class: 'hint', 'aria-live': 'polite', hidden: true });
+    const go = h('button', { type: 'submit', class: 'btn btn-primary' }, 'Importieren');
+    const manual = h('button', { type: 'button', class: 'btn', hidden: true }, 'Selbst eintragen');
+    const say = (el, t) => { el.textContent = t || ''; el.hidden = !t; };
+
+    async function run() {
+      say(msg, ''); manual.hidden = true;
+      // Link aus geteiltem Text herausziehen ("Schau mal: https://…")
+      const raw = input.value.trim();
+      const found = raw.match(/https?:\/\/[^\s<>"']+/i);
+      const url = found ? found[0].replace(/[).,;!?]+$/, '') : raw;
+      if (!/^https?:\/\//i.test(url)) { say(msg, 'Bitte einen Link einfügen, der mit https:// beginnt.'); input.focus(); return; }
+      input.value = url;
+      // Schon vorhanden?
+      const same = Store.recipes().find(x => x.sourceUrl && x.sourceUrl.replace(/[?#].*$/, '').replace(/\/$/, '') === url.replace(/[?#].*$/, '').replace(/\/$/, ''));
+      if (same) {
+        msg.textContent = '';
+        msg.append('Dieses Rezept hast du schon: „' + same.title + '“. ',
+          h('button', { type: 'button', class: 'btn-link', onclick: () => openDetail(same.id) }, 'Öffnen'));
+        msg.hidden = false;
+        return;
+      }
+      if (!S || !S.enabled || !S.fetchPage) { say(msg, 'Der Import braucht den Online-Speicher. In dieser Vorschau ist er nicht verfügbar.'); return; }
+      go.disabled = true; say(status, 'Rezept wird geladen …');
+      try {
+        const res = await S.fetchPage(url);
+        const r = window.RecipeImporter.toDraft(res);
+        if (!r || r.how === 'tiktok-empty') {
+          say(status, '');
+          say(msg, r ? 'In der Beschreibung dieses TikTok-Videos steht kein Rezept. Mach ein Bildschirmfoto vom Rezept im Video und füge es als Foto hinzu.' : 'Auf dieser Seite wurde kein Rezept gefunden.');
+          manual.hidden = false;
+          manual.onclick = () => openEdit(null, { title: (res && res.title) || '', sourceUrl: url, imageUrl: (res && res.image) || '' });
+          return;
+        }
+        openEdit(null, r.draft);
+      } catch (e) {
+        say(status, '');
+        say(msg, e.message);
+        manual.hidden = false;
+        manual.onclick = () => openEdit(null, { sourceUrl: url });
+      } finally {
+        go.disabled = false;
+      }
+    }
+
+    const form = h('form', { class: 'form', novalidate: true, onsubmit: e => { e.preventDefault(); run(); } },
+      h('div', { class: 'field' },
+        h('label', { for: 'importUrl', text: 'Link zum Rezept' }), input,
+        h('span', { class: 'hint', text: 'Von einer Rezeptseite (z. B. Chefkoch) oder einem TikTok-Video. Lange tippen, dann „Einsetzen“.' })),
+      msg, status,
+      h('div', { class: 'pick-actions' }, go, manual));
+    showDialog('import', h('div', { style: 'display:contents' },
+      head('Rezept importieren', closeDialog), h('div', { class: 'dlg-scroll' }, form)));
+    if (autoRun && prefill) run(); else setTimeout(() => input.focus(), 50);
+  }
+
   // ---------- Formular-Baustein: Foto ----------
   function imagePicker(v) {
     const preview = h('img', { class: 'pick-preview', alt: 'Foto des Rezepts' });
@@ -771,9 +832,9 @@
     return h('div', { class: 'field' }, h('label', { for: id, text: label }), input, hint ? h('span', { class: 'hint', text: hint }) : null);
   }
 
-  function openEdit(id) {
+  function openEdit(id, draft) {
     const r = id ? Store.recipe(id) : null;
-    const v = r || { title: '', collectionId: '', course: '', mainIngredient: '', method: '', servings: 4, servingsUnit: 'Personen', formSize: '', totalTime: '', ingredients: [], steps: [], notes: '', imageUrl: '', sourceUrl: '' };
+    const v = r || { title: '', collectionId: '', course: '', mainIngredient: '', method: '', servings: 4, servingsUnit: 'Personen', formSize: '', totalTime: '', ingredients: [], steps: [], notes: '', imageUrl: '', sourceUrl: '', ...(draft || {}) };
     const cols = Store.collections();
     body.dataset.id = id || '';
 
@@ -781,6 +842,8 @@
     let preselect = v.collectionId;
     if (!preselect && state.filters.collectionId.size === 1) preselect = [...state.filters.collectionId][0];
     if (!preselect && cols.length === 1) preselect = cols[0].id;
+    // sonst die zuletzt benutzte Sammlung
+    if (!preselect) { try { const last = localStorage.getItem('rezepte.letzteSammlung'); if (last && Store.collection(last)) preselect = last; } catch (e) { /* egal */ } }
 
     const sel = h('select', { id: 'fCollection' },
       h('option', { value: '', text: 'Bitte wählen …' }),
@@ -824,7 +887,16 @@
     const inp = (fid, value, extra) => h('input', Object.assign({ id: fid, type: 'text', value: value || '', autocomplete: 'off' }, extra || {}));
     const ta = (fid, value, rows) => { const t = h('textarea', { id: fid, rows: rows || 6 }); t.value = value || ''; return t; };
 
+    let importNote = null;
+    if (draft) {
+      let host = '';
+      try { host = new URL(draft.sourceUrl).hostname.replace(/^www\./, ''); } catch (e) { /* egal */ }
+      importNote = h('div', { class: 'notice', id: 'importNotice' },
+        h('p', null, h('b', { text: 'Importiert' + (host ? ' von ' + host : '') + '.' }),
+          ' Bitte kurz prüfen, ' + (draft.ingredients && draft.ingredients.length ? 'eine Sammlung wählen und speichern.' : 'die Zutaten ergänzen, eine Sammlung wählen und speichern.')));
+    }
     const form = h('form', { class: 'form', id: 'recipeForm', novalidate: true },
+      importNote,
       err,
       field('Name des Rezepts', inp('fTitle', v.title, { required: true })),
       imageSection,
@@ -932,6 +1004,7 @@
         // Altes Foto aufräumen, wenn es ersetzt oder entfernt wurde
         if (v.imageId && v.imageId !== imageId) window.RecipeImages.remove(v.imageId);
         toast('Gespeichert');
+        try { localStorage.setItem('rezepte.letzteSammlung', saved.collectionId); } catch (e2) { /* egal */ }
         state.emptyCollection = null;
         if (oldCollection && oldCollection !== saved.collectionId && Store.collection(oldCollection) &&
             !Store.recipes().some(x => x.collectionId === oldCollection)) state.emptyCollection = oldCollection;
@@ -949,7 +1022,7 @@
       h('button', { type: 'submit', class: 'btn btn-primary', form: 'recipeForm' }, 'Speichern'));
 
     showDialog('edit', h('div', { style: 'display:contents' },
-      head(r ? 'Rezept bearbeiten' : 'Neues Rezept', cancel), h('div', { class: 'dlg-scroll' }, form), foot));
+      head(r ? 'Rezept bearbeiten' : draft ? 'Importiertes Rezept' : 'Neues Rezept', cancel), h('div', { class: 'dlg-scroll' }, form), foot));
     if (!r) setTimeout(() => {
       const a = document.activeElement;
       if (!a || !form.contains(a)) form.querySelector('#fTitle').focus();
@@ -1077,6 +1150,22 @@
   setFiltersOpen(filtersOpen);
   $('#btnFilter').addEventListener('click', () => setFiltersOpen($('#filters').hidden));
   $('#btnNew').addEventListener('click', () => openEdit(null));
+  $('#btnImport').addEventListener('click', () => openImport(''));
+
+  // Link beim Öffnen übergeben (Teilen-Menü / Kurzbefehl): ?url=… oder ?text=…
+  (function importFromLaunch() {
+    let p;
+    try { p = new URLSearchParams(location.search); } catch (e) { return; }
+    const shared = p.get('url') || p.get('import') || p.get('text') || '';
+    if (!/https?:\/\//i.test(shared)) return;
+    try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) { /* egal */ }
+    const start = () => openImport(shared, true);
+    // Abgleich wird erst nach app.js geladen -> kurz warten
+    setTimeout(() => {
+      if (window.RecipeSync && window.RecipeSync.enabled && window.RecipeSync.whenSignedIn) window.RecipeSync.whenSignedIn().then(start);
+      else start();
+    }, 0);
+  })();
   $('#btnCollections').addEventListener('click', openCollections);
 
   Store.onChange(() => {
