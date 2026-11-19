@@ -132,10 +132,24 @@ async function fetchText(url) {
   }
 }
 
+// Nur angemeldete Nutzer der App dürfen das Programm benutzen (sonst wäre es ein offener Abrufdienst).
+// Geprüft wird beim Anmeldedienst des eigenen Projekts.
+export async function signedIn(req, projectUrl) {
+  const auth = req.headers.get('authorization') || '';
+  const apikey = req.headers.get('apikey') || '';
+  if (!/^Bearer\s+\S+/i.test(auth) || !apikey || !projectUrl) return false;
+  try {
+    const r = await fetch(projectUrl.replace(/\/$/, '') + '/auth/v1/user', { headers: { Authorization: auth, apikey } });
+    return r.ok;
+  } catch (_) { return false; }
+}
+
 export async function handle(req) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   const json = (body, status) => new Response(JSON.stringify(body), { status: status || 200, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
   if (req.method !== 'POST') return json({ error: 'Nur POST.' }, 405);
+  const projectUrl = typeof Deno !== 'undefined' ? Deno.env.get('SUPABASE_URL') : '';
+  if (!(await signedIn(req, projectUrl))) return json({ error: 'Bitte in der App neu anmelden.' }, 401);
   let body;
   try { body = await req.json(); } catch (_) { return json({ error: 'Ungültige Anfrage.' }, 400); }
   const checked = checkUrl(body && body.url);

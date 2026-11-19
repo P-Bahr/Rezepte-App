@@ -34,13 +34,15 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Online-Abgleich (Supabase): Anmeldung mit E-Mail und Passwort, Rezepte, Sammlungen und Fotos auf allen Geräten; funktioniert auch offline und gleicht später ab; wurde ein Rezept auf zwei Geräten geändert, zeigt ein Fenster beide Versionen zur Auswahl
 
 **Als Nächstes (Import), abgesprochene Reihenfolge:**
-1. ✅ Rezeptseiten importieren über die eingebetteten Rezeptangaben (schema.org), kostenlos – gebaut, Server-Programm muss einmalig eingerichtet werden
+1. ✅ Rezeptseiten importieren über die eingebetteten Rezeptangaben (schema.org), kostenlos – gebaut und eingerichtet (Edge Function `import`, prüft die Anmeldung selbst; `verify_jwt` aus, weil neuere Projekte asymmetrische Schlüssel nutzen)
 2. ✅ TikTok-Beschreibung abrufen (oEmbed) und mit der eigenen Zutatenerkennung zerlegen, kostenlos – gebaut
 3. **Bildschirmfotos importieren (Pflicht):** Foto(s) teilen oder auswählen; Texterkennung kostenlos in der App, optional per KI genauer (ca. 1 Cent)
 4. Instagram prüfen (offizieller Zugang nötig)
 5. Eigene Mini-KI für Rezeptart, Hauptzutat, Zubereitung (in der App, kostenlos)
 6. Zählen pro Konto und Obergrenze für KI-Importe gleich mit einbauen
 Kein Auslesen direkt aus Videos (bewusst weggelassen).
+
+**Server-Programm aktualisieren:** `curl -X POST "https://api.supabase.com/v1/projects/raokoztpgowlsmfmmcbd/functions/deploy?slug=import" -H "Authorization: Bearer <Zugangsschlüssel>" -F 'metadata={"entrypoint_path":"index.ts","name":"import","verify_jwt":false};type=application/json' -F 'file=@supabase/functions/import/index.ts;filename=index.ts'`
 
 **Technische Notizen Import + KI:**
 - Import-Funktion als Supabase Edge Function (kein weiteres Konto nötig); liest Webseiten, später TikTok/Instagram/Pinterest
