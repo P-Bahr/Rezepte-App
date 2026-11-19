@@ -40,6 +40,8 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 4. Instagram prüfen (offizieller Zugang nötig)
 5. Eigene Mini-KI für Rezeptart, Hauptzutat, Zubereitung (in der App, kostenlos)
 6. Zählen pro Konto und Obergrenze für KI-Importe gleich mit einbauen
+
+**Tote Links:** ✅ Quellen-Links werden geprüft (TikTok alle 7, andere alle 30 Tage, max. 1x täglich, je 20); entfernt erst nach zweimal „weg“ im Abstand ≥ 6 Std.; Rezept bleibt, Hinweis „nicht mehr verfügbar“. Prüf-Notizen nur lokal (js/linkcheck.js).
 Kein Auslesen direkt aus Videos (bewusst weggelassen).
 
 **Vor jeder Veröffentlichung:** `./tools/neue-version.sh` ausführen – geöffnete Apps erkennen dann die neue Version (version.json) und laden sie selbst.
@@ -80,6 +82,7 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/vendor/supabase.js` | Supabase-Bibliothek 2.45.4 (MIT-Lizenz) |
 | `js/importer.js` | Import: Rezeptseiten und freien Text in Rezepte umwandeln |
 | `supabase/functions/import/index.ts` | Server-Programm: Rezeptseite abrufen (Supabase Edge Function) |
+| `js/linkcheck.js` | Tote Quellen-Links regelmäßig prüfen und entfernen |
 | `js/dupes.js` | Doppelte Rezepte erkennen |
 | `js/images.js` | Fotos verkleinern und im Bildspeicher (IndexedDB) ablegen |
 | `js/app.js` | Bedienoberfläche |

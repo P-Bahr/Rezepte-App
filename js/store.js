@@ -92,6 +92,8 @@
         imageId: clean(input.imageId),
         imageUrl: clean(input.imageUrl),
         sourceUrl: clean(input.sourceUrl),
+        // Quelle, die es nicht mehr gibt (von der Link-Prüfung gesetzt); nur angezeigt, solange kein neuer Link da ist
+        deadSourceUrl: clean(input.sourceUrl) ? '' : clean(input.deadSourceUrl || (existing && existing.deadSourceUrl)),
         favorite: existing ? !!existing.favorite : !!input.favorite,
         dupOk: existing ? !!existing.dupOk : !!input.dupOk, // bewusst als Doppel behalten (nicht aussortieren)
         example: existing ? !!existing.example : !!input.example, // Beispielrezept (lässt sich gesammelt entfernen)

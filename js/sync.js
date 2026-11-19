@@ -423,6 +423,14 @@
   Sync.whenSignedIn = () => (session ? Promise.resolve() : new Promise(res => readyWaiters.push(res)));
   const releaseWaiters = () => { while (readyWaiters.length) readyWaiters.shift()(); };
 
+  // Mehrere Quellen-Links prüfen: { url: 'ok' | 'gone' | 'unknown' }
+  Sync.checkLinks = async urls => {
+    if (!session || !navigator.onLine) throw new Error('offline');
+    const { data, error } = await client.functions.invoke('import', { body: { check: urls } });
+    if (error || !data || !data.results) throw new Error('Prüfung fehlgeschlagen');
+    return data.results;
+  };
+
   // Rezeptseite über das Server-Programm "import" abrufen
   Sync.fetchPage = async url => {
     if (!session) throw new Error('Bitte zuerst anmelden.');

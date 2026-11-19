@@ -524,7 +524,8 @@
       r.steps.length ? h('section', null, h('h3', { text: 'Zubereitung' }),
         h('ol', null, r.steps.map(s => h('li', null, withTerms(s, glossSeen))))) : null,
       r.notes ? notesSection(r) : null,
-      src ? h('p', { class: 'source' }, 'Quelle: ', h('a', { href: src, target: '_blank', rel: 'noopener noreferrer', text: src })) : null
+      src ? h('p', { class: 'source' }, 'Quelle: ', h('a', { href: src, target: '_blank', rel: 'noopener noreferrer', text: src })) : null,
+      !src && r.deadSourceUrl ? h('p', { class: 'source gone-source', text: (/tiktok\.com/i.test(r.deadSourceUrl) ? 'TikTok-Video' : 'Quelle (' + (() => { try { return new URL(r.deadSourceUrl).hostname.replace(/^www\./, ''); } catch (e) { return 'Internetseite'; } })() + ')') + ' nicht mehr verfügbar' }) : null
     );
 
     const foot = h('div', { class: 'dlg-foot' });
@@ -1062,6 +1063,25 @@
     return box;
   }
 
+  // Tote Links: Stand und "Jetzt prüfen"
+  function linksBox() {
+    const L = window.RecipeLinkCheck, S = window.RecipeSync;
+    if (!L || !S || !S.enabled || !S.email()) return null;
+    const st = L.stats();
+    if (!st.total && !st.removed) return null;
+    const when = st.lastRun ? new Date(st.lastRun).toLocaleDateString('de-DE') + ', ' + new Date(st.lastRun).toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) + ' Uhr' : 'noch nie';
+    const info = h('p', { class: 'hint', 'aria-live': 'polite', text: st.total + ' Rezepte mit Link. Zuletzt geprüft: ' + when + '. TikTok-Links werden alle 7 Tage geprüft, andere alle 30 Tage. Ein Link wird erst entfernt, wenn er zweimal im Abstand von einigen Stunden nicht mehr erreichbar war; das Rezept bleibt erhalten.' });
+    const btn = h('button', { type: 'button', class: 'btn', id: 'btnCheckLinks' }, 'Jetzt prüfen');
+    btn.addEventListener('click', async () => {
+      btn.disabled = true; info.textContent = 'Links werden geprüft …';
+      const r = await L.run({ force: true });
+      btn.disabled = false;
+      if (r.skipped === 'offline') { info.textContent = 'Keine Verbindung. Bitte später noch einmal versuchen.'; return; }
+      info.textContent = r.checked + ' Links geprüft. ' + (r.removed.length ? r.removed.length + ' tote Links entfernt: ' + r.removed.join(', ') + '.' : 'Keine toten Links gefunden.') + ' Unsichere Links werden in einigen Stunden noch einmal geprüft.';
+    });
+    return h('div', { class: 'field examples' }, h('span', { class: 'label', text: 'Links prüfen' }), info, h('div', { class: 'pick-actions' }, btn));
+  }
+
   // App-Version und Suche nach neuer Version
   function versionBox() {
     const U = window.RecipeUpdate;
@@ -1133,6 +1153,7 @@
       Store.collections().length ? list : h('p', { text: 'Noch keine Sammlungen. Lege unten deine erste an.' }),
       h('div', { class: 'field' }, h('span', { class: 'label', text: 'Neue Sammlung' }), addForm),
       examplesBox(),
+      linksBox(),
       accountBox(),
       versionBox());
 
@@ -1195,6 +1216,8 @@
 
   render();
   syncFromHash();
+
+  window.RecipeToast = toast;
 
   // Für automatische Tests
   window.__app = { state, render };

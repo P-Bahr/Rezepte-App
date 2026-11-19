@@ -91,7 +91,8 @@ export function extract(html, url) {
   };
 }
 
-async function fetchText(url) {
+async function fetchText(url, maxBytes) {
+  const LIMIT = maxBytes || MAX_BYTES;
   const ctrl = new AbortController();
   const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
   try {
@@ -116,10 +117,10 @@ async function fetchText(url) {
         if (done) break;
         received += value.length;
         chunks.push(value);
-        if (received > MAX_BYTES) { try { await reader.cancel(); } catch (_) { /* egal */ } break; }
+        if (received > LIMIT) { try { await reader.cancel(); } catch (_) { /* egal */ } break; }
       }
     }
-    const buf = new Uint8Array(received > MAX_BYTES ? MAX_BYTES : received);
+    const buf = new Uint8Array(received > LIMIT ? LIMIT : received);
     let off = 0;
     for (const c of chunks) { const part = c.subarray(0, Math.min(c.length, buf.length - off)); buf.set(part, off); off += part.length; if (off >= buf.length) break; }
     const ct = res.headers.get('content-type') || '';
@@ -144,6 +145,44 @@ export async function signedIn(req, projectUrl) {
   } catch (_) { return false; }
 }
 
+// ---------- Links prüfen: gibt es die Quelle noch? ----------
+// 'gone' nur bei eindeutigen Fällen (gelöscht/privat, 404/410, Weiterleitung auf die Startseite).
+// Gesperrt (403), überlastet (5xx), Zeitüberschreitung -> 'unknown' (wird nicht entfernt).
+export async function checkOne(raw, fetcher) {
+  const get = fetcher || fetchText;
+  const c = checkUrl(raw);
+  if (c.error) return 'unknown';
+  try {
+    if (/(^|\.)tiktok\.com$/.test(c.host)) {
+      const o = await get('https://www.tiktok.com/oembed?url=' + encodeURIComponent(c.url), 64 * 1024);
+      if (o.status === 200) {
+        try { return JSON.parse(o.text).title != null || JSON.parse(o.text).html ? 'ok' : 'unknown'; } catch (_) { return 'unknown'; }
+      }
+      return o.status === 400 || o.status === 404 || o.status === 410 ? 'gone' : 'unknown';
+    }
+    const r = await get(c.url, 64 * 1024);
+    if (r.status === 404 || r.status === 410) return 'gone';
+    if (r.status >= 200 && r.status < 300) {
+      // Gelöschte Rezepte leiten oft auf die Startseite um
+      const from = new URL(c.url), to = new URL(r.url || c.url);
+      if (to.pathname.replace(/\/+$/, '') === '' && from.pathname.replace(/\/+$/, '') !== '') return 'gone';
+      return 'ok';
+    }
+    return 'unknown';
+  } catch (_) {
+    return 'unknown';
+  }
+}
+
+export async function checkMany(urls, fetcher) {
+  const list = (Array.isArray(urls) ? urls : []).slice(0, 25).map(String);
+  const results = {};
+  let i = 0;
+  const worker = async () => { while (i < list.length) { const u = list[i++]; results[u] = await checkOne(u, fetcher); } };
+  await Promise.all([worker(), worker(), worker(), worker()]);
+  return results;
+}
+
 export async function handle(req) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   const json = (body, status) => new Response(JSON.stringify(body), { status: status || 200, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
@@ -152,6 +191,7 @@ export async function handle(req) {
   if (!(await signedIn(req, projectUrl))) return json({ error: 'Bitte in der App neu anmelden.' }, 401);
   let body;
   try { body = await req.json(); } catch (_) { return json({ error: 'Ungültige Anfrage.' }, 400); }
+  if (body && Array.isArray(body.check)) return json({ results: await checkMany(body.check) });
   const checked = checkUrl(body && body.url);
   if (checked.error) return json({ error: checked.error }, 400);
   try {

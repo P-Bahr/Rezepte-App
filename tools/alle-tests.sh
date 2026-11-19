@@ -7,6 +7,7 @@ fail=0
 run() { echo "== $1"; shift; out=$("$@" 2>&1); echo "$out" | grep -v '^ok' | grep -v '^    ' ; echo "$out" | grep -q -E 'FEHLER|Error|Timeout|exceeded' && fail=1; }
 run "Umrechnung"        node tests/scale.test.js
 run "Abgleich-Regeln"   node tests/sync.test.js
+run "Link-Prüfung"      node tests/linkcheck.test.js
 run "Import"            node --experimental-strip-types --no-warnings tests/import.test.js
 run "App"               node tests/app.test.js "$OUT"
 run "Import im Browser" node --experimental-strip-types --no-warnings tests/import-e2e.test.js

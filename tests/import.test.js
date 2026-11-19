@@ -86,5 +86,29 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   // TikTok ohne Rezept
   ok(I.toDraft({ kind: 'tiktok', url: 'x', text: 'Heute gibt es was Leckeres 😍 #food' }).how === 'tiktok-empty', 'TikTok ohne Rezept wird erkannt');
 
+  // ---------- Links prüfen (nachgebaute Antworten, kein Netz) ----------
+  const fake = map => async (url) => {
+    const k = Object.keys(map).find(x => url.startsWith(x));
+    const r = map[k];
+    if (r instanceof Error) throw r;
+    return r || { status: 500, url, text: '' };
+  };
+  const oe = 'https://www.tiktok.com/oembed?url=';
+  const answers = fake({
+    [oe + encodeURIComponent('https://www.tiktok.com/@a/video/1')]: { status: 200, text: '{"title":"Pasta","html":"<blockquote>"}' },
+    [oe + encodeURIComponent('https://www.tiktok.com/@a/video/2')]: { status: 400, text: '{"code":400,"message":"Something went wrong"}' },
+    [oe + encodeURIComponent('https://www.tiktok.com/@a/video/3')]: { status: 429, text: '' },
+    'https://seite.example/rezept-da': { status: 200, url: 'https://seite.example/rezept-da', text: '<html>' },
+    'https://seite.example/rezept-weg': { status: 404, url: 'https://seite.example/rezept-weg', text: '' },
+    'https://seite.example/umgeleitet': { status: 200, url: 'https://seite.example/', text: '<html>' },
+    'https://gesperrt.example/x': { status: 403, url: 'https://gesperrt.example/x', text: '' },
+    'https://langsam.example/x': new Error('AbortError')
+  });
+  const res = await fn.checkMany(['https://www.tiktok.com/@a/video/1', 'https://www.tiktok.com/@a/video/2', 'https://www.tiktok.com/@a/video/3', 'https://seite.example/rezept-da', 'https://seite.example/rezept-weg', 'https://seite.example/umgeleitet', 'https://gesperrt.example/x', 'https://langsam.example/x', 'http://localhost/x'], answers);
+  ok(res['https://www.tiktok.com/@a/video/1'] === 'ok' && res['https://www.tiktok.com/@a/video/2'] === 'gone', 'TikTok: vorhandenes ok, gelöschtes/privates „gone“');
+  ok(res['https://www.tiktok.com/@a/video/3'] === 'unknown', 'TikTok überlastet (429): unklar, wird nicht entfernt');
+  ok(res['https://seite.example/rezept-da'] === 'ok' && res['https://seite.example/rezept-weg'] === 'gone' && res['https://seite.example/umgeleitet'] === 'gone', 'Seiten: vorhanden ok, 404 und Umleitung auf Startseite „gone“');
+  ok(res['https://gesperrt.example/x'] === 'unknown' && res['https://langsam.example/x'] === 'unknown' && res['http://localhost/x'] === 'unknown', 'Gesperrt, Zeitüberschreitung, interne Adresse: unklar');
+
   if (fail) { console.log(fail + ' Fehler'); process.exit(1); } else console.log('Alle Import-Prüfungen ok');
 })();

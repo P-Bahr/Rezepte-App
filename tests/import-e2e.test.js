@@ -13,7 +13,13 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
 (async () => {
   const fn = await import('../supabase/functions/import/index.ts');
   const calls = [];
+  const linkState = {}; // url -> 'ok' | 'gone' | 'unknown' (Standard: ok)
   function serve(body) {
+    if (Array.isArray(body.check)) {
+      const results = {};
+      body.check.forEach(u => { results[u] = linkState[u] || 'ok'; });
+      return { status: 200, body: { results } };
+    }
     calls.push(body.url);
     const c = fn.checkUrl(body.url);
     if (c.error) return { status: 400, body: { error: c.error } };
@@ -96,8 +102,39 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   await p.waitForSelector('#importNotice', { timeout: 5000 });
   assert(await p.inputValue('#fTitle') === 'One-Pot-Pasta' && !p.url().includes('?url='), 'Übergebener Link wird sofort importiert, Adresse aufgeräumt');
 
+  // 7. Tote Links: TikTok-Video verschwindet
+  await p.selectOption('#fCollection', { label: 'Alltag' });
+  await p.click('dialog button[type=submit]'); await p.waitForTimeout(400);
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  const tt = 'https://www.tiktok.com/@koch/video/1';
+  const runCheck = () => p.evaluate(() => window.RecipeLinkCheck.run({ force: true }));
+  let r1 = await runCheck();
+  assert(r1.checked === 2 && r1.removed.length === 0, 'Prüfung: 2 Links geprüft, alle da');
+  linkState[tt] = 'gone';
+  r1 = await runCheck();
+  assert(r1.removed.length === 0 && await p.evaluate(u => Store.recipes().some(r => r.sourceUrl === u), tt), 'Erstes Mal weg: Link bleibt noch');
+  // 7 Stunden vergehen lassen
+  await p.evaluate(u => { const s = JSON.parse(localStorage.getItem('rezepte.linkpruefung')); s.urls[u].firstFail -= 7 * 36e5; localStorage.setItem('rezepte.linkpruefung', JSON.stringify(s)); }, tt);
+  r1 = await runCheck();
+  assert(r1.removed.join() === 'One-Pot-Pasta', 'Zweites Mal weg (Stunden später): Link entfernt');
+  const rec = await p.evaluate(() => Store.recipes().find(r => r.title === 'One-Pot-Pasta'));
+  assert(rec && rec.sourceUrl === '' && rec.deadSourceUrl === tt && rec.ingredients.length === 2, 'Rezept bleibt erhalten, nur der Link ist weg');
+  await p.fill('#q', 'one-pot'); await p.click('.tile'); await p.waitForTimeout(300);
+  assert(await p.isVisible('dialog .gone-source:has-text("TikTok-Video nicht mehr verfügbar")') && await p.locator('dialog .source a').count() === 0, 'Im Rezept: „TikTok-Video nicht mehr verfügbar“ statt Link');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200); await p.fill('#q', '');
+  // Gesperrte Seite wird nie entfernt
+  linkState['https://www.chefkoch.de/rezepte/1/kaesespaetzle.html'] = 'unknown';
+  await runCheck(); await runCheck();
+  assert(await p.evaluate(() => Store.recipes().some(r => r.sourceUrl === 'https://www.chefkoch.de/rezepte/1/kaesespaetzle.html')), 'Gesperrte/unklare Seite: Link bleibt');
+  // Automatisch höchstens einmal am Tag
+  assert((await p.evaluate(() => window.RecipeLinkCheck.run())).skipped === 'heute schon', 'Automatische Prüfung höchstens 1x täglich');
+  // Anzeige unter Sammlungen
+  await p.click('#btnCollections');
+  await p.click('#btnCheckLinks'); await p.waitForSelector('.examples:has-text("Links geprüft")');
+  assert(await p.isVisible('.examples:has-text("Links geprüft")'), 'Unter Sammlungen: „Jetzt prüfen“ mit Ergebnis');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+
   // Kopfzeile auf dem Handy: keine seitliche Verschiebung
-  await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
   assert(await p.evaluate(() => document.documentElement.scrollWidth) <= 390, 'Kopfzeile passt aufs Handy');
   assert(errs.length === 0, 'Keine Skriptfehler ' + errs.join('; '));
   await b.close();
