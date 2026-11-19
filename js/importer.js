@@ -408,7 +408,6 @@
     }
     if (res.kind === 'tiktok') {
       const t = fromText(res.text || '', { image: res.image, url: res.url });
-      if (res.author) t.notes = (t.notes ? t.notes + '\n' : '') + 'Von @' + res.author + ' auf TikTok';
       return { draft: t, how: t.ingredients.length || t.steps.length ? 'tiktok' : 'tiktok-empty' };
     }
     return null;

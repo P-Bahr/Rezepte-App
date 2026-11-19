@@ -77,7 +77,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(tt.how === 'tiktok' && d.ingredients.join(' | ') === '250 g Spaghetti | 200 g Cherrytomaten | 2 Knoblauchzehen | 500 ml Gemüsebrühe | 50 g Parmesan', 'TikTok: Zutaten erkannt und geordnet: ' + d.ingredients.join(' | '));
   ok(d.steps.length === 3 && d.steps[0] === 'Alles in einen Topf geben und aufkochen.', 'TikTok: Schritte ohne Nummern');
   ok(d.title === 'Cremige One-Pot-Pasta' && !/#/.test(JSON.stringify(d)), 'TikTok: Titel ohne „in 15 Minuten“, Emojis und Hashtags entfernt: ' + d.title);
-  ok(d.mainIngredient === 'Nudeln' && d.notes.includes('@koch'), 'TikTok: Hauptzutat Nudeln, Urheber vermerkt');
+  ok(d.mainIngredient === 'Nudeln' && !d.notes.includes('@koch'), 'TikTok: Hauptzutat Nudeln, kein Konto-Hinweis in den Notizen');
 
   // Alles in einer Zeile
   d = I.fromText('Schnelles Bananenbrot 🍌 Zutaten: 3 Bananen, 250 g Mehl, 2 Eier, 100 g Zucker. Zubereitung: Alles verrühren und 50 Minuten backen.');
