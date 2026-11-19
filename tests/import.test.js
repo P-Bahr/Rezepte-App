@@ -223,7 +223,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   }
 
   // Vanillekipferl: "nach Omas bestem Rezept" weg, "96 Vanillekipferl" = Stück (nicht Personen), Gebäck
-  for (const [a, b] of [['Vanillekipferl nach Omas bestem Rezept', 'Vanillekipferl'], ['Apfelkuchen wie bei Oma', 'Apfelkuchen'], ['Rinderrouladen nach Mamas Art', 'Rinderrouladen'], ['Schnitzel nach Wiener Art', 'Schnitzel nach Wiener Art'], ['Kartoffelwaffeln für Kinder und Familie', 'Kartoffelwaffeln'], ['Gemüsenudeln für die ganze Familie', 'Gemüsenudeln'], ['Brokkoli-Muffins (kindgerecht)', 'Brokkoli-Muffins'], ['Pizzaschnecken für Kids', 'Pizzaschnecken'], ['Kinder-Pizza', 'Kinder-Pizza'], ['Hähnchen für Groß und Klein', 'Hähnchen']])
+  for (const [a, b] of [['Vanillekipferl nach Omas bestem Rezept', 'Vanillekipferl'], ['Apfelkuchen wie bei Oma', 'Apfelkuchen'], ['Rinderrouladen nach Mamas Art', 'Rinderrouladen'], ['Schnitzel nach Wiener Art', 'Schnitzel nach Wiener Art'], ['Kartoffelwaffeln für Kinder und Familie', 'Kartoffelwaffeln'], ['Gemüsenudeln für die ganze Familie', 'Gemüsenudeln'], ['Brokkoli-Muffins (kindgerecht)', 'Brokkoli-Muffins'], ['Pizzaschnecken für Kids', 'Pizzaschnecken'], ['Kinder-Pizza', 'Kinder-Pizza'], ['Kinder Nudelsalat mit Frischkäse', 'Nudelsalat mit Frischkäse'], ['Hähnchen für Groß und Klein', 'Hähnchen']])
     ok(I.cleanTitle(a) === b, 'Name: „' + a + '“ -> „' + I.cleanTitle(a) + '“');
   let yv = I.servingsFrom(['96', '96 Vanillekipferl'], 'Vanillekipferl');
   ok(yv.servings === 96 && yv.servingsUnit === 'Stück', 'Ergibt „96 Vanillekipferl“ -> 96 Stück');
@@ -254,6 +254,14 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(I.guessMain(waffelIng, 'Gesunde Dinkelwaffeln') === 'Dinkelmehl', 'Dinkelwaffeln -> Hauptzutat Dinkelmehl (' + I.guessMain(waffelIng, 'Gesunde Dinkelwaffeln') + ')');
   ok(I.guessMain(['1 TL Zimt', '½ TL Zitronenschale'], 'Gewürzmischung') === '', 'Nur Gewürzmengen -> keine Hauptzutat');
   ok(I.guessMethod(['Teig ins heiße Waffeleisen geben.'], 'Waffeln') === 'Backen', 'Waffeleisen = Backen');
+
+  ok(I.guessCourse('Nudelsalat mit Frischkäse', [], []) === 'Salat', '„Nudelsalat“ ist ein Salat');
+  d = I.fromText('Nudelsalat\nZutaten:\n250 g Nudeln\n1 Gurke\nZubereitung:\nNudeln kochen und abkühlen lassen.');
+  ok(d.course === 'Salat' && d.method === 'Kalt zubereitet', 'Nudelsalat: Salat, kalt (nicht Topf), obwohl Nudeln gekocht werden');
+  for (const [a, b] of [['1/2 Tasse gewürfelte Gurke', '½ Tasse gewürfelte Gurke'], ['1 1/2 TL Salz', '1½ TL Salz'], ['3/4 l Milch', '¾ l Milch']]) {
+    const got = window.Store.saveRecipe({ title: 'T', ingredients: [a], steps: ['x'] }).ingredients[0];
+    ok(got === b, 'Bruch als Zeichen: „' + a + '“ -> „' + got + '“');
+  }
 
   // ---------- Pinterest ----------
   const pinAnswers = {

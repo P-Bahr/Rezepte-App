@@ -55,6 +55,7 @@
   function cleanIngredient(text) {
     return packSize(clean(String(text || '').replace(/(^|[\s(])bio(?:-|\s+)(?=\p{L})/giu, '$1')
       .replace(/(\p{L})\s*:(?=\s|$)/gu, '$1') // "Reis: 200 g" / "200 g Reis:" -> ohne Doppelpunkt
+      .replace(/(^|[\s(–-])(\d+\s+)?(1\/2|1\/4|3\/4|1\/3|2\/3|1\/8)(?=[\s)–-]|$)/g, (m, pre, whole, fr) => pre + (whole ? whole.trim() : '') + { '1/2': '½', '1/4': '¼', '3/4': '¾', '1/3': '⅓', '2/3': '⅔', '1/8': '⅛' }[fr]) // "1/2" -> "½"
       .replace(/\(\s*\(+/g, '(').replace(/\)\s*\)+/g, ')')        // "((gerieben))" -> "(gerieben)"
       .replace(/\(\s*[=,;:]?\s*\)/g, '')                          // leere "()", "(= )"
       .replace(/\s{2,}/g, ' ')))
@@ -101,6 +102,7 @@
         method: I.guessMethod(r.steps || [], title),
         mainIngredient: I.validMain(I.guessMain(r.ingredients || [], title)) || r.mainIngredient
       };
+      if (next.course === 'Salat' && next.method === 'Kochen') next.method = 'Kalt zubereitet';
       if (next.course === r.course && next.method === r.method && next.mainIngredient === r.mainIngredient) return r;
       changed = true;
       return { ...r, ...next, updatedAt: now };

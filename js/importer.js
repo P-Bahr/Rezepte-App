@@ -104,7 +104,7 @@
     ['Gebäck', /(kuchen|torte|brot\b|brötchen|muffins?|plätzchen|kekse?|cookies?|brownies?|zopf|tarte|strudel|waffeln|cake|bread)/i],
     ['Dessert', /\b(dessert|nachtisch|mousse|pudding|tiramisu|panna cotta|eis\b|creme brulee|crème|kompott|parfait)\b/i],
     ['Suppe', /(suppe|eintopf|soup|chili con carne)/i],
-    ['Salat', /\b(salat|salad|bowl)\b/i],
+    ['Salat', /(salat|salad|bowl)\b/i],
     ['Sauce & Dip', /\b(sauce|soße|dip|pesto|dressing|aioli|hummus|guacamole|chutney)\b/i],
     ['Beilage', /\b(beilage|kartoffelgratin|püree|pommes|ofenkartoffeln|reis|side)\b/i],
     ['Vorspeise', /\b(vorspeise|antipasti|bruschetta|starter|appetizer)\b/i],
@@ -233,6 +233,8 @@
     d.course = d.course || guessCourse(d.title, category, keywords);
     d.method = d.method || guessMethod(d.steps, d.title);
     d.mainIngredient = validMain(d.mainIngredient) || validMain(guessMain(d.ingredients, d.title));
+    // Salat mit nur gekochten Nudeln/Kartoffeln/Eiern: wird kalt gegessen -> Sammlung "Kalt"
+    if (d.course === 'Salat' && d.method === 'Kochen') d.method = 'Kalt zubereitet';
     return d;
   }
 
@@ -255,6 +257,8 @@
     // Zielgruppe gehört nicht in den Namen: "für Kinder und Familie", "für die ganze Familie", "kindgerecht"
     t = t.replace(/\s*[–—-]?\s*\(?\b(?:für|for)\s+(?:die\s+(?:ganze\s+)?|kleine\s+|große\s+(?:und\s+kleine\s+)?)?(?:kinder|kids|babys?|kleinkinder|familien?|groß\s+und\s+klein|jung\s+und\s+alt)(?:\s+(?:und|&|\+)\s+(?:die\s+(?:ganze\s+)?)?(?:kinder|kids|familien?|erwachsene))?\)?(?=\s*$|\s*[–—|,:(])/giu, '')
       .replace(/\s*[–—-]?\s*\(?\b(?:kindgerecht|kinderfreundlich|familienfreundlich|kinderleicht|baby-?led[- ]?weaning|blw)\)?(?=\s*$|\s*[–—|,:(])/giu, '');
+    // "Kinder Nudelsalat" / "Baby Brei" (mit Leerzeichen, nicht "Kinder-Pizza")
+    t = t.replace(/^(?:[Kk]inder|[Kk]ids|[Bb]aby|[Ff]amilien)\s+(?=\p{Lu})/u, '');
     // "Besser als vom Bäcker, …" / "… unfassbar lecker!"
     t = t.replace(/^(?:(?:noch\s+)?besser\s+als\s+(?:vom|beim|im|aus\s+dem)\s+[\p{L}-]+|wie\s+(?:vom|beim|im)\s+[\p{L}-]+|der\s+hammer|suchtgefahr)\s*[!,:–—-]+\s*/iu, '');
     const tail = /\s*[,–—-]?\s*(?:(?:super|mega|so+|einfach|unfassbar|unglaublich|richtig|total|wahnsinnig|absolut|extrem|echt|sehr|soo+)\s+)*(?:lecker|köstlich|himmlisch|genial|traumhaft|fantastisch|unwiderstehlich|saulecker|oberlecker|ein\s+traum|der\s+hammer|zum\s+niederknien)\s*!*$/iu;
