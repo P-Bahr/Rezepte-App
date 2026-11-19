@@ -731,15 +731,41 @@
     }
     photos.addEventListener('change', () => fromPhotos(photos.files));
 
+    // ---- Aus eingefügtem Text (WhatsApp, E-Mail, Facebook-Beitrag …) ----
+    const textArea = h('textarea', { id: 'importText', rows: 6, placeholder: 'Rezepttext hier einfügen …', autocapitalize: 'sentences' });
+    const textBtn = h('button', { type: 'button', class: 'btn', id: 'importTextGo' }, 'Text übernehmen');
+    textBtn.addEventListener('click', () => {
+      say(msg, ''); manual.hidden = true;
+      const text = textArea.value.trim();
+      if (!text) { say(msg, 'Bitte zuerst einen Rezepttext einfügen: lange ins Feld tippen, dann „Einsetzen“.'); textArea.focus(); return; }
+      const link = (text.match(/https?:\/\/[^\s<>"']+/i) || [''])[0].replace(/[).,;!?]+$/, '');
+      // Nur ein Link eingefügt -> normaler Link-Import
+      if (link && text.replace(link, '').trim().length < 15) { input.value = link; textArea.value = ''; run(); return; }
+      const d = window.RecipeImporter.fromText(text.replace(link, ' '), { url: link });
+      if (!d.ingredients.length && !d.steps.length) {
+        say(msg, 'In diesem Text wurde kein Rezept erkannt. Stehen Zutaten (mit Mengen) oder Arbeitsschritte darin?');
+        manual.hidden = false;
+        manual.onclick = () => openEdit(null, { title: '', notes: text.slice(0, 3000), sourceUrl: link, fromText: true });
+        return;
+      }
+      if (d.title === 'Importiertes Rezept') d.title = '';
+      openEdit(null, { ...d, fromText: true });
+    });
+
     const form = h('form', { class: 'form', novalidate: true, onsubmit: e => { e.preventDefault(); run(); } },
       h('div', { class: 'field' },
         h('label', { for: 'importUrl', text: 'Link zum Rezept' }), input,
-        h('span', { class: 'hint', text: 'Von einer Rezeptseite (z. B. Chefkoch) oder einem TikTok-Video. Lange tippen, dann „Einsetzen“.' })),
+        h('span', { class: 'hint', text: 'Von einer Rezeptseite (z. B. Chefkoch), TikTok, Pinterest oder Facebook. Lange tippen, dann „Einsetzen“.' })),
       h('div', { class: 'pick-actions' }, go, manual),
       h('div', { class: 'field import-photos' },
         h('span', { class: 'label', text: 'Oder aus Bildschirmfotos' }),
         h('span', { class: 'hint', text: 'Zum Beispiel aus einem TikTok-Video, in dem das Rezept eingeblendet ist. Mehrere Fotos gehen auch. Der Text wird direkt auf deinem Gerät erkannt, kostenlos.' }),
         h('div', { class: 'pick-actions' }, photoBtn, photos)),
+      h('div', { class: 'field import-text' },
+        h('label', { for: 'importText', class: 'label', text: 'Oder Text einfügen' }),
+        h('span', { class: 'hint', text: 'Zum Beispiel aus WhatsApp, einer E-Mail oder einem Facebook-Beitrag: Text kopieren, hier lange tippen, dann „Einsetzen“.' }),
+        textArea,
+        h('div', { class: 'pick-actions' }, textBtn)),
       msg, status);
     // Bild einfügen (lange tippen -> Einsetzen)
     form.addEventListener('paste', e => {
@@ -914,7 +940,11 @@
     if (draft) {
       let host = '';
       try { host = new URL(draft.sourceUrl).hostname.replace(/^www\./, ''); } catch (e) { /* egal */ }
-      importNote = draft.fromPhoto
+      importNote = draft.fromText || draft.fromShare
+        ? h('div', { class: 'notice', id: 'importNotice' },
+            h('p', null, h('b', { text: 'Aus Text erkannt.' }),
+              ' Bitte kurz prüfen und speichern.' + (draft.title ? '' : ' Den Namen bitte noch eintragen.')))
+        : draft.fromPhoto
         ? h('div', { class: 'notice', id: 'importNotice' },
             h('p', null, h('b', { text: 'Aus Bildschirmfoto erkannt.' }),
               ' Bitte prüfen, vor allem die Mengen – die Texterkennung kann sich bei Zahlen vertun.' + (draft.title ? '' : ' Den Namen bitte noch eintragen.')))

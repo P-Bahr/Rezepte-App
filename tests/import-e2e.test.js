@@ -168,6 +168,19 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   assert(await p.isVisible('.examples:has-text("Links geprüft")'), 'Unter Einstellungen: „Jetzt prüfen“ mit Ergebnis');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
 
+  // Text einfügen (z. B. aus WhatsApp)
+  await p.click('#btnImport');
+  await p.fill('#importText', 'Omas Linsensuppe 😋\nZutaten:\n250 g Linsen\n2 Karotten\n1 Zwiebel\nZubereitung:\nZuerst schneiden wir die Zwiebel klein.\nDann kochen wir alles 30 Minuten.\nhttps://www.whatsapp-test.example/x');
+  await p.click('#importTextGo');
+  await p.waitForSelector('#fTitle');
+  assert(await p.inputValue('#fTitle') === 'Omas Linsensuppe' && (await p.inputValue('#fIngredients')).split('\n').length === 3, 'Text einfügen: Name und 3 Zutaten');
+  assert(await p.inputValue('#fSteps') === 'Zwiebel klein schneiden.\nAlles 30 Minuten kochen.' && await p.inputValue('#fSource') === 'https://www.whatsapp-test.example/x', 'Text einfügen: Schritte gekürzt, Link als Quelle');
+  assert(await p.isVisible('#importNotice:has-text("Aus Text erkannt")'), 'Text einfügen: Hinweis „Aus Text erkannt“');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  await p.click('#btnImport'); await p.fill('#importText', 'Hallo, wie geht es dir?'); await p.click('#importTextGo');
+  assert(await p.isVisible('.form-error:has-text("kein Rezept erkannt")'), 'Text ohne Rezept: verständliche Meldung');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+
   // Kopfzeile auf dem Handy: keine seitliche Verschiebung
   assert(await p.evaluate(() => document.documentElement.scrollWidth) <= 390, 'Kopfzeile passt aufs Handy');
   assert(errs.length === 0, 'Keine Skriptfehler ' + errs.join('; '));
