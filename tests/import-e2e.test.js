@@ -59,6 +59,13 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   // sync.js absichtlich verzögern: so wie bei langsamem Netz auf dem Handy
   await ctx.route('**/js/sync.js', async r => { await new Promise(res => setTimeout(res, 400)); r.continue(); });
   await ctx.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.APP_CONFIG={supabaseUrl:'https://t.example',supabaseKey:'k'};" }));
+  // Pinterest-Pinnwand direkt vom Gerät (nachgebaut); unbekannte Pinnwand -> Fehler wie bei Pinterest
+  const directBoard = [];
+  await ctx.route('https://widgets.pinterest.com/**', r => {
+    directBoard.push(r.request().url());
+    const ok = /\/boards\/oopusteblumeoo\/rezepte\/pins\/$/.test(r.request().url());
+    r.fulfill({ status: ok ? 200 : 404, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: ok ? BOARD : '{"status":"failure","message":"not found"}' });
+  });
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
   await p.goto(URL);
@@ -201,6 +208,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   await p.fill('#pinBoard', 'Rezepte'); await p.click('#pinLoad');
   await p.waitForSelector('#boardGo');
   assert((await p.textContent('.dlg-scroll')).includes('4 von 120 Pins'), 'Pinnwand gefunden: „4 von 120 Pins“');
+  assert(directBoard.some(u => u.endsWith('/boards/oopusteblumeoo/rezepte/pins/')), 'Pinnwand direkt vom Gerät abgerufen');
   const recipesBefore = await p.evaluate(() => Store.recipes().length);
   await p.click('#boardGo');
   await p.waitForSelector('#boardResult b', { timeout: 15000 });

@@ -779,11 +779,11 @@
       say(msg, ''); manual.hidden = true;
       const user = pinUser.value.trim().replace(/^@/, ''), board = pinBoard.value.trim();
       if (!user || !board) { say(msg, 'Bitte deinen Pinterest-Namen und den Namen der Pinnwand eintragen.'); (user ? pinBoard : pinUser).focus(); return; }
-      if (!S || !S.enabled || !S.pinterestBoard) { say(msg, 'Der Import braucht den Online-Speicher.'); return; }
+      if (!S || !S.enabled || !S.fetchPage) { say(msg, 'Der Import braucht den Online-Speicher.'); return; }
       try { localStorage.setItem('rezepte.pinterestName', user); } catch (e) { /* egal */ }
       pinBtn.disabled = true; say(status, 'Pinnwand wird geladen …');
       try {
-        const res = await S.pinterestBoard(user, board);
+        const res = await window.RecipeImporter.loadBoard(user, board, S.pinterestBoard);
         say(status, '');
         if (!res.pins || !res.pins.length) { say(msg, 'Auf dieser Pinnwand wurden keine Pins gefunden.'); return; }
         openBoardImport(res);

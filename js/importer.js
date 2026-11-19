@@ -555,5 +555,51 @@
     return null;
   }
 
-  window.RecipeImporter = { findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  // ---------- Pinterest-Pinnwand (Antwort der Widget-Schnittstelle) ----------
+  function boardSlug(name) {
+    return String(name || '').trim().toLowerCase().replace(/[\s_]+/g, '-').replace(/[^\p{L}\p{N}-]/gu, '');
+  }
+  function decode(s) {
+    const t = document.createElement('textarea');
+    t.innerHTML = String(s || '');
+    return t.value;
+  }
+  function cleanLink(raw) {
+    if (!raw) return '';
+    try {
+      const u = new URL(decode(raw));
+      if (!/^https?:$/.test(u.protocol)) return '';
+      for (const k of [...u.searchParams.keys()]) if (/^(utm_|fbclid|gclid|mibextid)/i.test(k)) u.searchParams.delete(k);
+      return u.toString().replace(/\?$/, '');
+    } catch (e) { return ''; }
+  }
+  function boardFromWidget(data, boardName) {
+    if (!data || data.status !== 'success' || !data.data) return null;
+    const b = data.data.board || {};
+    const pins = (data.data.pins || []).map(p => {
+      const imgs = p.images || {};
+      return {
+        id: String(p.id || ''),
+        url: 'https://www.pinterest.com/pin/' + p.id + '/',
+        link: cleanLink(p.link),
+        text: decode([p.title, p.description].filter(Boolean).join('\n')),
+        image: (imgs['736x'] || imgs['564x'] || imgs['237x'] || {}).url || ''
+      };
+    }).filter(p => p.id);
+    return { board: { name: decode(b.name || boardName), count: b.pin_count || pins.length }, pins };
+  }
+  // Direkt vom Gerät abrufen (Pinterest erlaubt das); klappt das nicht, über den Online-Speicher
+  async function loadBoard(user, board, viaServer) {
+    const u = String(user || '').trim().replace(/^@/, '').toLowerCase();
+    const slug = boardSlug(board);
+    try {
+      const r = await fetch('https://widgets.pinterest.com/v3/pidgets/boards/' + encodeURIComponent(u) + '/' + encodeURIComponent(slug) + '/pins/', { cache: 'no-store' });
+      const res = boardFromWidget(await r.json(), board);
+      if (res && res.pins.length) return res;
+    } catch (e) { /* über den Server versuchen */ }
+    if (viaServer) return viaServer(u, board);
+    throw new Error('Pinnwand nicht gefunden. Stimmen Name und Pinnwand, und ist sie öffentlich?');
+  }
+
+  window.RecipeImporter = { boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();
