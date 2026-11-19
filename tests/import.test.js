@@ -133,6 +133,20 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(res['https://seite.example/rezept-da'] === 'ok' && res['https://seite.example/rezept-weg'] === 'gone' && res['https://seite.example/umgeleitet'] === 'gone', 'Seiten: vorhanden ok, 404 und Umleitung auf Startseite „gone“');
   ok(res['https://gesperrt.example/x'] === 'unknown' && res['https://langsam.example/x'] === 'unknown' && res['http://localhost/x'] === 'unknown', 'Gesperrt, Zeitüberschreitung, interne Adresse: unklar');
 
+  // ---------- TikTok-Kurzlinks ----------
+  const ttAnswers = {
+    'https://vm.tiktok.com/ZGdXpYwVd/': { status: 200, url: 'https://www.tiktok.com/@koch.max/video/7312345678901234567?_r=1&lang=de', text: '' },
+    'https://vm.tiktok.com/ZZseite/': { status: 200, url: 'https://www.tiktok.com/', text: '<a href="https:\/\/www.tiktok.com\/@oma\/video\/7111111111111111111">' },
+    'https://vm.tiktok.com/kaputt/': { status: 404, url: 'https://vm.tiktok.com/kaputt/', text: '' },
+    ['https://www.tiktok.com/oembed?url=' + encodeURIComponent('https://www.tiktok.com/@koch.max/video/7312345678901234567')]: { status: 200, text: '{"title":"Rezept"}' }
+  };
+  const ttGet = async u => { const a = ttAnswers[u]; if (!a) throw new Error('unerwartet ' + u); return { url: u, ...a }; };
+  ok(await fn.tiktokResolve('https://vm.tiktok.com/ZGdXpYwVd/', ttGet) === 'https://www.tiktok.com/@koch.max/video/7312345678901234567', 'TikTok-Kurzlink wird zum langen Link aufgelöst (ohne Zusätze)');
+  ok(await fn.tiktokResolve('https://vm.tiktok.com/ZZseite/', ttGet) === 'https://www.tiktok.com/@oma/video/7111111111111111111', 'TikTok-Kurzlink: langer Link aus der Seite');
+  ok(await fn.tiktokResolve('https://www.tiktok.com/@a/video/123?x=1', ttGet) === 'https://www.tiktok.com/@a/video/123', 'Langer TikTok-Link bleibt (ohne Zusätze)');
+  ok(await fn.checkOne('https://vm.tiktok.com/ZGdXpYwVd/', ttGet) === 'ok', 'Link-Prüfung: Kurzlink eines vorhandenen Videos ist „ok“');
+  ok(await fn.checkOne('https://vm.tiktok.com/kaputt/', ttGet) === 'unknown', 'Link-Prüfung: nicht auflösbarer Kurzlink wird nicht entfernt');
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },

@@ -153,8 +153,10 @@ export async function checkOne(raw, fetcher) {
   const c = checkUrl(raw);
   if (c.error) return 'unknown';
   try {
-    if (/(^|\.)tiktok\.com$/.test(c.host)) {
-      const o = await get('https://www.tiktok.com/oembed?url=' + encodeURIComponent(c.url), 64 * 1024);
+    if (isTikTok(c.host)) {
+      const long = await tiktokResolve(c.url, get);
+      if (!long) return 'unknown'; // Kurzlink nicht auflösbar -> lieber nichts entfernen
+      const o = await get('https://www.tiktok.com/oembed?url=' + encodeURIComponent(long), 64 * 1024);
       if (o.status === 200) {
         try { return JSON.parse(o.text).title != null || JSON.parse(o.text).html ? 'ok' : 'unknown'; } catch (_) { return 'unknown'; }
       }
@@ -172,6 +174,27 @@ export async function checkOne(raw, fetcher) {
   } catch (_) {
     return 'unknown';
   }
+}
+
+// ---------- TikTok: Kurzlinks (vm.tiktok.com, vt.tiktok.com, tiktok.com/t/…) auflösen ----------
+export const isTikTok = host => /(^|\.)tiktok\.com$/.test(host);
+export function tiktokCanonical(u) {
+  const m = String(u).match(/tiktok\.com\/(@[^/?#]+)\/(video|photo)\/(\d+)/);
+  return m ? 'https://www.tiktok.com/' + m[1] + '/' + m[2] + '/' + m[3] : '';
+}
+export async function tiktokResolve(url, fetcher) {
+  const direct = tiktokCanonical(url);
+  if (direct) return direct;
+  const get = fetcher || fetchText;
+  try {
+    const r = await get(url, 64 * 1024);
+    const fromUrl = tiktokCanonical(r.url || '');
+    if (fromUrl) return fromUrl;
+    // Manchmal steht der lange Link nur in der Seite
+    const inPage = tiktokCanonical((String(r.text || '').match(/https:\\?\/\\?\/www\.tiktok\.com\\?\/@[^"'\s]+?\\?\/(?:video|photo)\\?\/\d+/) || [''])[0].replace(/\\\//g, '/'));
+    if (inPage) return inPage;
+  } catch (_) { /* unten */ }
+  return '';
 }
 
 // ---------- Pinterest: Pin -> Link zur eigentlichen Rezeptseite ----------
@@ -249,12 +272,13 @@ export async function handle(req) {
   if (checked.error) return json({ error: checked.error }, 400);
   try {
     // TikTok: Beschreibung über oEmbed (die Videoseite selbst enthält kein Rezept)
-    if (/(^|\.)tiktok\.com$/.test(checked.host)) {
-      const o = await fetchText('https://www.tiktok.com/oembed?url=' + encodeURIComponent(checked.url));
+    if (isTikTok(checked.host)) {
+      const long = (await tiktokResolve(checked.url)) || checked.url;
+      const o = await fetchText('https://www.tiktok.com/oembed?url=' + encodeURIComponent(long));
       let data = null;
       try { data = JSON.parse(o.text); } catch (_) { /* unten behandelt */ }
-      if (!data || !data.title) return json({ error: 'Die TikTok-Beschreibung konnte nicht geladen werden. Ist das Video öffentlich?' }, 502);
-      return json({ kind: 'tiktok', url: checked.url, title: data.title, author: data.author_name || '', image: data.thumbnail_url || '', jsonld: [], text: data.title, description: data.title });
+      if (!data || !data.title) return json({ error: 'Die TikTok-Beschreibung konnte nicht geladen werden. Ist das Video öffentlich? Sonst ein Bildschirmfoto vom Rezept im Video machen.' }, 502);
+      return json({ kind: 'tiktok', url: long, title: data.title, author: data.author_name || '', image: data.thumbnail_url || '', jsonld: [], text: data.title, description: data.title });
     }
     // Pinterest: dem Pin zur Rezeptseite folgen; ohne Link die Pin-Beschreibung nehmen
     if (isPinterest(checked.host)) {
