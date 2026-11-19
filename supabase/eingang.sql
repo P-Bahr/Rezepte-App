@@ -46,6 +46,8 @@ declare
   uid uuid;
   n int;
 begin
+  -- Leerzeichen/Zeilenumbrüche vom Kopieren entfernen
+  p_key := regexp_replace(coalesce(p_key, ''), '\s', '', 'g');
   if p_key is null or length(p_key) < 20 or length(p_key) > 200 then
     return 'Teilen-Schlüssel fehlt. Bitte im Kurzbefehl prüfen.';
   end if;
