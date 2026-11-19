@@ -265,6 +265,14 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
 
   ok(I.guessCourse('Kräuterbutter', [], []) === 'Sauce & Dip' && I.guessMain(['1 kg Butter', '200 g gehackte Kräuter', '2 TL Salz'], 'Kräuterbutter') === 'Butter', 'Kräuterbutter: Sauce & Dip, Hauptzutat Butter');
 
+  // Amerikanische Maße: deutsches Rezept umrechnen, englisches mit Klammer
+  ok(JSON.stringify(I.convertUnits(['250 g kurze Pasta', '½ Tasse gewürfelte Gurke', '1 Tasse Milch', '1 ½ Tassen Mehl'])) === JSON.stringify(['250 g kurze Pasta', '75 g gewürfelte Gurke', '240 ml Milch', '190 g Mehl']), 'Deutsches Rezept: Tassen gleich in g/ml: ' + I.convertUnits(['½ Tasse gewürfelte Gurke', '1 Tasse Milch', '1 ½ Tassen Mehl']).join(' | '));
+  ok(JSON.stringify(I.convertUnits(['1 cup flour', '1/2 cup milk', '8 oz cream cheese', '2 large eggs'])) === JSON.stringify(['1 cup flour (ca. 125 g)', '1/2 cup milk (ca. 120 ml)', '8 oz cream cheese (ca. 225 g)', '2 large eggs']), 'Englisches Rezept: Original mit Umrechnung in Klammern');
+  // Prüf-Hinweise
+  let hs = I.reviewHints({ title: 'Nudelsalat', ingredients: ['250 g Nudeln', 'Gurke', 'Salz', '300 g Mehl', '250 g Mehl'], steps: ['Alles mischen.'], mainIngredient: '', servings: 4, servingsUnit: 'Personen', importInfo: { how: 'text', servingsGuessed: true, courseGuessed: true }, course: 'Hauptgericht' });
+  ok(hs.some(x => /Seitentext/.test(x)) && hs.some(x => /Ohne Mengenangabe: Gurke\./.test(x)) && hs.some(x => /doppelt: Mehl/.test(x)) && hs.some(x => /Personen\?.*4/.test(x)) && hs.some(x => /Rezeptart nur geraten/.test(x)) && hs.some(x => /Keine Hauptzutat/.test(x)), 'Prüf-Hinweise sagen genau, worauf zu achten ist: ' + hs.join(' / '));
+  ok(I.reviewHints({ title: 'Linsensuppe', ingredients: ['250 g Linsen', '1 Zwiebel', '1 l Brühe'], steps: ['Kochen.'], mainIngredient: 'Linsen', servings: 4 }).length === 0, 'Vollständiges Rezept: keine Hinweise');
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },

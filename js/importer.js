@@ -94,7 +94,7 @@
       if (!F.UNITS.includes(unit)) unit = m[2] && !/^(x|mal|min|minuten|std|h)$/i.test(m[2]) ? 'Stück' : 'Personen';
       return { servings: n, servingsUnit: unit, formSize };
     }
-    return { servings: 4, servingsUnit: 'Personen', formSize: '' };
+    return { servings: 4, servingsUnit: 'Personen', formSize: '', guessed: true };
   }
 
   // ---------- Kategorien erraten (einfache Regeln; wird später durch die Mini-KI ersetzt) ----------
@@ -242,7 +242,98 @@
     const t = clean(v);
     return /^\p{L}[\p{L}\s'’-]{1,40}$/u.test(t) && !NOT_MAIN.test(t) ? t : '';
   }
+  // ---------- Amerikanische Maße (Tasse/cup, oz, lb) umrechnen ----------
+  // Deutsches Rezept: gleich umrechnen ("½ Tasse Gurke" -> "75 g Gurke");
+  // englisches Rezept: Original lassen, Umrechnung in Klammern dahinter ("1 cup flour (ca. 125 g)")
+  const CUP_G = [[/puderzucker|powdered sugar|icing sugar/i, 120], [/brauner zucker|brown sugar/i, 220], [/mehl|flour/i, 125], [/zucker|sugar/i, 200], [/haferflocken|oats/i, 90],
+    [/reis|rice/i, 185], [/butter/i, 225], [/geriebene[rn]? käse|käse.*gerieben|shredded cheese|grated cheese|parmesan/i, 100], [/mandeln|nüsse|nuts|almonds|walnüsse|walnuts|cashews/i, 140],
+    [/kakao|cocoa/i, 100], [/quinoa/i, 170], [/couscous/i, 180], [/linsen|lentils/i, 190], [/schoko|chocolate/i, 170], [/rosinen|raisins/i, 150], [/kokos(raspeln|flocken)|shredded coconut/i, 80],
+    [/spinat|spinach|salat|lettuce|rucola|kräuter|herbs|petersilie|parsley|basilikum|basil/i, 30],
+    [/gurke|cucumber|paprika|pepper|mais|corn|tomate|tomato|zwiebel|onion|karotte|möhre|carrot|zucchini|erbsen|peas|bohnen|beans|brokkoli|broccoli|pilze|champignon|mushroom|beeren|berries|obst|fruit|kartoffel|potato/i, 150]];
+  const LIQUID = /milch|milk|wasser|water|brühe|broth|stock|sahne|cream|öl\b|oil|saft|juice|joghurt|yogurt|wein|wine|essig|vinegar|sauce|soße|sirup|syrup|honig|honey/i;
+  const EN_HINT = /\b(cups?|tbsp|tsp|teaspoons?|tablespoons?|ounces?|oz|pounds?|lbs?|of|chopped|minced|diced|sliced|large|small|and|or|fresh|to taste|pinch)\b/i;
+  const DE_HINT = /\b(und|oder|gehackt|gewürfelt|frisch|EL|TL|Prise|nach Geschmack|Stück|Zehe|Bund|Dose|ml|g)\b|[äöüß]/;
+  const NUMV = '(\\d+(?:[.,]\\d+)?(?:\\s?[½⅓⅔¼¾⅛])?|[½⅓⅔¼¾⅛]|\\d+\\/\\d+|\\d+\\s\\d+\\/\\d+)';
+  const CUP_RE = new RegExp('^' + NUMV + '\\s*(?:[–-]\\s*' + NUMV + '\\s*)?(tassen?|cups?|c\\.)\\s+(.+)$', 'i');
+  const OZ_RE = new RegExp('^' + NUMV + '\\s*(fl\\.?\\s*oz|oz|ounces?|lbs?|pounds?)\\.?\\s+(.+)$', 'i');
+  const round = (v, step) => Math.max(step, Math.round(v / step) * step);
+  function metricFor(cups, rest) {
+    if (LIQUID.test(rest)) { const ml = round(cups * 240, cups * 240 >= 100 ? 10 : 5); return ml >= 1000 ? Sc.parseNum ? (String(ml / 1000).replace('.', ',') + ' l') : ml + ' ml' : ml + ' ml'; }
+    for (const [re, g] of CUP_G) if (re.test(rest)) return round(cups * g, 5) + ' g';
+    return round(cups * 240, 10) + ' ml';
+  }
+  function convertUnits(lines) {
+    const en = lines.filter(l => EN_HINT.test(l)).length, de = lines.filter(l => DE_HINT.test(l)).length;
+    const english = en > de;
+    return lines.map(l => {
+      let m = l.match(CUP_RE);
+      if (m) {
+        const a = Sc.parseNum(m[1]), b = m[2] ? Sc.parseNum(m[2]) : NaN;
+        if (isNaN(a)) return l;
+        const met = metricFor(a, m[4]) + (isNaN(b) ? '' : '');
+        const metB = isNaN(b) ? '' : metricFor(b, m[4]);
+        const amount = metB ? met.replace(/\s.*$/, '') + '–' + metB : met;
+        return english ? l + ' (ca. ' + amount + ')' : amount + ' ' + m[4];
+      }
+      m = l.match(OZ_RE);
+      if (m) {
+        const a = Sc.parseNum(m[1]);
+        if (isNaN(a)) return l;
+        const unit = m[2].toLowerCase();
+        const met = /fl/.test(unit) ? round(a * 30, 5) + ' ml' : /lb|pound/.test(unit) ? round(a * 454, 10) + ' g' : round(a * 28, 5) + ' g';
+        return english ? l + ' (ca. ' + met + ')' : met + ' ' + m[3];
+      }
+      return l;
+    });
+  }
+
+  // Ist die Rezeptart wirklich erkannt (oder nur "Hauptgericht" als Notlösung)?
+  function courseSure(title, category, keywords) {
+    if (arr(category).some(c => CATEGORY_MAP.some(([re]) => re.test(clean(c))))) return true;
+    const hay = title + ' ' + arr(keywords).join(' ');
+    return COURSE_RULES.some(([, re]) => re.test(hay)) || /(kipferl|plätzchen|kuchen|torte)/i.test(title);
+  }
+
+  // ---------- Prüf-Hinweise: Woran sollte man bei einem importierten Rezept schauen? ----------
+  const NO_AMOUNT_OK = /^(salz|pfeffer|wasser|eiswürfel|eis\b|muskat|deko|garnitur)|\b(zum|zur|für (?:das|die|den)|nach belieben|nach geschmack|nach bedarf|optional|etwas|evtl|eventuell)\b/i;
+  function reviewHints(r) {
+    const info = r.importInfo || r;
+    const hints = [];
+    const ing = r.ingredients || [], st = r.steps || [];
+    if (info.how === 'text') hints.push('Die Seite hatte keine Rezeptangaben – alles wurde aus dem Seitentext gelesen. Auf fehlende oder überzählige Zutaten und Schritte achten.');
+    else if (/^(pin|tiktok|social)$/.test(info.how || '')) hints.push('Aus einer Beitragsbeschreibung gelesen – prüfen, ob alle Zutaten und Schritte dabei sind.');
+    if (ing.length < 3) hints.push(ing.length ? 'Nur ' + ing.length + ' Zutat' + (ing.length > 1 ? 'en' : '') + ' – fehlt etwas?' : 'Keine Zutaten gefunden.');
+    const noAmount = [], odd = [], seen = new Map(), dup = new Set();
+    for (const l of ing) {
+      const p = Sc.parseIngredient(Sc.normalizeIngredient(l));
+      if (!/\p{L}{2}/u.test(l) || l.length > 90 || /^[)\],;.]/.test(l)) odd.push(l);
+      else if (!p.amount && !NO_AMOUNT_OK.test(l.trim())) noAmount.push(noun(l) || l);
+      const n = (noun(p.name || l) || '').toLowerCase();
+      if (n.length > 2) { if (seen.has(n)) dup.add(noun(p.name || l)); else seen.set(n, true); }
+    }
+    if (noAmount.length) hints.push('Ohne Mengenangabe: ' + noAmount.slice(0, 4).join(', ') + (noAmount.length > 4 ? ' …' : '') + '.');
+    if (odd.length) hints.push('Seltsame Zutatenzeile: „' + odd[0].slice(0, 60) + (odd[0].length > 60 ? '…' : '') + '“' + (odd.length > 1 ? ' (und ' + (odd.length - 1) + ' weitere)' : '') + '.');
+    if (dup.size) hints.push('Zutat doppelt: ' + [...dup].join(', ') + ' – vielleicht für Teig und Belag getrennt? Dann stimmt es.');
+    if (info.unitsConverted) hints.push('Tassen/Unzen wurden in g bzw. ml umgerechnet – die Mengen sind ungefähr.');
+    if (!st.length) hints.push('Keine Zubereitung gefunden.');
+    else {
+      const long = st.findIndex(x => x.length > 350);
+      if (long >= 0) hints.push('Schritt ' + (long + 1) + ' ist sehr lang – vielleicht ist Werbung oder Begleittext hineingerutscht.');
+      const link = st.findIndex(x => /https?:\/\/|www\.|@\w|#\w/.test(x));
+      if (link >= 0) hints.push('Schritt ' + (link + 1) + ' enthält einen Link oder Hashtag.');
+    }
+    if (info.servingsGuessed && (!r.servingsUnit || r.servingsUnit === 'Personen')) hints.push('Für wie viele Personen? Die Quelle sagt es nicht – angenommen: ' + (r.servings || 4) + '.');
+    if (info.courseGuessed) hints.push('Rezeptart nur geraten: „' + (r.course || 'Hauptgericht') + '“.');
+    if (!r.mainIngredient) hints.push('Keine Hauptzutat erkannt.');
+    if ((r.title || '').length > 45) hints.push('Der Name ist sehr lang – kürzen?');
+    return hints;
+  }
+
   function withGuesses(d, category, keywords) {
+    const before = JSON.stringify(d.ingredients || []);
+    d.ingredients = convertUnits(d.ingredients || []);
+    if (JSON.stringify(d.ingredients) !== before) d.unitsConverted = true;
+    if (!d.course) d.courseGuessed = !courseSure(d.title, category, keywords);
     d.course = d.course || guessCourse(d.title, category, keywords);
     d.method = d.method || guessMethod(d.steps, d.title);
     d.mainIngredient = validMain(d.mainIngredient) || validMain(guessMain(d.ingredients, d.title));
@@ -325,7 +416,7 @@
     const notes = '';
     const d = {
       title, ingredients, steps: st, notes,
-      servings: sv.servings, servingsUnit: sv.servingsUnit, formSize: sv.formSize,
+      servings: sv.servings, servingsUnit: sv.servingsUnit, formSize: sv.formSize, servingsGuessed: !!sv.guessed,
       imageUrl: image(r.image) || page.image || '',
       sourceUrl: page.url
     };
@@ -611,6 +702,7 @@
       d.servings = servingsFound.n;
       d.servingsUnit = /stück|stk|plätzchen|muffins/i.test(servingsFound.unit) ? 'Stück' : /gläser/i.test(servingsFound.unit) ? 'Gläser' : /blech/i.test(servingsFound.unit) ? 'Blech' : 'Personen';
     } else if (sv) d.servings = parseInt(sv[1], 10);
+    else d.servingsGuessed = true;
     return withGuesses(d);
   }
 
@@ -687,5 +779,5 @@
     throw new Error('Pinnwand nicht gefunden. Stimmen Name und Pinnwand, und ist sie öffentlich?');
   }
 
-  window.RecipeImporter = { tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

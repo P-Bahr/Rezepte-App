@@ -225,6 +225,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   assert((await p.$$eval('.tile-title', e => e.map(x => x.textContent).sort())).join(',') === 'Bananenbrot,Rote Linsensuppe', 'Filter „Zu prüfen“ zeigt nur die neuen Rezepte');
   await p.click('.tile:has-text("Rote Linsensuppe")');
   await p.waitForSelector('#btnReviewed');
+  assert(await p.isVisible('#reviewNotice .review-hints li, #reviewNotice:has-text("Sieht vollständig aus")'), 'Im Rezept steht, was genau zu prüfen ist (oder „Sieht vollständig aus“)');
   assert(await p.evaluate(() => { const b = document.getElementById('btnReviewed'); const r = b.getBoundingClientRect(); return !!b.closest('.dlg-foot') && r.right <= window.innerWidth && r.bottom <= window.innerHeight; }), '„Passt ✓“ steht fest unten in der Leiste und ist ganz sichtbar');
   await p.click('#btnReviewed');
   await p.waitForSelector('dialog h2:has-text("Bananenbrot")');

@@ -525,8 +525,12 @@
       try { host = new URL(src).hostname.replace(/^(www|m|vm)\./, ''); } catch (e) { /* egal */ }
       facts.push(h('span', null, 'Original: ', h('a', { href: src, target: '_blank', rel: 'noopener noreferrer', class: 'source-link', text: host + ' ↗' })));
     }
+    const hints = r.review ? window.RecipeImporter.reviewHints(r) : [];
     const reviewBar = r.review ? h('div', { class: 'notice review-notice', id: 'reviewNotice' },
-      h('p', null, h('b', { text: 'Automatisch importiert.' }), ' Bitte kurz prüfen. Passt alles, tippe unten auf „Passt ✓“; sonst „Bearbeiten“.')) : null;
+      h('p', null, h('b', { text: hints.length ? 'Bitte prüfen:' : 'Sieht vollständig aus.' }),
+        hints.length ? '' : ' Nur kurz drüberschauen und unten auf „Passt ✓“ tippen.'),
+      hints.length ? h('ul', { class: 'review-hints' }, hints.map(x => h('li', { text: x }))) : null,
+      hints.length ? h('p', { class: 'hint', text: 'Passt alles? Unten auf „Passt ✓“ tippen, sonst „Bearbeiten“.' }) : null) : null;
     function markReviewed() {
         // Nächstes ungeprüftes Rezept (in der Reihenfolge der Übersicht) direkt öffnen
         const order = [...document.querySelectorAll('#grid .tile[data-id]')].map(t => t.dataset.id);
@@ -734,7 +738,7 @@
           manual.onclick = () => openEdit(null, { title: (res && res.title) || '', sourceUrl: url, imageUrl: (res && res.image) || '' });
           return;
         }
-        openEdit(null, r.draft);
+        openEdit(null, { ...r.draft, importHow: r.how });
       } catch (e) {
         say(status, '');
         say(msg, e.message);
@@ -873,11 +877,11 @@
       const one = async pin => {
         let d = null;
         if (pin.link) {
-          try { const r = window.RecipeImporter.toDraft(await S.fetchPage(pin.link)); d = r && r.draft; } catch (e) { d = null; }
+          try { const r = window.RecipeImporter.toDraft(await S.fetchPage(pin.link)); d = r && r.draft; if (d) d.importHow = r.how; } catch (e) { d = null; }
         }
         if (!complete(d) && pin.text) {
           const t = window.RecipeImporter.fromText(pin.text, { image: pin.image, url: pin.link || pin.url });
-          if (complete(t)) d = t;
+          if (complete(t)) { d = t; d.importHow = 'pin'; }
         }
         const label = (d && d.title && d.title !== 'Importiertes Rezept' ? d.title : (pin.text || '').split('\n')[0].slice(0, 60)) || 'Pin ohne Text';
         if (!complete(d)) { failed.push({ pin, label }); return; }
@@ -1101,6 +1105,9 @@
         : h('div', { class: 'notice', id: 'importNotice' },
             h('p', null, h('b', { text: 'Importiert' + (host ? ' von ' + host : '') + '.' }),
               ' Bitte kurz prüfen ' + (draft.ingredients && draft.ingredients.length ? 'und speichern.' : ', die Zutaten ergänzen und speichern.')));
+      // Konkret sagen, worauf zu achten ist
+      const hs = window.RecipeImporter.reviewHints({ ...draft, how: draft.importHow || '' });
+      if (hs.length) importNote.append(h('ul', { class: 'review-hints' }, hs.map(x => h('li', { text: x }))));
     }
     const form = h('form', { class: 'form', id: 'recipeForm', novalidate: true },
       importNote,

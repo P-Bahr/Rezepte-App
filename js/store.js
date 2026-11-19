@@ -98,12 +98,13 @@
       if (!r.review) return r;
       const title = I.tidyTitle ? I.tidyTitle(r.title) : r.title;
       const next = {
+        ingredients: I.convertUnits ? I.convertUnits(r.ingredients || []) : r.ingredients,
         course: I.guessCourse(title, [], []) === 'Hauptgericht' ? (r.course || 'Hauptgericht') : I.guessCourse(title, [], []),
         method: I.guessMethod(r.steps || [], title),
         mainIngredient: I.validMain(I.guessMain(r.ingredients || [], title)) || r.mainIngredient
       };
       if (next.course === 'Salat' && next.method === 'Kochen') next.method = 'Kalt zubereitet';
-      if (next.course === r.course && next.method === r.method && next.mainIngredient === r.mainIngredient) return r;
+      if (next.course === r.course && next.method === r.method && next.mainIngredient === r.mainIngredient && JSON.stringify(next.ingredients) === JSON.stringify(r.ingredients)) return r;
       changed = true;
       return { ...r, ...next, updatedAt: now };
     });
@@ -169,6 +170,9 @@
         // Automatisch importiert und noch nicht angesehen ("Zu prüfen"); Speichern im Formular gilt als geprüft
         review: input.review !== undefined ? !!input.review : !!(existing && existing.review),
         importBatch: existing ? clean(existing.importBatch) : clean(input.importBatch), // für "Import rückgängig"
+        // Was beim Import nur geschätzt war (für die Prüf-Hinweise)
+        importInfo: existing ? (existing.importInfo || null) : (input.importHow || input.servingsGuessed || input.courseGuessed || input.unitsConverted
+          ? { how: clean(input.importHow), servingsGuessed: !!input.servingsGuessed, courseGuessed: !!input.courseGuessed, unitsConverted: !!input.unitsConverted } : null),
         createdAt: existing ? existing.createdAt : now,
         updatedAt: now
       };
