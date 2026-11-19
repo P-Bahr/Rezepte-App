@@ -204,7 +204,7 @@
   }
 
   // Sätze ohne Rezeptinhalt am Ende/Anfang von Schritten und Texten
-  const FLUFF_LINE = /^(guten appetit|viel spa(ß|ss)|lasst es euch|lass es dir|enjoy|bon app[ée]tit|und fertig|fertig ist|mahlzeit|have fun|happy (baking|cooking)|ich wünsche|wenn (du|ihr) (dieses|das) rezept|hast du (dieses|das) rezept|teile? (gerne )?(dein|ein) foto|markiere mich|folge mir|speicher(e|t)? (dir )?(das|dieses) rezept|pin(ne)? (es|das rezept)|werbung|anzeige|affiliate|newsletter|link in bio|mehr rezepte)/iu;
+  const FLUFF_LINE = /^(guten appetit|viel spa(ß|ss)|lasst es euch|lass es dir|enjoy|bon app[ée]tit|und fertig|fertig ist|mahlzeit|have fun|happy (baking|cooking)|ich wünsche|wenn (du|ihr) (dieses|das) rezept|hast du (dieses|das) rezept|teile? (gerne )?(dein|ein) foto|markiere mich|folge mir|(und )?für mehr .{0,30}(folg|folge|folgt) mir|speicher(e|t)? (dir )?(das|dieses|den|die) (rezept|post|video|beitrag)|pin(ne)? (es|das rezept)|werbung|anzeige|affiliate|newsletter|link in bio|mehr rezepte)/iu;
   const isFluffLine = l => FLUFF_LINE.test(String(l).replace(EMOJI_RE, '').trim()) || /^[\s\p{P}\p{S}]*$/u.test(String(l).replace(EMOJI_RE, ''));
   const cleanIngredientText = l => clean(l).replace(/\(?\*?\s*(affiliate[- ]?link|werbung|anzeige|\*)\s*\)?/giu, ' ').replace(/\s*\*+\s*/g, ' ').replace(/\s+/g, ' ').replace(/\s+([,.;])/g, '$1').trim();
 
@@ -265,6 +265,14 @@
       }
     }
     return out;
+  }
+
+  // Lange Notizen nur am Satz- oder Zeilenende kürzen, nie mitten im Wort
+  function cutNotes(t, max) {
+    if (t.length <= max) return t;
+    const part = t.slice(0, max);
+    const end = Math.max(part.lastIndexOf('\n'), part.search(/[.!?][^.!?]*$/) + 1);
+    return (end > max * 0.5 ? part.slice(0, end) : part.replace(/\s+\S*$/, '')).trim() + ' …';
   }
 
   function fromText(text, hint) {
@@ -357,11 +365,16 @@
     }
     if (!title) title = (other.shift() || '').replace(/[:!]+$/, '').slice(0, 80);
     title = cleanTitle(title);
-    for (let i = other.length - 1; i >= 0; i--) if (isFluffLine(other[i])) other.splice(i, 1);
+    for (let i = other.length - 1; i >= 0; i--) {
+      if (isFluffLine(other[i])) { other.splice(i, 1); continue; }
+      // Werbesätze auch mitten in einer Zeile entfernen ("… Snack! Speichere dir das Rezept …! Folg mir")
+      const kept = other[i].split(/(?<=[.!?])\s+/).filter(x => !isFluffLine(x)).join(' ');
+      if (kept) other[i] = kept; else other.splice(i, 1);
+    }
     for (let i = st.length - 1; i >= 0; i--) if (isFluffLine(st[i])) st.splice(i, 1);
     const d = {
       title: title || 'Importiertes Rezept', ingredients, steps: splitSteps(st),
-      notes: hint.ocr ? '' : other.join('\n').slice(0, 500), // bei Fotos ist der Rest meist Begleittext
+      notes: hint.ocr ? '' : cutNotes(other.join('\n'), 3000), // bei Fotos ist der Rest meist Begleittext
       servings: 4, servingsUnit: 'Personen', formSize: '',
       imageUrl: hint.image || '', sourceUrl: hint.url || ''
     };

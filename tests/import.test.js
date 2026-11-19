@@ -159,6 +159,9 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   d = I.toDraft({ kind: 'tiktok', url: 'u', text: 'Brezeln auf ein Backblech legen, Schokolade darauf verteilen und kurz bei 70 °C in den Ofen geben. Danach abkühlen lassen. #snack' }).draft;
   ok(!d.ingredients.length && d.steps.length >= 1 && /Brezeln auf ein Backblech legen/.test(d.steps[0]), 'TikTok nur mit Schritten: Schritte übernommen statt Fehlermeldung');
 
+  d = I.fromText('Kuchen\nZutaten:\n200 g Mehl\nHaltbarkeit:\n' + 'Luftdicht verschlossen hält er sich lange. '.repeat(20) + 'Ende der Haltbarkeit.');
+  ok(/Ende der Haltbarkeit\.$/.test(d.notes), 'Lange Notizen (z. B. Haltbarkeit) werden vollständig übernommen');
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },
