@@ -53,7 +53,24 @@
   function clean(text) { return String(text || '').trim(); }
   // "Bio" ist beim Einkaufen eigene Entscheidung und gehört nicht ins Rezept
   function cleanIngredient(text) {
-    return clean(String(text || '').replace(/(^|[\s(])bio(?:-|\s+)(?=\p{L})/giu, '$1').replace(/\s{2,}/g, ' '));
+    return packSize(clean(String(text || '').replace(/(^|[\s(])bio(?:-|\s+)(?=\p{L})/giu, '$1').replace(/\s{2,}/g, ' ')));
+  }
+  // Packungsgröße in Klammern direkt hinter die Packung:
+  // "1 Dose 400 g Tomaten" / "1 Flasche Sekt (= 750 ml)" / "1 Dose (à 400 g) Tomaten" -> "1 Dose (400 g) Tomaten"
+  const PACK = '(?:Flaschen?|Dosen?|Packungen?|Pck\\.?|Pkg\\.?|Päckchen|Gläsern?|Glas|Becher|Tüten?|Beutel|Tetrapaks?|Kartons?|Schalen?|Netze?|Bund)';
+  const SIZE = '(\\d+(?:[.,]\\d+)?\\s*(?:ml|cl|l|g|kg))';
+  const PACK_DIRECT = new RegExp('^(\\S+\\s+' + PACK + ')\\s+\\(?\\s*(=|à|a|je|zu|ca\\.?)?\\s*' + SIZE + '\\s*\\)?\\s+(?=\\S)', 'iu');
+  const PACK_TAIL = new RegExp('^(\\S+\\s+' + PACK + ')\\s+(.+?)\\s*\\(\\s*(=|à|a|je|zu|ca\\.?)?\\s*' + SIZE + '\\s*\\)\\s*$', 'iu');
+  function packSize(t) {
+    const fmt = (pack, q, size) => {
+      const many = !/^(1|ein|eine)\s/i.test(pack);
+      const pre = /^ca/i.test(q || '') ? 'ca. ' : many ? 'je ' : '';
+      return pack + ' (' + pre + size.replace(/(\d)(?=[a-z])/i, '$1 ') + ')';
+    };
+    if (PACK_DIRECT.test(t)) return t.replace(PACK_DIRECT, (m, pack, q, size) => fmt(pack, q, size) + ' ');
+    const m = t.match(PACK_TAIL);
+    if (m) return fmt(m[1], m[3], m[4]) + ' ' + m[2];
+    return t;
   }
   // Alte Bezeichnung umbenennen
   function cleanMethod(m) { return /^roh\s*\/\s*ohne kochen$/i.test(clean(m)) ? 'Kalt zubereitet' : clean(m); }

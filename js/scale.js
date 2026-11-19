@@ -115,15 +115,24 @@
         const egg = !unitWord && (b == null || isNaN(b)) && EGG.test(text.slice(consumed));
         if (egg) amountText = String(Math.max(1, Math.round(a)));
       }
+      // Packungen: Einzahl/Mehrzahl passend ("1 Dose", "2 Dosen")
+      const PACK_SG = { dosen: 'Dose', flaschen: 'Flasche', packungen: 'Packung', gläser: 'Glas', tüten: 'Tüte', beutel: 'Beutel', becher: 'Becher', kartons: 'Karton', schalen: 'Schale', päckchen: 'Päckchen' };
+      const PACK_PL = { dose: 'Dosen', flasche: 'Flaschen', packung: 'Packungen', glas: 'Gläser', tüte: 'Tüten', karton: 'Kartons', schale: 'Schalen' };
+      const lowU = unitOut.toLowerCase();
+      const maxAmount = b != null && !isNaN(b) ? b : a;
+      if (!isMetric && maxAmount <= 1 && PACK_SG[lowU]) unitOut = PACK_SG[lowU];
+      else if (!isMetric && maxAmount > 1 && PACK_PL[lowU]) unitOut = PACK_PL[lowU];
       const amount = amountText + gap + unitOut;
       if (m[1]) parts.push({ t: m[1], amount: false });
       parts.push({ t: factor === 1 ? text.slice(m[1].length, consumed) : amount, amount: true });
       rest = text.slice(consumed);
     }
 
-    // Gewichte/Volumen in Klammern
+    // Gewichte/Volumen in Klammern mit umrechnen ("½ Dose (200 g)" = so viel braucht man);
+    // "je 400 ml" ist die Größe einer Packung und bleibt gleich
     if (factor !== 1) {
       rest = rest.replace(PAREN, (all, open, before, num, unit) => {
+        if (/\bje\b/i.test(before)) return all;
         const v = parseNum(num);
         if (isNaN(v)) return all;
         const f = formatMetric(v * factor, unit);

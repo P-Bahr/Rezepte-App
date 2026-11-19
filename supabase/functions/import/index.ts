@@ -78,6 +78,40 @@ export function visibleText(html, max) {
   return decodeEntities(t).replace(/[ \t ]+/g, ' ').replace(/\n\s*\n+/g, '\n').trim().slice(0, max || 60000);
 }
 
+// Manche Seiten (z. B. Kaufland) liefern die Rezeptangaben als Microdata (itemprop="recipeIngredient" …)
+export function extractMicrodata(html) {
+  if (!/itemtype=["']https?:\/\/schema\.org\/Recipe["']/i.test(html)) return null;
+  const vals = prop => {
+    const out = [];
+    const re = new RegExp('<([a-z0-9]+)\\b[^>]*\\bitemprop=["\']' + prop + '["\'][^>]*>', 'gi');
+    let m;
+    while ((m = re.exec(html))) {
+      const tag = m[0];
+      const c = (tag.match(/\bcontent=["']([^"']*)["']/i) || [])[1];
+      if (c != null) { out.push(decodeEntities(c).trim()); continue; }
+      const src = (tag.match(/\b(?:src|href)=["']([^"']*)["']/i) || [])[1];
+      if (src && /^(img|link|a|meta)$/i.test(m[1])) { out.push(src); continue; }
+      // Text bis zum schließenden Tag
+      const end = html.indexOf('</' + m[1], m.index + tag.length);
+      if (end > 0) out.push(decodeEntities(html.slice(m.index + tag.length, end).replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim());
+    }
+    return out.filter(Boolean);
+  };
+  const ing = vals('recipeIngredient').concat(vals('ingredients'));
+  const steps = vals('recipeInstructions');
+  if (!ing.length && !steps.length) return null;
+  return {
+    '@type': 'Recipe',
+    name: vals('name')[0] || '',
+    recipeIngredient: ing,
+    recipeInstructions: steps.map(x => x.replace(/^\d{1,2}[.)]\s*/, '')),
+    recipeYield: vals('recipeYield')[0] || '',
+    totalTime: vals('totalTime')[0] || '',
+    recipeCategory: vals('recipeCategory'),
+    image: vals('image')[0] || ''
+  };
+}
+
 export function extract(html, url) {
   const title = metaContent(html, ['og:title', 'twitter:title']) || decodeEntities((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1] || '').trim();
   return {
@@ -86,7 +120,7 @@ export function extract(html, url) {
     description: metaContent(html, ['og:description', 'description', 'twitter:description']),
     image: metaContent(html, ['og:image', 'og:image:url', 'twitter:image']),
     siteName: metaContent(html, ['og:site_name']),
-    jsonld: extractJsonLd(html),
+    jsonld: (() => { const j = extractJsonLd(html); const md = extractMicrodata(html); return md ? j.concat(md) : j; })(),
     text: visibleText(html)
   };
 }

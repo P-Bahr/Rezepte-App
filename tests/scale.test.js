@@ -72,3 +72,9 @@ for (const [l, f, e] of [['4 sehr frische Eier', 2 / 3, '3 sehr frische Eier'], 
   const g = S.scaleText(l, f);
   if (g !== e) { console.log('FEHLER Ei irgendwo', l, '→', g); process.exitCode = 1; } else console.log('ok   Ei irgendwo', l, '→', g);
 }
+
+// Packungsgröße in Klammern bleibt beim Umrechnen gleich, Einzahl/Mehrzahl passt
+for (const [l, f, e] of [['2 Dosen (je 400 ml) Kokosmilch', 0.5, '1 Dose (je 400 ml) Kokosmilch'], ['1 Dose (400 g) Tomaten', 2, '2 Dosen (800 g) Tomaten'], ['1 Flasche (750 ml) Sekt', 2, '2 Flaschen (1,5 l) Sekt'], ['200 g Feta (oder 2 Päckchen)', 0.5, '100 g Feta (oder 2 Päckchen)'], ['1 Zwiebel (ca. 100 g)', 2, '2 Zwiebel (ca. 200 g)']]) {
+  const g = S.scaleText(l, f);
+  if (g !== e) { console.log('FEHLER Packung', l, '→', g); process.exitCode = 1; } else console.log('ok   Packung', l, '→', g);
+}

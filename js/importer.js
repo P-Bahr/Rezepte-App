@@ -40,6 +40,11 @@
     const out = [];
     const walk = (x, section) => {
       if (x == null) return;
+      if (typeof x === 'string' && /\{\s*['"]@type['"]\s*:\s*['"]HowTo/.test(x)) {
+        // Fehlerhaft gespeichert (Python-Schreibweise): nur die 'text'-Teile nehmen
+        const texts = [...x.matchAll(/['"]text['"]\s*:\s*(['"])((?:\\.|(?!\1).)*)\1/gs)].map(m => m[2].replace(/\\(['"])/g, '$1'));
+        if (texts.length) { texts.forEach(t => walk(t, section)); return; }
+      }
       if (typeof x === 'string') {
         clean(x).split(/\n+|(?:^|\s)(?=\d{1,2}\.\s+[A-ZÄÖÜ])/).map(s => s.replace(/^\d{1,2}[.)]\s*/, '').trim()).filter(Boolean).forEach(s => out.push(s));
         return;
@@ -93,7 +98,7 @@
 
   // ---------- Kategorien erraten (einfache Regeln; wird später durch die Mini-KI ersetzt) ----------
   const COURSE_RULES = [
-    ['Getränk', /\b(smoothie|lassi|cocktail|limonade|getränk|drink|shake|punsch|glühwein|eistee|kaffee|latte)\b/i],
+    ['Getränk', /(smoothie|lassi|cocktail|limonade|getränk|drink|shake\b|punsch|glühwein|eistee|kaffee|latte\b|bowle|caipirinha|mojito|sangria|spritz\b|likör|hugo\b|kakao|chai)/i],
     ['Frühstück', /\b(frühstück|porridge|overnight oats|müsli|granola|pancakes?|pfannkuchen|omelett|rührei|breakfast)\b/i],
     ['Gebäck', /(kuchen|torte|brot\b|brötchen|muffins?|plätzchen|kekse?|cookies?|brownies?|zopf|tarte|strudel|waffeln|cake|bread)/i],
     ['Dessert', /\b(dessert|nachtisch|mousse|pudding|tiramisu|panna cotta|eis\b|creme brulee|crème|kompott|parfait)\b/i],
@@ -164,7 +169,21 @@
         if (pos > bestPos) { bestPos = pos; best = p.name; }
       }
     }
-    return best;
+    if (best) return best;
+    // Nichts vor "mit": die zuerst genannte Zutat im ganzen Namen ("Eintopf mit Kartoffeln & Würstchen" -> Kartoffeln)
+    const whole = String(title || '').toLowerCase();
+    let first = '', firstPos = Infinity;
+    for (const line of ingredients) {
+      const p = Sc.parseIngredient(Sc.normalizeIngredient(line));
+      if (!p.name || isStaple(p.name)) continue;
+      for (const word of p.name.split(/[\s,]+/).filter(w => /^\p{Lu}/u.test(w))) {
+        const stem = word.toLowerCase().replace(/(innen|en|n|e|s)$/, '');
+        if (stem.length < 3) continue;
+        const pos = whole.indexOf(stem);
+        if (pos >= 0 && pos < firstPos) { firstPos = pos; first = p.name; }
+      }
+    }
+    return first;
   }
 
   function guessMain(ingredients, title) {

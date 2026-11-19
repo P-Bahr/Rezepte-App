@@ -201,6 +201,27 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
     ['Kartoffelplätzchen', ['1 kg Kartoffeln', '3 Eigelb'], 'Kartoffeln']
   ]) ok(I.guessMain(ing, t) === want, 'Hauptzutat aus dem Namen: ' + t + ' -> ' + I.guessMain(ing, t));
 
+  // Microdata (wie bei Kaufland) statt JSON-LD
+  const md = '<div itemscope itemtype="http://schema.org/Recipe"><h1 itemprop="name" content="Caipirinha-Bowle mit Melonen">Caipirinha-Bowle</h1><span itemprop="recipeYield" content="10 Gläser"></span>'
+    + '<span itemprop="recipeIngredient" content="4 unbehandelte Limetten"></span><span itemprop="recipeIngredient" content="1 Flasche gut gekühlter Sekt (= 750 ml)"></span><span itemprop="recipeIngredient" content="100 g brauner Zucker"></span>'
+    + '<span itemprop="recipeInstructions" content="1. Melone halbieren und würfeln. Limetten vierteln."></span><span itemprop="recipeInstructions" content="2. Mit Sekt aufgießen."></span></div><p>Grill-Rezepte Pizza-Rezepte</p>';
+  d = I.toDraft({ kind: 'page', ...fn.extract(md, 'https://filiale.kaufland.de/x') }).draft;
+  ok(d.title === 'Caipirinha-Bowle mit Melonen' && d.ingredients.length === 3 && d.steps.length === 3 && d.servings === 10, 'Microdata (Kaufland): Name, 3 Zutaten, 3 Schritte, 10 Gläser');
+  ok(d.course === 'Getränk' && d.method === 'Kalt zubereitet', 'Bowle ist ein Getränk, kalt zubereitet (nicht Hauptgericht/Grillen)');
+  // Schritte in Python-Schreibweise (wie bei mombanana.com)
+  const py = '<script type="application/ld+json">{"@type":"Recipe","name":"Eintopf mit Kartoffeln & Rinderwürstchen","recipeIngredient":["450 g Kartoffeln","4 Rinderwürstchen","3 Möhren"],"recipeInstructions":["{\'@type\': \'HowToStep\', \'name\': \'Vorbereitung\', \'text\': \'Kartoffeln schälen. Würstchen in Scheiben schneiden.\'}","{\'@type\': \'HowToStep\', \'name\': \'Kochen\', \'text\': \'Alles 20 Minuten köcheln lassen.\'}"]}</script>';
+  d = I.toDraft({ kind: 'page', ...fn.extract(py, 'https://mombanana.com/x') }).draft;
+  ok(JSON.stringify(d.steps) === JSON.stringify(['Kartoffeln schälen.', 'Würstchen in Scheiben schneiden.', 'Alles 20 Minuten köcheln lassen.']), 'Kaputte Schritte ({\'@type\': …}) werden sauber gelesen: ' + JSON.stringify(d.steps));
+  ok(d.mainIngredient === 'Kartoffeln', 'Hauptzutat: zuerst genannte Zutat nach „mit“ (' + d.mainIngredient + ')');
+
+  // Packungsgröße beim Speichern in Klammern hinter die Packung
+  global.localStorage = { getItem: () => null, setItem() {}, removeItem() {} };
+  require('../js/collections.js'); require('../js/store.js');
+  for (const [a, b] of [['1 Flasche gut gekühlter Sekt (= 750 ml)', '1 Flasche (750 ml) gut gekühlter Sekt'], ['1 Dose 400 g Tomaten', '1 Dose (400 g) Tomaten'], ['2 Dosen Kokosmilch (à 400 ml)', '2 Dosen (je 400 ml) Kokosmilch'], ['1 Bund Petersilie (ca. 30 g)', '1 Bund (ca. 30 g) Petersilie'], ['250 g dicke Bohnen (Dose)', '250 g dicke Bohnen (Dose)']]) {
+    const got = window.Store.saveRecipe({ title: 'T', ingredients: [a], steps: ['x'] }).ingredients[0];
+    ok(got === b, 'Packungsgröße: „' + a + '“ -> „' + got + '“');
+  }
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },
