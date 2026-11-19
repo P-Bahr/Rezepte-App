@@ -245,7 +245,7 @@
       box.append(h('div', { class: 'facet' + (arranging ? ' arranging' : ''), 'data-key': f.key }, label, chips));
       if (scrollPos[f.key]) chips.scrollLeft = scrollPos[f.key];
     }
-    box.append(h('div', { class: 'facet-tools' }, h('button', {
+    box.prepend(h('div', { class: 'facet-tools' }, h('button', {
       type: 'button', class: 'btn-link', id: 'btnArrange', onclick: () => { arranging = !arranging; render(); }
     }, arranging ? 'Fertig' : 'Reihenfolge ändern')));
   }

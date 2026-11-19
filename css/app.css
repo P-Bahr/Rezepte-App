@@ -122,7 +122,8 @@ button, input, select, textarea { font: inherit; color: inherit; }
   display: inline-flex; align-items: center; justify-content: center; background: var(--accent); color: var(--accent-fg);
 }
 @media (prefers-reduced-motion: reduce) { .filter-toggle .chev { transition: none; } }
-.sort { margin-left: auto; }
+.grid-tools { display: flex; justify-content: flex-end; margin: 4px 0 12px; }
+.sort { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 15px; }
 .sort select {
   min-height: var(--touch); padding: 0 12px; border: 1px solid var(--line); border-radius: 10px;
   background: var(--surface); color: var(--fg); font-size: 16px;
