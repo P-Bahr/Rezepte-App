@@ -105,7 +105,7 @@
     ['Dessert', /\b(dessert|nachtisch|mousse|pudding|tiramisu|panna cotta|eis\b|creme brulee|crème|kompott|parfait)\b/i],
     ['Suppe', /(suppe|eintopf|soup|chili con carne)/i],
     ['Salat', /(salat|salad|bowl)\b/i],
-    ['Sauce & Dip', /\b(sauce|soße|dip|pesto|dressing|aioli|hummus|guacamole|chutney)\b/i],
+    ['Sauce & Dip', /(sauce|soße|dip\b|pesto|dressing|aioli|hummus|guacamole|chutney|kräuterbutter|knoblauchbutter|aufstrich|tzatziki|remoulade|mayonnaise|mayo\b|ketchup|salsa\b|frischkäsecreme)/i],
     ['Beilage', /\b(beilage|kartoffelgratin|püree|pommes|ofenkartoffeln|reis|side)\b/i],
     ['Vorspeise', /\b(vorspeise|antipasti|bruschetta|starter|appetizer)\b/i],
     ['Snack', /\b(snack|fingerfood|häppchen|wraps?)\b/i]
@@ -183,6 +183,19 @@
       }
     }
     if (best) return best;
+    // Name nur aus Grundzutaten ("Kräuterbutter", "Knoblauchöl"): die zuletzt genannte Grundzutat
+    {
+      let st = '', stPos = -1;
+      for (const line of ingredients) {
+        const p = Sc.parseIngredient(Sc.normalizeIngredient(line));
+        if (!p.name || !isStaple(p.name)) continue;
+        const n = (noun(p.name) || '').toLowerCase().replace(/(en|n|e|s)$/, '');
+        if (n.length < 3 || /^(salz|pfeffer|wasser|zucker|ei|eier)/.test(n)) continue;
+        const pos = head.lastIndexOf(n);
+        if (pos > stPos) { stPos = pos; st = p.name; }
+      }
+      if (st && stPos >= 0 && !/[\s-]/.test(head.slice(stPos))) return st;
+    }
     // Nichts vor "mit": die zuerst genannte Zutat im ganzen Namen ("Eintopf mit Kartoffeln & Würstchen" -> Kartoffeln)
     const whole = String(title || '').toLowerCase();
     let first = '', firstPos = Infinity;
@@ -257,6 +270,10 @@
     // Zielgruppe gehört nicht in den Namen: "für Kinder und Familie", "für die ganze Familie", "kindgerecht"
     t = t.replace(/\s*[–—-]?\s*\(?\b(?:für|for)\s+(?:die\s+(?:ganze\s+)?|kleine\s+|große\s+(?:und\s+kleine\s+)?)?(?:kinder|kids|babys?|kleinkinder|familien?|groß\s+und\s+klein|jung\s+und\s+alt)(?:\s+(?:und|&|\+)\s+(?:die\s+(?:ganze\s+)?)?(?:kinder|kids|familien?|erwachsene))?\)?(?=\s*$|\s*[–—|,:(])/giu, '')
       .replace(/\s*[–—-]?\s*\(?\b(?:kindgerecht|kinderfreundlich|familienfreundlich|kinderleicht|baby-?led[- ]?weaning|blw)\)?(?=\s*$|\s*[–—|,:(])/giu, '');
+    // "Kräuterbutter selber machen", "Brot selbst backen", "Selbstgemachtes Granola"
+    t = t.replace(/\s+(?:ganz\s+)?(?:einfach\s+)?(?:selber|selbst)\s+(?:machen|gemacht|herstellen|backen|kochen|zubereiten)\s*$/iu, '')
+      .replace(/\s+(?:einfach\s+|schnell\s+)?(?:zubereiten|zubereitet|machen|gemacht)\s*$/iu, '')
+      .replace(/^(?:selbst|selber)\s*gemachte[rsn]?\s+(?=\p{L})/iu, '');
     // "Kinder Nudelsalat" / "Baby Brei" (mit Leerzeichen, nicht "Kinder-Pizza")
     t = t.replace(/^(?:[Kk]inder|[Kk]ids|[Bb]aby|[Ff]amilien)\s+(?=\p{Lu})/u, '');
     // "Besser als vom Bäcker, …" / "… unfassbar lecker!"

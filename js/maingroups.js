@@ -11,7 +11,7 @@
     ['Kartoffeln', /kartoffel|pommes|kroketten|rösti/],
     ['Reis & Getreide', /reis|risotto|couscous|bulgur|quinoa|hirse|hafer|grieß|polenta|graupen|dinkel|brot|toast|brötchen|tortilla|wraps?\b|teig|baguette|ciabatta|fladen|pizza|mehl/],
     ['Hülsenfrüchte', /linse|bohne|kichererbse|tofu|tempeh|soja|edamame|hummus/],
-    ['Käse & Eier', /käse|feta|mozzarella|parmesan|halloumi|ricotta|mascarpone|quark|joghurt|skyr|burrata|gouda|cheddar|camembert|brie|\bei\b|eier|milch|sahne|schmand|creme fraîche|crème fraîche/],
+    ['Käse & Eier', /butter|käse|feta|mozzarella|parmesan|halloumi|ricotta|mascarpone|quark|joghurt|skyr|burrata|gouda|cheddar|camembert|brie|\bei\b|eier|milch|sahne|schmand|creme fraîche|crème fraîche/],
     ['Obst', /apfel|äpfel|birne|banane|beere|erdbeer|himbeer|heidelbeer|blaubeer|johannisbeer|kirsch|pflaume|zwetschg|aprikose|pfirsich|nektarine|mango|ananas|melone|orange|mandarine|zitrone|limette|kiwi|rhabarber|traube|obst|frucht|früchte|feige|dattel|kokos|granatapfel|maracuja|papaya/],
     ['Gemüse', /gemüse|zucchini|paprika|tomate|karotte|möhre|brokkoli|broccoli|blumenkohl|spinat|kohl|lauch|porree|zwiebel|pilz|champignon|aubergine|kürbis|spargel|gurke|salat|kohlrabi|sellerie|fenchel|bete|erbse|mais|avocado|mangold|rucola|radieschen|pastinake|rübe|artischocke|okra|bärlauch|kräuter|knoblauch|chili|oliven|rettich|schwarzwurzel|topinambur|wirsing|sauerkraut/]
   ];
