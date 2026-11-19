@@ -33,7 +33,16 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - 25 Beispielrezepte; unter „Sammlungen“ hinzufügen oder alle auf einmal entfernen
 - Online-Abgleich (Supabase): Anmeldung mit E-Mail und Passwort, Rezepte, Sammlungen und Fotos auf allen Geräten; funktioniert auch offline und gleicht später ab; wurde ein Rezept auf zwei Geräten geändert, zeigt ein Fenster beide Versionen zur Auswahl
 
-**Als Nächstes (Import + KI):**
+**Als Nächstes (Import), abgesprochene Reihenfolge:**
+1. Rezeptseiten importieren über die eingebetteten Rezeptangaben (schema.org), kostenlos
+2. TikTok-Beschreibung abrufen (oEmbed) und mit der eigenen Zutatenerkennung zerlegen, kostenlos
+3. **Bildschirmfotos importieren (Pflicht):** Foto(s) teilen oder auswählen; Texterkennung kostenlos in der App, optional per KI genauer (ca. 1 Cent)
+4. Instagram prüfen (offizieller Zugang nötig)
+5. Eigene Mini-KI für Rezeptart, Hauptzutat, Zubereitung (in der App, kostenlos)
+6. Zählen pro Konto und Obergrenze für KI-Importe gleich mit einbauen
+Kein Auslesen direkt aus Videos (bewusst weggelassen).
+
+**Technische Notizen Import + KI:**
 - Import-Funktion als Supabase Edge Function (kein weiteres Konto nötig); liest Webseiten, später TikTok/Instagram/Pinterest
 - Dafür nötig: ein Claude-API-Schlüssel (console.anthropic.com), sicher als Geheimnis in Supabase hinterlegt, nie in der App
 - Doppelte-Rezepte-Prüfung (js/dupes.js) auch beim Import anwenden
