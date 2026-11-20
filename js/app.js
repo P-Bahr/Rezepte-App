@@ -362,7 +362,7 @@
       head('Gleiches Gericht, ' + group.length + '-mal', closeDialog),
       h('div', { class: 'dlg-scroll' },
         diff.common.length ? h('p', { class: 'dup-common' }, h('b', { text: 'In allen: ' }), diff.common.join(', ')) : null,
-        h('p', { class: 'hint' }, h('b', { text: '＋' }), ' nur in diesem Rezept · ', h('b', { text: '≠' }), ' andere Menge. Empfohlen wird das vollständigste Rezept; Favoriten zählen besonders.'),
+        h('p', { class: 'hint' }, h('b', { class: 'dup-key', text: '＋' }), ' nur in diesem Rezept · ', h('b', { class: 'dup-key', text: '≠' }), ' andere Menge. Empfohlen wird das vollständigste Rezept; Favoriten zählen besonders.'),
         h('div', { class: 'dup-list' }, rec.ranked.map(card))),
       foot));
   }

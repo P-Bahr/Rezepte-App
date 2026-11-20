@@ -517,7 +517,9 @@ dialog:focus { outline: none; }
 .dup-marks { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
 .dup-marks li { display: flex; gap: 8px; align-items: baseline; padding: 4px 10px; border-radius: 10px; background: var(--chip); font-weight: 600; }
 .dup-marks .dup-amount { font-weight: 400; }
-.dup-sign { flex: none; width: 1.2em; text-align: center; font-weight: 800; }
+.dup-sign { flex: none; width: 1.3em; text-align: center; font-size: 28px; line-height: 1; font-weight: 900; align-self: center; }
+.dup-marks li { align-items: center; }
+.hint .dup-key { font-size: 24px; font-weight: 900; vertical-align: -2px; }
 .dup-oven { font-size: 16px; font-weight: 600; }
 .dup-body { grid-column: 1 / -1; display: grid; gap: 6px; }
 .dup-body .btn { justify-self: start; }
