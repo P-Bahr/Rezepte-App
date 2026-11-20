@@ -74,7 +74,7 @@ const OUT = process.argv[2] || '.';
   await p.click('#chipOnePot');
   const opTitles = (await p.$$eval('.tile-title', e => e.map(x => x.textContent))).sort().join(', ');
   const opCol = await p.evaluate(id => Store.recipe(id).collectionId, op[0]);
-  assert(opTitles.includes('One-Pot-Pasta') && opTitles.includes('Ofengemüse vom Blech') && !opTitles.includes('Brownies') && opCol === 'col-topf', 'Chip „One Pot“ zeigt Eintopf-/Blechgerichte, Rezept bleibt zusätzlich in „Topf“: ' + opTitles);
+  assert(opTitles.includes('One-Pot-Pasta') && opTitles.includes('Ofengemüse vom Blech') && !opTitles.includes('Brownies') && !opTitles.includes('Apfelkuchen vom Blech') && opCol === 'col-topf', 'Chip „One Pot“ zeigt Eintopf-/Blechgerichte, Rezept bleibt zusätzlich in „Topf“: ' + opTitles);
   await p.click('#chipOnePot');
   await p.evaluate(ids => ids.forEach(id => Store.deleteRecipe(id)), op);
   // Hauptzutat als feste Gruppen
