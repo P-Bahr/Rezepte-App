@@ -108,7 +108,7 @@
     ['Sauce & Dip', /(sauce|soße|dip\b|pesto|dressing|aioli|hummus|guacamole|chutney|kräuterbutter|knoblauchbutter|aufstrich|tzatziki|remoulade|mayonnaise|mayo\b|ketchup|salsa\b|frischkäsecreme)/i],
     ['Beilage', /\b(beilage|kartoffelgratin|püree|pommes|ofenkartoffeln|reis|side)\b/i],
     ['Vorspeise', /\b(vorspeise|antipasti|bruschetta|starter|appetizer)\b/i],
-    ['Snack', /(snack|fingerfood|häppchen|wraps?\b|sandwich|toast\b|stulle|panini|bagel)/i]
+    ['Snack', /(snack|fingerfood|häppchen|wraps?\b|sandwich|toast\b|stulle|panini|bagel|fruchtzwerg|energy ?balls?|müsliriegel|nuggets)/i]
   ];
   const CATEGORY_MAP = [
     [/haupt|main|dinner|abendessen|mittagessen|lunch/i, 'Hauptgericht'], [/dessert|nachspeise|nachtisch|süßspeise/i, 'Dessert'],
@@ -355,7 +355,7 @@
       const link = st.findIndex(x => /https?:\/\/|www\.|@\w|#\w/.test(x));
       if (link >= 0) hints.push('Schritt ' + (link + 1) + ' enthält einen Link oder Hashtag.');
     }
-    if (info.servingsGuessed && (!r.servingsUnit || r.servingsUnit === 'Personen')) hints.push('Für wie viele Personen? Die Quelle sagt es nicht – angenommen: ' + (r.servings || 4) + '.');
+    // Keine Portionsangabe: einfach 4 Personen, ohne Hinweis
     if (info.courseGuessed) hints.push('Rezeptart nur geraten: „' + (r.course || 'Hauptgericht') + '“.');
     if (!r.mainIngredient) hints.push('Keine Hauptzutat erkannt.');
     if ((r.title || '').length > 45) hints.push('Der Name ist sehr lang – kürzen?');

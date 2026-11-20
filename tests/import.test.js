@@ -273,7 +273,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(JSON.stringify(dual) === JSON.stringify(['50 g Butter, geschmolzen', '600 g Frischkäse', '175 g Zucker', '2 EL Mehl (Type 405)', '450 g Pflaumentomaten', '50 g Butter', '125 g flour', '125 g Graham Cracker Krümel']), 'Nur metrische Angabe bleibt, Rest direkt umgerechnet: ' + dual.join(' | '));
   // Prüf-Hinweise
   let hs = I.reviewHints({ title: 'Nudelsalat', ingredients: ['250 g Nudeln', 'Gurke', 'Salz', '300 g Mehl', '250 g Mehl'], steps: ['Alles mischen.'], mainIngredient: '', servings: 4, servingsUnit: 'Personen', importInfo: { how: 'text', servingsGuessed: true, courseGuessed: true }, course: 'Hauptgericht' });
-  ok(hs.some(x => /Seitentext/.test(x)) && hs.some(x => /Ohne Mengenangabe: Gurke\./.test(x)) && hs.some(x => /doppelt: Mehl/.test(x)) && hs.some(x => /Personen\?.*4/.test(x)) && hs.some(x => /Rezeptart nur geraten/.test(x)) && hs.some(x => /Keine Hauptzutat/.test(x)), 'Prüf-Hinweise sagen genau, worauf zu achten ist: ' + hs.join(' / '));
+  ok(hs.some(x => /Seitentext/.test(x)) && hs.some(x => /Ohne Mengenangabe: Gurke\./.test(x)) && hs.some(x => /doppelt: Mehl/.test(x)) && !hs.some(x => /Personen/.test(x)) && hs.some(x => /Rezeptart nur geraten/.test(x)) && hs.some(x => /Keine Hauptzutat/.test(x)), 'Prüf-Hinweise sagen genau, worauf zu achten ist: ' + hs.join(' / '));
   ok(I.reviewHints({ title: 'Linsensuppe', ingredients: ['250 g Linsen', '1 Zwiebel', '1 l Brühe'], steps: ['Kochen.'], mainIngredient: 'Linsen', servings: 4 }).length === 0, 'Vollständiges Rezept: keine Hinweise');
 
   // Hühnereier sind kein Hähnchen; Werbung und "Gewürze:" in Zutaten
