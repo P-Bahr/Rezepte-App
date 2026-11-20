@@ -147,9 +147,11 @@
   const STAPLE_END = /(salz|pfeffer|zucker|wasser|öl|butter|mehl|backpulver|natron|hefe|essig|gewürz|gewürze|brühe|fond|milch|sahne|kräuter|zimt|muskat|honig|senf|pulver)$/i;
   const STAPLE_WORD = /^(knoblauch|knoblauchzehen?|zehen?|zwiebeln?|ei|eier|eigelbe?|eiweiße?|eiklar|hühnereier?|petersilie|schnittlauch|chili|chiliflocken|vanilleschote|lorbeerblätter?|thymian|rosmarin|basilikum|dill)$/i;
   // Hauptwort einer Zutat: vor Komma/Klammer, letztes Wort ("300 g Bergkäse, gerieben" -> "Bergkäse")
+  // Hauptwort einer Zutat: vor Komma/Klammer/"mit …", das letzte großgeschriebene Wort ("Mandelmus mit Zimt vermischt" -> Mandelmus)
   function noun(name) {
-    const words = String(name).split(/[,(]/)[0].trim().split(/\s+/).filter(Boolean);
-    return words[words.length - 1] || '';
+    const words = String(name).split(/[,(]|\s(?:mit|und|oder|für|zum|zur|in|nach)\s/)[0].trim().split(/\s+/).filter(Boolean);
+    const caps = words.filter(w => /^\p{Lu}/u.test(w));
+    return (caps.length ? caps[caps.length - 1] : words[words.length - 1]) || '';
   }
   const isStaple = name => { const n = noun(name).toLowerCase(); return !n || STAPLE_END.test(n) || STAPLE_WORD.test(n); };
   // Hauptzutat aus dem Rezeptnamen: "Kohlrabi-Karotten-Nudeln" -> Nudeln (das Grundwort steht hinten),
@@ -173,7 +175,7 @@
         }
         continue;
       }
-      const name = p.name.replace(/\s+(nach (wahl|belieben|geschmack)|zum \p{L}+|für \p{L}+.*)$/iu, '');
+      const name = p.name.replace(/\s+(nach (wahl|belieben|geschmack)|zum \p{L}+|für \p{L}+.*)$/iu, '').split(/\s(?:mit|und|oder)\s/)[0];
       const stemOf = x => de(x).replace(/(innen|en|n|e|s)$/, '');
       const headWords = head.split(/[\s-]+/).filter(w => w.length >= 4);
       for (const word of name.split(/[\s,]+/).filter(w => /^\p{Lu}/u.test(w))) {
@@ -209,7 +211,7 @@
     for (const line of ingredients) {
       const p = Sc.parseIngredient(Sc.normalizeIngredient(line));
       if (!p.name || isStaple(p.name)) continue;
-      for (const word of p.name.split(/[\s,]+/).filter(w => /^\p{Lu}/u.test(w))) {
+      for (const word of p.name.split(/\s(?:mit|und|oder)\s/)[0].split(/[\s,]+/).filter(w => /^\p{Lu}/u.test(w))) {
         const stem = word.toLowerCase().replace(/(innen|en|n|e|s)$/, '');
         if (stem.length < 3) continue;
         const pos = whole.indexOf(stem);
@@ -230,8 +232,8 @@
       const v = Sc.parseNum(String(p.amount).split('–')[0]);
       let g = isNaN(v) ? 0 : v;
       const u = (p.unit || '').toLowerCase();
-      if (u === 'kg' || u === 'l') g *= 1000; else if (u === 'g' || u === 'ml') g *= 1; else if (!u) g *= 120; else g *= 15;
-      if (g < 50) return; // Gewürzmengen ("½ TL Zitronenschale") sind nie die Hauptzutat
+      if (u === 'kg' || u === 'l') g *= 1000; else if (u === 'g' || u === 'ml') g *= 1; else if (!u) g *= /dattel|feige|olive|nuss|nüsse|mandel|kirsche|beere|knoblauch|chili|schalotte|champignon|radieschen|cracker|keks|zweig|blatt|blätter/i.test(p.name) ? 10 : 120; else g *= 15;
+      if (/^(tl|el|prise|msp|messerspitze|spritzer|tropfen|teelöffel|esslöffel)/.test(u) || g < 15) return; // Gewürzmengen ("½ TL Zitronenschale") sind nie die Hauptzutat
       const score = g - i; // bei Gleichstand: weiter oben gewinnt
       if (score > bestScore) { bestScore = score; best = p.name; }
     });
@@ -479,6 +481,8 @@
   const HEAD_ING = /^(zutaten|ingredients?|du brauchst|ihr braucht|für den teig|für die füllung|einkaufsliste)\b[:\s]*$/i;
   const HEAD_STEP = /^(zubereitung|anleitung|so geht'?s|so wird'?s gemacht|instructions?|steps?|method|schritte)\b[:\s]*$/i;
   const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu;
+  // Emoji (auch mehrere) direkt vor einer Zahl oder einem großgeschriebenen Wort = Aufzählungszeichen
+  const EMOJI_BULLET = /\s*[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}][\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]*\s*(?=[\p{Lu}\d½¼¾⅓])/gu;
   // Typische Verben in Zubereitungsschritten (ganze Wörter)
   const STEP_VERB = /(?<![\p{L}])(kochen|durchpressen|pressen|rühren|verrühren|unterrühren|unterheben|würzen|formen|backen|ausbacken|braten|anbraten|schneiden|hacken|geben|mischen|vermischen|vermengen|kneten|schälen|reiben|servieren|garen|köcheln|erhitzen|schmelzen|abgießen|abschrecken|vorheizen|bestreuen|anrichten|füllen|legen|verteilen|stellen|pürieren|aufkochen|abschmecken|fetten|einfetten|wenden|zugeben|hinzufügen|dünsten|anschwitzen|ablöschen|ruhen|abkühlen|abtropfen|zerdrücken|aufschlagen|schlagen)(?![\p{L}])/iu;
   // Lange Absätze in einzelne Schritte teilen: erst nach Sätzen, dann an Kommas nach einem Kochverb
@@ -634,9 +638,14 @@
 
   function fromText(text, hint) {
     hint = hint || {};
+    // Einzeiliger Text (TikTok): doppelte Leerzeichen sind ehemalige Zeilenumbrüche
+    if (!/\n/.test(String(text || ''))) text = String(text || '').replace(/ {2,}/g, '\n');
     let lines = String(text || '')
       // Zahl-Emojis (1️⃣) und Aufzählungszeichen mitten im Text -> neue Zeile
       .replace(/(\d)\uFE0F?\u20E3\s*/g, '\n')
+      .replace(/[’`´]/g, "'")
+      // Emojis als Aufzählungszeichen ("🤎40 g Haferflocken 🤎150 ml Sojamilch") -> neue Zeile
+      .replace(EMOJI_BULLET, '\n')
       .replace(EMOJI, ' ')
       .replace(/\s[*•·▪︎]\s+/g, '\n')
       // "… Zutaten: 3 Bananen, … Zubereitung: …" -> eigene Zeilen
@@ -645,7 +654,10 @@
       .replace(/\s*\b((?:zutaten|ingredients)\s+(?:für|for)\s+[^:\n.]{1,25}):/gi, '\n$1:\n')
       // Kurze Zwischenüberschrift nach Satzende ("… (ca. 4 EL) Das steckt drin: …", "… wird. Haltbarkeit: …")
       .replace(/(?<=[.!?)\]])\s+((?:[\p{L}\d-]+ ){0,5}[\p{L}-]+:)(?=\s|$)/gu, '\n$1\n')
-      .split(/\r?\n|(?<=[.!])\s+(?=\d{1,2}[.)]\s)/)
+      // Zwischenüberschriften ohne Doppelpunkt mitten im Fließtext ("… Prise Zimt Topping …", "… vermischt So geht's 1. …")
+      .replace(/\s+(?=(?:so geht'?s|so wird'?s gemacht|zubereitung|anleitung)\b(?!\s*:))/gi, '\n')
+      .replace(/\b(so geht'?s|so wird'?s gemacht)\s+(?=\d{1,2}\.\s)/gi, '$1\n')
+      .split(/\r?\n|(?<=[.!)])\s+(?=\d{1,2}[.)]\s)|\s(?=\d{1,2}\.\s+\p{Lu})/u)
       .map(l => l.replace(/#[\p{L}\p{N}_]+/gu, '').replace(/^[\s•·*\-–—>]+/, '').replace(/\s+/g, ' ').trim())
       .filter(l => l && !/^@\w/.test(l));
     let title = hint.title || '';
@@ -665,6 +677,7 @@
       if (/^(werbung|anzeige|\*?affiliate)\b/i.test(l)) continue;
       // Zwischenüberschrift bei den Zutaten ("Für die Streusel:", auch mit Tippfehler "Fur die …") -> weiter Zutaten
       if (/^(für|fur|fuer|for|zum|zur)\s+(?:den|die|das|the)?\s*[\p{L} -]{2,30}:$/iu.test(l) && (mode === 'ing' || ingredients.length)) { mode = 'ing'; continue; }
+      if (/^(topping|toppings|deko|dekoration|garnitur|teig|boden|füllung|creme|soße|sauce|dressing|glasur|streusel|marinade|für das topping|für die soße|für den teig)\s*:?$/i.test(l) && (mode === 'ing' || ingredients.length)) { mode = 'ing'; continue; }
       // Nummerierter Schritt nach einem Einschub -> wieder Zubereitung
       if (mode === 'other' && st.length && /^\d{1,2}[.)]\s/.test(l)) mode = 'step';
       const inlineHead = l.match(/^(zutaten|ingredients?|zubereitung|anleitung|so geht'?s)\s*:\s*(.+)$/i);
@@ -748,7 +761,7 @@
     }
     for (let i = st.length - 1; i >= 0; i--) if (isFluffLine(st[i])) st.splice(i, 1);
     const d = {
-      title: title || 'Importiertes Rezept', ingredients, steps: splitSteps(st.map(tidyStep)).filter(x => x && !/^(anrichten|servieren)?[.!]*$/i.test(x) || /^(anrichten|servieren)/i.test(x)),
+      title: title || 'Importiertes Rezept', ingredients, steps: splitSteps(st.map(tidyStep)).filter(x => /\p{L}{2}/u.test(x)).filter(x => x && !/^(anrichten|servieren)?[.!]*$/i.test(x) || /^(anrichten|servieren)/i.test(x)),
       notes: hint.ocr ? '' : cutNotes(other.join('\n'), 3000), // bei Fotos ist der Rest meist Begleittext
       servings: 4, servingsUnit: 'Personen', formSize: '',
       imageUrl: hint.image || '', sourceUrl: hint.url || ''
@@ -759,7 +772,7 @@
       d.servingsUnit = /stück|stk|plätzchen|muffins/i.test(servingsFound.unit) ? 'Stück' : /gläser/i.test(servingsFound.unit) ? 'Gläser' : /blech/i.test(servingsFound.unit) ? 'Blech' : 'Personen';
     } else if (sv) d.servings = parseInt(sv[1], 10);
     else d.servingsGuessed = true;
-    return withGuesses(d);
+    return withGuesses(d, [], [d.notes || '']); // Begleittext ("… zum Frühstück") hilft beim Raten der Rezeptart
   }
 
   // Ergebnis des Server-Programms -> Entwurf (oder null, wenn kein Rezept erkennbar)

@@ -306,6 +306,12 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(I.mainFor({ title: 'Brownie Cookies', course: 'Dessert', ingredients: ['200 g Haferflocken', '100 g Backkakao'] }) === '' && I.mainFor({ title: 'Apfelkuchen', course: 'Gebäck', ingredients: ['1 kg Äpfel', '200 g Mehl'] }) === 'Äpfel', 'Dessert/Gebäck/Snack: Hauptzutat nur aus dem Namen');
   ok(!I.reviewHints({ title: 'Kekse', course: 'Gebäck', ingredients: ['200 g Mehl', '100 g Butter', '50 g Zucker'], steps: ['Backen.'], mainIngredient: '' }).some(x => /Hauptzutat/.test(x)), 'Gebäck ohne Hauptzutat: kein Prüf-Hinweis');
 
+  // TikTok mit Emojis als Aufzählung, "Topping" ohne Doppelpunkt, "So geht’s" mit typografischem Apostroph, alles in einer Zeile
+  d = I.toDraft({ kind: 'tiktok', url: 'u', text: 'Zimtschnecke zum Löffeln 🍥 Cremig, fest, fast wie Pudding, und das schon zum Frühstück. Rund 20 g Eiweiß 🤎 Zutaten (1 Portion) 🤎40 g Haferflocken 🤎150 ml Sojamilch 🤎1 TL Chiasamen 🤎1 Dattel 🤎1 ordentliche Prise Zimt  Topping 🤎Sojajoghurt 🤎1 TL Mandelmus mit Zimt vermischt So geht’s 1. Alle Zutaten glatt pürieren. (Außer die für das Topping) 2. Kurz ziehen lassen. 3. Joghurt darauf verteilen. 4.  Speicher dir das Rezept für dein nächstes Frühstück 📌' }).draft;
+  ok(d.title === 'Zimtschnecke zum Löffeln' && d.servings === 1, 'TikTok mit 🤎-Aufzählung: Name und 1 Portion: ' + d.title);
+  ok(JSON.stringify(d.ingredients) === JSON.stringify(['40 g Haferflocken', '150 ml Sojamilch', '1 TL Chiasamen', '1 Dattel', '1 ordentliche Prise Zimt', 'Sojajoghurt', '1 TL Mandelmus mit Zimt vermischt']), 'TikTok mit 🤎-Aufzählung: Zutaten einzeln, „Topping“ ist Zwischenüberschrift: ' + d.ingredients.join(' | '));
+  ok(d.steps.length === 3 && /^Alle Zutaten/.test(d.steps[0]) && d.course === 'Frühstück' && d.mainIngredient === 'Haferflocken', 'TikTok: 3 Schritte (ohne Werbung, ohne „4.“), Frühstück aus dem Begleittext, Hauptzutat Haferflocken: ' + JSON.stringify(d.steps) + ' ' + d.course + ' ' + d.mainIngredient);
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },
