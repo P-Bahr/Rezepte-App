@@ -68,6 +68,9 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   });
   const p = await ctx.newPage();
   const errs = []; p.on('pageerror', e => errs.push(e.message));
+  global.__nullWatch = [];
+  const origClick = p.click.bind(p);
+  p.click = async (...a) => { const r = await origClick(...a); await p.waitForTimeout(30); try { const t = await p.evaluate(() => (document.body.innerText.match(/(^|\s)null(\s|$)/m) || [null])[0] ? document.body.innerText.slice(Math.max(0, document.body.innerText.search(/(^|\s)null(\s|$)/m) - 40), document.body.innerText.search(/(^|\s)null(\s|$)/m) + 10) : ''); if (t) global.__nullWatch.push(String(a[0]) + ': ' + t.replace(/\s+/g, ' ')); } catch (e) { /* Seite wechselt */ } return r; };
   await p.goto(URL);
   await p.click('button:has-text("Beispielrezepte laden")'); await p.waitForTimeout(300);
 
@@ -318,6 +321,8 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
 
   // Kopfzeile auf dem Handy: keine seitliche Verschiebung
   assert(await p.evaluate(() => document.documentElement.scrollWidth) <= 390, 'Kopfzeile passt aufs Handy');
+  if (!global.__nullWatch) global.__nullWatch = [];
+  assert(global.__nullWatch.length === 0, 'Nirgends „null“ auf dem Bildschirm ' + global.__nullWatch.join(' | '));
   assert(errs.length === 0, 'Keine Skriptfehler ' + errs.join('; '));
   await b.close();
 })().catch(e => { console.error(e.message); process.exit(1); });

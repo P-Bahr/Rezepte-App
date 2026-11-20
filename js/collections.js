@@ -42,8 +42,8 @@
   // "One Pot": alles in einem Topf, einer Pfanne oder auf einem Blech (zusätzlich zur normalen Sammlung)
   const ONE_POT = /one[\s-]?pot|one[\s-]?pan|sheet[\s-]?pan|eintopf|ein[\s-]topf|(?:alles|alle zutaten)\s+(?:zusammen\s+)?(?:in|im)\s+(?:einem|einen|einer|den|die|dem)\s+(?:großen\s+)?(?:topf|pfanne|bräter|wok|kochtopf)|in\s+nur\s+einem\s+topf|aus\s+(?:einem|einer)\s+(?:topf|pfanne)|vom\s+blech|blechgericht|ofengericht vom blech/i;
   // Kuchen & Co. sind nie "One Pot", auch "vom Blech"
-  const NOT_ONE_POT = /kuchen|torte|brownie|plätzchen|kekse|cookies|muffins|schnitten|waffeln|brot\b|brötchen|pizza/i;
-  const isOnePot = r => !/^(Gebäck|Dessert|Snack|Getränk)$/.test(r.course || '') && !NOT_ONE_POT.test(r.title || '')
+  const NOT_ONE_POT = /soße|sauce|dip\b|pudding|kuchen|torte|brownie|plätzchen|kekse|cookies|muffins|schnitten|waffeln|brot\b|brötchen|pizza/i;
+  const isOnePot = r => !/^(Gebäck|Dessert|Snack|Getränk|Sauce & Dip|Beilage)$/.test(r.course || '') && !NOT_ONE_POT.test(r.title || '')
     && ONE_POT.test([r.title || '', (r.steps || []).join(' '), r.notes || ''].join(' '));
   window.RecipeCollections = { isOnePot, fromMethod, forRecipe, list, order, isAuto, FIXED_STAMP };
 })();

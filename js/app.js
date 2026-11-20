@@ -21,6 +21,7 @@
     favOnly: false,      // nur Favoriten zeigen
     reviewOnly: false,   // nur "Zu prüfen"
     onePotOnly: false,   // nur One-Pot-Gerichte
+    ings: [],            // gewählte Zutaten [{ key, label }] – Rezept muss alle enthalten
     depth: 0,            // wie viele Rezepte nacheinander per Antippen geöffnet wurden (für "Zurück")
     pushing: false       // gerade öffnet die App selbst ein Rezept
   };
@@ -74,7 +75,7 @@
     try {
       const f = {};
       for (const k in state.filters) f[k] = [...state.filters[k]];
-      sessionStorage.setItem('rezepte.ansicht', JSON.stringify({ q: state.query, f, fav: state.favOnly }));
+      sessionStorage.setItem('rezepte.ansicht', JSON.stringify({ q: state.query, f, fav: state.favOnly, ings: state.ings }));
     } catch (e) { /* nicht schlimm */ }
   }
   function restoreView() {
@@ -83,6 +84,7 @@
       if (!v) return;
       state.query = v.q || '';
       state.favOnly = !!v.fav;
+      state.ings = Array.isArray(v.ings) ? v.ings.filter(i => i && i.key && i.label) : [];
       for (const k in state.filters) state.filters[k] = new Set((v.f && v.f[k]) || []);
       // Früher gemerkte einzelne Hauptzutaten ("minuten") passen nicht mehr zu den Gruppen
       const groups = new Set(window.RecipeGroups.ORDER.map(facetKey));
@@ -105,6 +107,10 @@
     if (state.favOnly && skipKey !== 'fav' && !r.favorite) return false;
     if (state.reviewOnly && skipKey !== 'review' && !r.review) return false;
     if (state.onePotOnly && skipKey !== 'onepot' && !window.RecipeCollections.isOnePot(r)) return false;
+    if (state.ings.length && skipKey !== 'ings') {
+      const ks = window.RecipeIngredients.keysOf(r);
+      if (!state.ings.every(i => ks.has(i.key))) return false;
+    }
     for (const f of FACETS) {
       if (f.key === skipKey) continue;
       const sel = state.filters[f.key];
@@ -160,16 +166,54 @@
     renderFilters(scored.map(x => x.r));
     renderGrid(results.map(x => x.r), all.length);
 
-    const active = state.query.trim() || state.favOnly || state.reviewOnly || state.onePotOnly || FACETS.some(f => state.filters[f.key].size);
+    const active = state.query.trim() || state.favOnly || state.reviewOnly || state.onePotOnly || state.ings.length || FACETS.some(f => state.filters[f.key].size);
     $('#count').textContent = results.length === 1 ? '1 Rezept' : results.length + ' Rezepte';
     $('#btnReset').hidden = !active;
     // Anzahl aktiver Filter am Filter-Knopf (wichtig, wenn zugeklappt)
-    const nActive = (state.favOnly ? 1 : 0) + (state.reviewOnly ? 1 : 0) + (state.onePotOnly ? 1 : 0) + FACETS.reduce((n, f) => n + state.filters[f.key].size, 0);
+    const nActive = (state.favOnly ? 1 : 0) + (state.reviewOnly ? 1 : 0) + (state.onePotOnly ? 1 : 0) + state.ings.length + FACETS.reduce((n, f) => n + state.filters[f.key].size, 0);
     $('#filterBadge').textContent = nActive ? String(nActive) : '';
     $('#filterBadge').hidden = !nActive;
     $('#qClear').hidden = !state.query;
     $('#storageWarning').hidden = Store.storageOk;
     rememberView();
+  }
+
+  // Filterzeile "Zutaten": Zutat eintippen, Vorschlag antippen; Rezepte müssen alle gewählten Zutaten enthalten
+  let ingFocus = false;
+  function ingredientRow(searchHits) {
+    const I = window.RecipeIngredients;
+    const input = h('input', { type: 'search', id: 'ingInput', class: 'ing-input', placeholder: '+ Zutat', autocomplete: 'off', autocorrect: 'off', spellcheck: 'false', enterkeyhint: 'done', 'aria-label': 'Zutat hinzufügen' });
+    const suggest = h('div', { class: 'chips ing-suggest', id: 'ingSuggest', 'data-key': 'ings-suggest', hidden: true });
+    const add = item => {
+      if (!state.ings.some(i => i.key === item.key)) state.ings.push({ key: item.key, label: item.label });
+      ingFocus = true; render();
+    };
+    function update() {
+      const q = input.value.trim();
+      suggest.textContent = '';
+      if (!q) { suggest.hidden = true; return; }
+      const qs = I.stem(q), ql = q.toLowerCase();
+      // Vorschläge aus den Rezepten, die zu Suche und übrigen Filtern passen; Zahl = Treffer nach dem Hinzufügen
+      const pool = searchHits.filter(r => passesFilters(r));
+      const list = I.vocabulary(pool)
+        .filter(v => !state.ings.some(i => i.key === v.key))
+        .filter(v => v.key.startsWith(qs) || v.label.toLowerCase().split(/[\s-]/).some(w => w.startsWith(ql)) || v.label.toLowerCase().includes(ql))
+        .sort((a, b) => (b.key.startsWith(qs) - a.key.startsWith(qs)) || b.count - a.count || a.label.localeCompare(b.label, 'de'))
+        .slice(0, 8);
+      if (!list.length) { suggest.append(h('span', { class: 'hint', text: 'Keine passende Zutat in deinen Rezepten.' })); suggest.hidden = false; return; }
+      list.forEach(v => suggest.append(h('button', { type: 'button', class: 'chip', onclick: () => add(v) }, v.label, h('span', { class: 'n', text: String(v.count) }))));
+      suggest.hidden = false;
+    }
+    input.addEventListener('input', update);
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { e.preventDefault(); const first = suggest.querySelector('button.chip'); if (first) first.click(); }
+    });
+    const chips = h('div', { class: 'chips', 'data-key': 'ings', role: 'group', 'aria-label': 'Zutaten' },
+      state.ings.map(i => h('button', { type: 'button', class: 'chip', 'aria-pressed': 'true', 'aria-label': i.label + ' entfernen',
+        onclick: () => { state.ings = state.ings.filter(x => x.key !== i.key); render(); } }, i.label, h('span', { class: 'x', 'aria-hidden': 'true', text: '×' }))),
+      input);
+    if (ingFocus) { ingFocus = false; setTimeout(() => { const el = document.getElementById('ingInput'); if (el) el.focus(); }, 0); }
+    return h('div', { class: 'facet facet-ings', 'data-key': 'ings' }, h('span', { class: 'facet-label', text: 'Zutaten' }), chips, suggest);
   }
 
   function renderFilters(searchHits) {
@@ -255,6 +299,7 @@
       box.append(h('div', { class: 'facet' + (arranging ? ' arranging' : ''), 'data-key': f.key }, label, chips));
       if (scrollPos[f.key]) chips.scrollLeft = scrollPos[f.key];
     }
+    box.append(ingredientRow(searchHits));
     box.prepend(h('div', { class: 'facet-tools' }, h('button', {
       type: 'button', class: 'btn-link', id: 'btnArrange', onclick: () => { arranging = !arranging; render(); }
     }, arranging ? 'Fertig' : 'Reihenfolge ändern')));
@@ -281,9 +326,9 @@
       render(); toast('Ausgeblendet – unter Einstellungen wieder einblendbar');
     };
     const toReview = () => { resetAll(); state.reviewOnly = true; setFiltersOpen(true); render(); };
-    box.append(
+    box.append(...[
       h('h2', { id: 'startTitle', text: own ? 'Rezepte zusammentragen' : 'Willkommen! Woher kommen deine Rezepte?' }),
-      h('p', { class: 'hint', text: 'Hol deine Rezepte von überall an einen Ort. Danach kommen neue einfach dazu – über „Importieren“ oder das Teilen-Menü.' }),
+      h('p', { class: 'hint', text: 'Hol deine Rezepte von überall an einen Ort. Danach kommen neue einfach dazu – über „+ Hinzufügen“ oder das Teilen-Menü.' }),
       own ? h('p', { class: 'start-progress', id: 'startProgress' },
         h('b', { text: own === 1 ? '1 Rezept gesammelt' : own + ' Rezepte gesammelt' }),
         review ? ', ' + review + ' noch zu prüfen. ' : '.',
@@ -299,7 +344,8 @@
         Store.exampleCount() ? null : h('button', { type: 'button', class: 'btn', onclick: () => {
           try { const n = Store.loadExamples(); toast(n + ' Beispielrezepte geladen'); } catch (e) { toast(e.message); }
         } }, 'Beispielrezepte laden'),
-        h('button', { type: 'button', class: 'btn', id: 'startDone', onclick: dismiss }, own ? 'Fertig – ausblenden' : 'Ausblenden')));
+        h('button', { type: 'button', class: 'btn', id: 'startDone', onclick: dismiss }, own ? 'Fertig – ausblenden' : 'Ausblenden'))
+    ].filter(Boolean));
     return true;
   }
 
@@ -411,6 +457,7 @@
     state.favOnly = false;
     state.reviewOnly = false;
     state.onePotOnly = false;
+    state.ings = [];
     $('#q').value = '';
     for (const k in state.filters) state.filters[k].clear();
     render();

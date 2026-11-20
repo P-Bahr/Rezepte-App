@@ -34,9 +34,12 @@ const OUT = process.argv[2] || '.';
   const noCloud = c => c.route('**/js/config.js', r => r.fulfill({ contentType: 'text/javascript', body: "window.APP_CONFIG = { supabaseUrl: '', supabaseKey: '' };" }));
   await noCloud(ctx);
   const p = await ctx.newPage();
-  const errs = []; p.on('pageerror', e => errs.push(e.message)); p.on('console', m => m.type() === 'error' && errs.push(m.text()));
+  const errs = []; p.on('pageerror', e => errs.push(e.message));
+  global.__nullWatch = [];
+  const origClick = p.click.bind(p);
+  p.click = async (...a) => { const r = await origClick(...a); await p.waitForTimeout(30); try { const t = await p.evaluate(() => (document.body.innerText.match(/(^|\s)null(\s|$)/m) || [null])[0] ? document.body.innerText.slice(Math.max(0, document.body.innerText.search(/(^|\s)null(\s|$)/m) - 40), document.body.innerText.search(/(^|\s)null(\s|$)/m) + 10) : ''); if (t) global.__nullWatch.push(String(a[0]) + ': ' + t.replace(/\s+/g, ' ')); } catch (e) { /* Seite wechselt */ } return r; }; p.on('console', m => m.type() === 'error' && errs.push(m.text()));
   await p.goto(URL);
-  assert(await p.isVisible('#start h2:has-text("Woher kommen deine Rezepte?")') && await p.locator('#start .import-tile').count() === 6, 'Leere App: Startassistent mit allen Wegen');
+  assert(!(await p.textContent('#start')).includes('null') && await p.isVisible('#start h2:has-text("Woher kommen deine Rezepte?")') && await p.locator('#start .import-tile').count() === 6, 'Leere App: Startassistent mit allen Wegen');
   await p.click('#startShare');
   assert(await p.isVisible('dialog h2:has-text("Teilen einrichten")') && await p.isVisible('dialog li:has-text("Inhalte von URL abrufen")'), 'Startassistent: Anleitung fürs Teilen-Menü');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
@@ -122,9 +125,37 @@ const OUT = process.argv[2] || '.';
   await p.click('#chipOnePot');
   const opTitles = (await p.$$eval('.tile-title', e => e.map(x => x.textContent))).sort().join(', ');
   const opCol = await p.evaluate(id => Store.recipe(id).collectionId, op[0]);
-  assert(opTitles.includes('One-Pot-Pasta') && opTitles.includes('Ofengemüse vom Blech') && !opTitles.includes('Brownies') && !opTitles.includes('Apfelkuchen vom Blech') && opCol === 'col-topf', 'Chip „One Pot“ zeigt Eintopf-/Blechgerichte, Rezept bleibt zusätzlich in „Topf“: ' + opTitles);
+  assert(opTitles.includes('One-Pot-Pasta') && opTitles.includes('Ofengemüse vom Blech') && !opTitles.includes('Brownies') && !opTitles.includes('Apfelkuchen vom Blech') && !opTitles.includes('Vanillesoße') && opCol === 'col-topf', 'Chip „One Pot“ zeigt Eintopf-/Blechgerichte, Rezept bleibt zusätzlich in „Topf“: ' + opTitles);
   await p.click('#chipOnePot');
   await p.evaluate(ids => ids.forEach(id => Store.deleteRecipe(id)), op);
+  // Zutaten-Filter: mehrere Zutaten, Rezepte müssen alle enthalten
+  {
+    const ids = await p.evaluate(() => [
+      Store.saveRecipe({ title: 'Testpfanne A', ingredients: ['500 g Rinderhackfleisch', '2 rote Paprikaschoten', '1 Zwiebel'], steps: ['Braten.'] }).id,
+      Store.saveRecipe({ title: 'Testpfanne B', ingredients: ['300 g Hackfleisch', '1 TL Paprikapulver'], steps: ['Braten.'] }).id,
+      Store.saveRecipe({ title: 'Testsalat C', ingredients: ['1 Paprika (gelb)', '1 Gurke'], steps: ['Schneiden.'] }).id]);
+    await p.fill('#ingInput', 'hack');
+    await p.waitForSelector('#ingSuggest .chip');
+    const sug = await p.$$eval('#ingSuggest .chip', e => e.map(x => x.textContent));
+    assert(sug[0].startsWith('Hackfleisch'), 'Zutat eintippen: Vorschläge aus den Rezepten (' + sug.join(', ') + ')');
+    await p.click('#ingSuggest .chip:has-text("Hackfleisch")');
+    await p.waitForTimeout(150);
+    let t = (await p.$$eval('.tile-title', e => e.map(x => x.textContent))).filter(x => /^Test/.test(x)).sort().join(', ');
+    assert(t === 'Testpfanne A, Testpfanne B', 'Filter Hackfleisch (auch Rinderhackfleisch): ' + t);
+    await p.fill('#ingInput', 'papr');
+    await p.waitForSelector('#ingSuggest .chip');
+    await p.evaluate(() => [...document.querySelectorAll('#ingSuggest .chip')].find(b => /^Paprika\d/.test(b.textContent)).click());
+    await p.waitForTimeout(150);
+    t = (await p.$$eval('.tile-title', e => e.map(x => x.textContent))).filter(x => /^Test/.test(x)).sort().join(', ');
+    assert(t === 'Testpfanne A', 'Hackfleisch + Paprika: nur Rezepte mit beidem, „Paprikapulver“ zählt nicht: ' + t);
+    assert((await p.textContent('#filterBadge')) === '2', 'Filter-Zähler zählt die Zutaten mit');
+    await p.click('.chips[data-key=ings] .chip:has-text("Hackfleisch")');
+    await p.waitForTimeout(150);
+    t = (await p.$$eval('.tile-title', e => e.map(x => x.textContent))).filter(x => /^Test/.test(x)).sort().join(', ');
+    assert(t === 'Testpfanne A, Testsalat C', 'Zutat antippen entfernt sie wieder: ' + t);
+    await p.click('#btnReset');
+    await p.evaluate(ids => ids.forEach(id => Store.deleteRecipe(id)), ids);
+  }
   // Hauptzutat als feste Gruppen
   const groupChips = await p.$$eval('.chips[data-key=mainIngredient] .chip', e => e.map(x => x.firstChild.textContent.trim()));
   const allowed = await p.evaluate(() => window.RecipeGroups.ORDER);
@@ -134,7 +165,7 @@ const OUT = process.argv[2] || '.';
   assert(meat.length > 0 && await p.evaluate(t => t.every(x => window.RecipeGroups.groupOf(Store.recipes().find(r => r.title === x).mainIngredient) === 'Fleisch'), meat), 'Chip „Fleisch“ zeigt nur Fleischgerichte (' + meat.length + ')');
   await p.click('.chips[data-key=mainIngredient] .chip:has-text("Fleisch")');
   // Filterzeilen anordnen
-  const rowOrder = () => p.$$eval('.facet', e => e.map(x => x.dataset.key).join());
+  const rowOrder = () => p.$$eval('.facet:not(.facet-ings)', e => e.map(x => x.dataset.key).join());
   assert(await rowOrder() === 'collectionId,course,mainIngredient', 'Standard-Reihenfolge der Filterzeilen (ohne eigene Zeile „Zubereitung“)');
   await p.click('#btnArrange');
   assert(await p.isDisabled('[aria-label="Sammlung nach oben"]'), 'Oberste Zeile kann nicht weiter hoch');
@@ -491,6 +522,8 @@ const OUT = process.argv[2] || '.';
   await pp.fill('#q', '');
   await pp.locator('.tile').first().click(); await pp.waitForTimeout(200);
   await pp.screenshot({ path: OUT + '/phone-detail.png' });
+  if (!global.__nullWatch) global.__nullWatch = [];
+  assert(global.__nullWatch.length === 0, 'Nirgends „null“ auf dem Bildschirm ' + global.__nullWatch.join(' | '));
   assert(errs.length === 0, 'keine Skriptfehler ' + errs.join('; '));
   await b.close();
 })().catch(e => { console.error(e.message); process.exit(1); });
