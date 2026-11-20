@@ -284,7 +284,7 @@
         review ? h('button', { type: 'button', class: 'btn-link', onclick: () => { resetAll(); state.reviewOnly = true; setFiltersOpen(true); render(); } }, 'Jetzt prüfen') : null) : null,
       h('div', { class: 'import-tiles start-tiles' },
         tile('startApp', '📦', 'Aus anderer App', 'z. B. Recipe Keeper', () => openImport('', false, 'app')),
-        tile('startBoard', '📌', 'Pinterest', 'Ganze Pinnwand', () => openImport('', false, 'board')),
+        tile('startBoard', '📌', 'Pinterest', 'Bis zu 50 Pins je Pinnwand', () => openImport('', false, 'board')),
         tile('startShare', '📲', 'TikTok, Instagram & Co.', 'Über „Teilen“ sammeln', openShareGuide),
         tile('startPhotos', '📷', 'Bildschirmfotos', 'Viele auf einmal', () => openImport('', false, 'photos')),
         tile('startLink', '🔗', 'Link oder Text', 'Webseite, WhatsApp …', () => openImport('')),
@@ -1028,7 +1028,7 @@
         h('h3', { class: 'import-more', text: 'Weitere Wege' }),
         h('div', { class: 'import-tiles' },
           tile('tilePhotos', '📷', 'Bildschirmfotos', 'Rezept aus Video oder Bild', () => show('photos')),
-          tile('tileBoard', '📌', 'Pinterest-Pinnwand', 'Viele Pins auf einmal', () => show('board')),
+          tile('tileBoard', '📌', 'Pinterest-Pinnwand', 'Bis zu 50 Pins auf einmal', () => show('board')),
           tile('tileApp', '📦', 'Aus anderer App', 'z. B. Recipe Keeper', () => show('app')),
           tile('tileManual', '✍️', 'Selbst eintragen', 'Leeres Rezept', () => openEdit(null))));
       form.addEventListener('paste', e => { // Bild einfügen -> Texterkennung
