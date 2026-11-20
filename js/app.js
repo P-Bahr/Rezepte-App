@@ -909,15 +909,10 @@
       if (d.title === 'Importiertes Rezept') d.title = '';
       openEdit(null, { ...d, fromText: true });
     }
-    const paste = h('button', { type: 'button', class: 'btn', id: 'importPaste' }, '📋 Einfügen');
-    paste.addEventListener('click', async () => {
-      reset();
-      try {
-        const t = await navigator.clipboard.readText();
-        if (!t) { say(msg, 'Die Zwischenablage ist leer. Erst den Link oder Text kopieren.'); return; }
-        input.value = t.trim();
-        run();
-      } catch (e) { say(msg, 'Einfügen ist hier nicht erlaubt. Bitte lange ins Feld tippen und „Einsetzen“ wählen.'); input.focus(); }
+    // Eingesetzt (lange tippen -> "Einsetzen"): gleich loslegen
+    input.addEventListener('paste', e => {
+      const hasFiles = e.clipboardData && e.clipboardData.files && e.clipboardData.files.length;
+      if (!hasFiles) setTimeout(() => { if (input.value.trim()) run(); }, 0);
     });
 
     // ---- Bildschirmfotos ----
@@ -1025,8 +1020,8 @@
           h('button', { type: 'button', class: 'btn btn-primary', id: 'importInbox', onclick: () => window.RecipeInbox.importAll() }, inbox === 1 ? 'Jetzt importieren' : 'Alle importieren')) : null,
         h('div', { class: 'field' },
           h('label', { for: 'importUrl', text: 'Link oder Rezepttext' }), input,
-          h('span', { class: 'hint', text: 'Die App erkennt selbst, ob es ein Link oder ein Rezepttext ist (z. B. aus WhatsApp).' })),
-        h('div', { class: 'pick-actions' }, paste, go, manual),
+          h('span', { class: 'hint', text: 'Lange ins Feld tippen und „Einsetzen“ – der Import startet dann von selbst. Die App erkennt, ob es ein Link oder ein Rezepttext ist (z. B. aus WhatsApp).' })),
+        h('div', { class: 'pick-actions' }, go, manual),
         msg, status,
         h('h3', { class: 'import-more', text: 'Weitere Wege' }),
         h('div', { class: 'import-tiles' },

@@ -156,7 +156,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }, [kinds, target]);
   await p.click('#btnImport');
-  assert(await p.isVisible('#importPaste') && await p.isVisible('#tilePhotos') && await p.isVisible('#tileBoard') && await p.isVisible('#tileApp') && await p.isVisible('#tileShare') && await p.isVisible('#tileManual'), 'Import-Start: ein Feld mit „Einfügen“, darunter Kacheln für die anderen Wege');
+  assert(!(await p.isVisible('#importPaste')) && await p.isVisible('#tilePhotos') && await p.isVisible('#tileBoard') && await p.isVisible('#tileApp') && await p.isVisible('#tileShare') && await p.isVisible('#tileManual'), 'Import-Start: ein Feld mit „Einfügen“, darunter Kacheln für die anderen Wege');
   await p.click('#tilePhotos');
   assert(await p.isVisible('label:has-text("Fotos für ein Rezept auswählen")') && await p.isVisible('label:has-text("je Rezept eins")') && await p.isVisible('#importBack'), 'Bildschirmfotos: „Ein Rezept“ und „Viele Rezepte“, mit „Zurück“');
   await p.click('#importBack');
@@ -188,12 +188,12 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   await p.click('#boardUndo'); await p.click('#boardUndoYes');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
 
-  // „Einfügen“-Knopf: Zwischenablage übernehmen und gleich auswerten
+  // Einsetzen ins Feld startet den Import von selbst
   await p.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new globalThis.URL(URL).origin });
   await p.evaluate(() => navigator.clipboard.writeText('Pudding\nZutaten:\n500 ml Milch\n1 Pck. Puddingpulver\nZubereitung:\nAufkochen und rühren.'));
-  await p.click('#btnImport'); await p.click('#importPaste');
+  await p.click('#btnImport'); await p.focus('#importUrl'); await p.keyboard.press('Control+V');
   await p.waitForSelector('#fTitle');
-  assert(await p.inputValue('#fTitle') === 'Pudding' && (await p.inputValue('#fIngredients')).includes('500 ml Milch'), '„Einfügen“ holt den kopierten Rezepttext und wertet ihn aus');
+  assert(await p.inputValue('#fTitle') === 'Pudding' && (await p.inputValue('#fIngredients')).includes('500 ml Milch'), 'Einsetzen ins Feld startet den Import von selbst');
   await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
 
   // Rezept aus Schritt 6 erneut öffnen, damit es für Schritt 7 gespeichert werden kann
