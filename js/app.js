@@ -701,7 +701,10 @@
   // ---------- Zutaten an Bring! schicken ----------
   // Bring! liest Rezepte von Webseiten (schema.org). Das Server-Programm erzeugt dafür eine Seite
   // aus den Daten im Link (nichts wird gespeichert); Bring! öffnet sich dann mit den Zutaten zum Übernehmen.
-  const HAVE_AT_HOME = /^(etwas\s+)?(salz|pfeffer|wasser|salz und pfeffer|salz, pfeffer|pfeffer und salz|pfeffer, salz)\b/i;
+  // Vorrat, den man meist zu Hause hat: wird nicht automatisch mitgeschickt, sondern abgefragt
+  const PANTRY = /(salz|pfeffer|gewürz|paprikapulver|edelsüß|rosenscharf|currypulver|curry\b|kurkuma|kreuzkümmel|kümmel|zimt|muskat|oregano|thymian\b|rosmarin\b|basilikum\b|majoran|chiliflocken|chilipulver|cayenne|knoblauchpulver|zwiebelpulver|lorbeer|nelken|piment|vanillezucker|vanilleextrakt|backpulver|natron|speisestärke|stärke\b|\böl\b|öl\s*\(|olivenöl|rapsöl|sonnenblumenöl|pflanzenöl|kokosöl|sesamöl|essig|balsamico|sojasauce|sojasoße|senf|ketchup|honig|zucker|mehl\b|weizenmehl|butter\b|margarine|milch\b|wasser|brühe|fond|gemüsebrühe|hühnerbrühe|brühpulver|semmelbrösel|paniermehl)/i;
+  const FRESH_EXCEPTIONS = /(frisch|bund|zweig|knolle|stange)/i; // "1 Bund frischer Thymian" kauft man
+  const isPantry = l => PANTRY.test(l) && !FRESH_EXCEPTIONS.test(l);
   function bringLink(title, lines) {
     const cfg = window.APP_CONFIG || {};
     const json = JSON.stringify({ t: title, i: lines });
@@ -720,9 +723,11 @@
       const lines = currentLines();
       box.textContent = '';
       const checks = lines.map((l, i) => {
-        const cb = h('input', { type: 'checkbox', id: 'bring' + i, checked: !HAVE_AT_HOME.test(l) });
-        return { l, cb, row: h('label', { class: 'bring-row', for: 'bring' + i }, cb, h('span', { text: l })) };
+        const pantry = isPantry(l);
+        const cb = h('input', { type: 'checkbox', id: 'bring' + i, checked: !pantry });
+        return { l, cb, pantry, row: h('label', { class: 'bring-row', for: 'bring' + i }, cb, h('span', { text: l })) };
       });
+      const buy = checks.filter(c => !c.pantry), home = checks.filter(c => c.pantry);
       const send = h('button', { type: 'button', class: 'btn btn-primary', id: 'bringSend' }, 'An Bring! schicken');
       send.addEventListener('click', () => {
         const chosen = checks.filter(c => c.cb.checked).map(c => c.l);
@@ -734,8 +739,14 @@
         closed();
       });
       box.append(
-        h('p', { class: 'hint', text: 'Abhaken, was du schon zu Hause hast. Die Mengen sind die gerade eingestellten.' }),
-        h('div', { class: 'bring-list' }, checks.map(c => c.row)),
+        buy.length ? h('div', { class: 'bring-group' },
+          h('p', { class: 'bring-head', text: 'Einkaufen' }),
+          h('p', { class: 'hint', text: 'Mengen wie gerade eingestellt. Abhaken, was du nicht brauchst.' }),
+          h('div', { class: 'bring-list', id: 'bringBuy' }, buy.map(c => c.row))) : null,
+        home.length ? h('div', { class: 'bring-group' },
+          h('p', { class: 'bring-head', text: 'Hast du das zu Hause?' }),
+          h('p', { class: 'hint', text: 'Vorratssachen werden nicht automatisch mitgeschickt. Antippen, was du brauchst.' }),
+          h('div', { class: 'bring-list', id: 'bringHome' }, home.map(c => c.row))) : null,
         h('div', { class: 'pick-actions' },
           h('button', { type: 'button', class: 'btn', onclick: () => checks.forEach(c => { c.cb.checked = !c.cb.checked; }) }, 'Alle umkehren'),
           h('button', { type: 'button', class: 'btn', onclick: closed }, 'Abbrechen'), send));

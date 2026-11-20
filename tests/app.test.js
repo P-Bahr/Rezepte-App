@@ -141,13 +141,15 @@ const OUT = process.argv[2] || '.';
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
   // Bring!: aktuelle Mengen, Salz/Pfeffer vorab abgewählt, Link auf die Rezeptseite für Bring!
   await p.evaluate(() => { window.APP_CONFIG = Object.assign(window.APP_CONFIG || {}, { supabaseUrl: 'https://test.supabase.example' }); });
-  const bid = await p.evaluate(() => Store.saveRecipe({ title: 'Testsuppe', servings: 4, servingsUnit: 'Personen', ingredients: ['400 g Kartoffeln', '1 l Brühe', 'Salz und Pfeffer'], steps: ['Kochen.'] }).id);
+  const bid = await p.evaluate(() => Store.saveRecipe({ title: 'Testsuppe', servings: 4, servingsUnit: 'Personen', ingredients: ['400 g Kartoffeln', '1 l Brühe', 'Salz und Pfeffer', '2 EL Olivenöl', '1 Bund frischer Thymian', '200 ml Sahne'], steps: ['Kochen.'] }).id);
   await p.evaluate(id => { location.hash = 'rezept-' + id; }, bid); await p.waitForSelector('dialog h2:has-text("Testsuppe")');
   await p.click('[aria-label="Menge: weniger"]'); await p.click('[aria-label="Menge: weniger"]');
   await p.evaluate(() => { window.open = () => null; });
   await p.click('#btnBring');
-  const rows = await p.$$eval('.bring-row', e => e.map(x => (x.querySelector('input').checked ? '✓ ' : '– ') + x.textContent.trim()));
-  assert(rows.join(' | ') === '✓ 200 g Kartoffeln | ✓ 500 ml Brühe | – Salz und Pfeffer', 'Bring!: Mengen für 2 Personen, Salz/Pfeffer vorab abgewählt: ' + rows.join(' | '));
+  const rowsOf = sel => p.$$eval(sel + ' .bring-row', e => e.map(x => (x.querySelector('input').checked ? '✓ ' : '– ') + x.textContent.trim()).join(' | '));
+  assert(await rowsOf('#bringBuy') === '✓ 200 g Kartoffeln | ✓ ½ Bund frischer Thymian | ✓ 100 ml Sahne', 'Bring! „Einkaufen“: normale Zutaten (auch frische Kräuter) ausgewählt, Mengen für 2: ' + await rowsOf('#bringBuy'));
+  assert(await rowsOf('#bringHome') === '– 500 ml Brühe | – Salz und Pfeffer | – 1 EL Olivenöl', 'Bring! „Hast du das zu Hause?“: Vorrat abgewählt: ' + await rowsOf('#bringHome'));
+  await p.click('#bringHome .bring-row:has-text("Olivenöl")');
   await p.click('#bringSend');
   const sent = await p.evaluate(() => {
     const u = new URL(window.RecipeBringLast);
@@ -156,7 +158,7 @@ const OUT = process.argv[2] || '.';
     const bin = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
     return { host: u.host, src: u.searchParams.get('source'), page: page.pathname, data: JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0)))) };
   });
-  assert(sent.host === 'api.getbring.com' && sent.src === 'web' && sent.page === '/functions/v1/import' && sent.data.t === 'Testsuppe' && sent.data.i.join('|') === '200 g Kartoffeln|500 ml Brühe', 'Bring!-Link mit Rezeptseite und gewählten Zutaten: ' + JSON.stringify(sent.data));
+  assert(sent.host === 'api.getbring.com' && sent.src === 'web' && sent.page === '/functions/v1/import' && sent.data.t === 'Testsuppe' && sent.data.i.join('|') === '200 g Kartoffeln|1 EL Olivenöl|½ Bund frischer Thymian|100 ml Sahne', 'Bring!-Link mit Rezeptseite und gewählten Zutaten: ' + JSON.stringify(sent.data));
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
   await p.evaluate(id => Store.deleteRecipe(id), bid);
   // Blech ohne Kuchen (Granola): kein Umschalter, sondern Anzahl Bleche
