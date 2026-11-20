@@ -293,6 +293,12 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   const cleaned2 = window.RecipeOCR.cleanOcr('< Fitmitkev - Abnehmen ohne Verzichts Beitr...\n‚1 Stück Ei\n. 10 g Backkakao\n.% TL Backpulver\n- etwas Vanille\nlassen.\nGlasform füllen und bei 180 Ober-/Unterhitze backen.\nkochen_mit_k');
   ok(cleaned2 === '1 Stück Ei\n10 g Backkakao\n½ TL Backpulver\netwas Vanille\nlassen.\nGlasform füllen und bei 180 °C Ober-/Unterhitze backen.', 'Texterkennung aufgeräumt: Kopfzeile, Aufzählungszeichen, ½, °C, kurze Wörter: ' + JSON.stringify(cleaned2));
 
+  // Bring!-Seite: Rezeptangaben (schema.org) aus den Daten im Link, alles maskiert
+  const bringData = Buffer.from(JSON.stringify({ t: 'Suppe <script>', i: ['200 g Mehl', '2 "Eier"'] })).toString('base64url');
+  const bp = fn.bringPage(bringData);
+  ok(bp && bp.includes('"recipeIngredient":["200 g Mehl","2 \\"Eier\\""]') && !bp.includes('<script>') && bp.includes('Suppe &lt;script&gt;'), 'Bring!-Seite: Zutaten als Rezeptangaben, nichts Ausführbares');
+  ok(fn.bringPage('kaputt!!') === null && fn.bringPage(Buffer.from('{"t":"x","i":[]}').toString('base64url')) === null, 'Bring!-Seite: ungültige Daten -> nicht gefunden');
+
   // ---------- Pinterest ----------
   const pinAnswers = {
     'https://pin.it/abc': { status: 200, url: 'https://www.pinterest.de/pin/987654321/sent/?x=1', text: '<html></html>' },

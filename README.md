@@ -63,7 +63,7 @@ Kein Auslesen direkt aus Videos (bewusst weggelassen).
 3. Import von Webseiten
 4. Import aus TikTok, Instagram und Pinterest über das Teilen-Menü (per Apple-Kurzbefehl)
 5. Rezepte aus Videos auslesen
-6. Zutaten an die Einkaufslisten-App **Bring!** schicken (mit den Mengen, die gerade am Personen-Regler eingestellt sind)
+6. ✅ Zutaten an **Bring!** schicken: Knopf im Rezept, aktuelle Mengen, abhaken was da ist; Server-Programm erzeugt dafür eine Rezeptseite aus den Daten im Link (GET ?bring=…), Bring! liest sie über seinen Deeplink
 
 ## Aufbau (für Entwickler)
 

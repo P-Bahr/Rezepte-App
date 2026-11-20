@@ -694,7 +694,54 @@
 
     section.append(h('div', { class: 'ing-head' }, h('h3', { text: 'Zutaten' }), controls), list);
     if (!base) section.append(h('p', { class: 'hint', text: 'Zum Umrechnen: Tippe auf „Bearbeiten“ und trage ein, für wie viele Personen das Rezept ist.' }));
+    if (r.ingredients.length && (window.APP_CONFIG || {}).supabaseUrl) section.append(bringBox(r, () => r.ingredients.map(l => Sc.scaleText(l, factor()))));
     return section;
+  }
+
+  // ---------- Zutaten an Bring! schicken ----------
+  // Bring! liest Rezepte von Webseiten (schema.org). Das Server-Programm erzeugt dafür eine Seite
+  // aus den Daten im Link (nichts wird gespeichert); Bring! öffnet sich dann mit den Zutaten zum Übernehmen.
+  const HAVE_AT_HOME = /^(etwas\s+)?(salz|pfeffer|wasser|salz und pfeffer|salz, pfeffer|pfeffer und salz|pfeffer, salz)\b/i;
+  function bringLink(title, lines) {
+    const cfg = window.APP_CONFIG || {};
+    const json = JSON.stringify({ t: title, i: lines });
+    const bytes = new TextEncoder().encode(json);
+    let bin = '';
+    bytes.forEach(b => { bin += String.fromCharCode(b); });
+    const data = btoa(bin).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+    const page = String(cfg.supabaseUrl || '').replace(/\/$/, '') + '/functions/v1/import?bring=' + data;
+    return 'https://api.getbring.com/rest/bringrecipes/deeplink?url=' + encodeURIComponent(page) + '&source=web&baseQuantity=1&requestedQuantity=1';
+  }
+  function bringBox(r, currentLines) {
+    const box = h('div', { class: 'bring' });
+    const open = h('button', { type: 'button', class: 'btn', id: 'btnBring' }, '🛒 Auf die Einkaufsliste (Bring!)');
+    function closed() { box.textContent = ''; box.append(open); }
+    open.addEventListener('click', () => {
+      const lines = currentLines();
+      box.textContent = '';
+      const checks = lines.map((l, i) => {
+        const cb = h('input', { type: 'checkbox', id: 'bring' + i, checked: !HAVE_AT_HOME.test(l) });
+        return { l, cb, row: h('label', { class: 'bring-row', for: 'bring' + i }, cb, h('span', { text: l })) };
+      });
+      const send = h('button', { type: 'button', class: 'btn btn-primary', id: 'bringSend' }, 'An Bring! schicken');
+      send.addEventListener('click', () => {
+        const chosen = checks.filter(c => c.cb.checked).map(c => c.l);
+        if (!chosen.length) { toast('Bitte mindestens eine Zutat auswählen'); return; }
+        const link = bringLink(r.title, chosen);
+        window.RecipeBringLast = link; // für Tests
+        window.open(link, '_blank', 'noopener');
+        toast('Bring! wird geöffnet …');
+        closed();
+      });
+      box.append(
+        h('p', { class: 'hint', text: 'Abhaken, was du schon zu Hause hast. Die Mengen sind die gerade eingestellten.' }),
+        h('div', { class: 'bring-list' }, checks.map(c => c.row)),
+        h('div', { class: 'pick-actions' },
+          h('button', { type: 'button', class: 'btn', onclick: () => checks.forEach(c => { c.cb.checked = !c.cb.checked; }) }, 'Alle umkehren'),
+          h('button', { type: 'button', class: 'btn', onclick: closed }, 'Abbrechen'), send));
+    });
+    closed();
+    return box;
   }
 
   // ---------- Import über Link ----------

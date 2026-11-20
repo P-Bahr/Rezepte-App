@@ -375,8 +375,34 @@ export async function checkMany(urls, fetcher) {
   return results;
 }
 
+// ---------- Bring!: öffentliche Rezeptseite mit den gewünschten Zutaten ----------
+// Die App schickt Bring! einen Link auf diese Seite; Bring! liest die Rezeptangaben (schema.org) daraus.
+// Die Daten stehen im Link selbst (nichts wird gespeichert): ?bring=<base64url von {t, i, s}>
+export function bringPage(param) {
+  if (!param || param.length > 12000) return null;
+  let data;
+  try {
+    const b64 = param.replace(/-/g, '+').replace(/_/g, '/');
+    const bin = atob(b64 + '='.repeat((4 - b64.length % 4) % 4));
+    data = JSON.parse(new TextDecoder().decode(Uint8Array.from(bin, c => c.charCodeAt(0))));
+  } catch (_) { return null; }
+  const title = String(data && data.t || 'Rezept').slice(0, 120);
+  const ing = (Array.isArray(data && data.i) ? data.i : []).map(x => String(x).slice(0, 200)).filter(Boolean).slice(0, 80);
+  if (!ing.length) return null;
+  const esc = s => s.replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const ld = JSON.stringify({ '@context': 'https://schema.org', '@type': 'Recipe', name: title, recipeYield: String(data.s || ''), recipeIngredient: ing }).replace(/</g, '\\u003c');
+  return '<!doctype html><html lang="de"><head><meta charset="utf-8"><meta name="robots" content="noindex,nofollow"><title>' + esc(title) + '</title>'
+    + '<script type="application/ld+json">' + ld + '</script></head><body><h1>' + esc(title) + '</h1><ul>'
+    + ing.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></body></html>';
+}
+
 export async function handle(req) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
+  if (req.method === 'GET') {
+    const html = bringPage(new URL(req.url).searchParams.get('bring'));
+    if (!html) return new Response('Nicht gefunden', { status: 404, headers: { 'Content-Type': 'text/plain; charset=utf-8' } });
+    return new Response(html, { headers: { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'public, max-age=3600', 'X-Robots-Tag': 'noindex' } });
+  }
   const json = (body, status) => new Response(JSON.stringify(body), { status: status || 200, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
   if (req.method !== 'POST') return json({ error: 'Nur POST.' }, 405);
   const projectUrl = typeof Deno !== 'undefined' ? Deno.env.get('SUPABASE_URL') : '';
