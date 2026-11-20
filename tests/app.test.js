@@ -66,6 +66,17 @@ const OUT = process.argv[2] || '.';
   await p.click('#toTop'); await p.waitForFunction(() => window.scrollY === 0, null, { timeout: 3000 });
   assert(true, '„Nach oben“ scrollt zum Anfang');
   await p.setViewportSize({ width: 1024, height: 1366 }); await p.waitForTimeout(100);
+  // One Pot: zusätzlicher Chip bei den Sammlungen
+  const op = await p.evaluate(() => [
+    Store.saveRecipe({ title: 'One-Pot-Pasta', ingredients: ['250 g Spaghetti'], steps: ['Alles in einem Topf 12 Minuten kochen.'] }).id,
+    Store.saveRecipe({ title: 'Ofengemüse vom Blech', ingredients: ['1 kg Gemüse'], steps: ['Im Ofen 30 Minuten backen.'] }).id]);
+  await p.waitForSelector('#chipOnePot');
+  await p.click('#chipOnePot');
+  const opTitles = (await p.$$eval('.tile-title', e => e.map(x => x.textContent))).sort().join(', ');
+  const opCol = await p.evaluate(id => Store.recipe(id).collectionId, op[0]);
+  assert(opTitles.includes('One-Pot-Pasta') && opTitles.includes('Ofengemüse vom Blech') && !opTitles.includes('Brownies') && opCol === 'col-topf', 'Chip „One Pot“ zeigt Eintopf-/Blechgerichte, Rezept bleibt zusätzlich in „Topf“: ' + opTitles);
+  await p.click('#chipOnePot');
+  await p.evaluate(ids => ids.forEach(id => Store.deleteRecipe(id)), op);
   // Hauptzutat als feste Gruppen
   const groupChips = await p.$$eval('.chips[data-key=mainIngredient] .chip', e => e.map(x => x.firstChild.textContent.trim()));
   const allowed = await p.evaluate(() => window.RecipeGroups.ORDER);
@@ -98,7 +109,7 @@ const OUT = process.argv[2] || '.';
   await p.selectOption('#sort', 'schnell'); await p.reload(); await p.waitForTimeout(200);
   assert(await p.inputValue('#sort') === 'schnell' && (await titles())[0] === 'Mango-Lassi', 'Sortierung bleibt nach Neuladen');
   await p.selectOption('#sort', 'name');
-  const colChips = await p.$$eval('.facet[data-key=collectionId] .chip:not(.chip-fav)', e => e.map(x => x.textContent));
+  const colChips = await p.$$eval('.facet[data-key=collectionId] .chip:not(.chip-fav):not(.chip-onepot):not(.chip-review)', e => e.map(x => x.textContent));
   assert(colChips.join(' ') === 'Ofen10 Pfanne2 Topf9 Kalt4', 'Feste Sammlungen aus der Zubereitung: ' + colChips.join(' '));
   await p.click('.facet[data-key=collectionId] .chip:has-text("Ofen")');
   const nBack = await p.locator('.tile').count(); assert(nBack === 10, 'Sammlung Ofen = ' + nBack);

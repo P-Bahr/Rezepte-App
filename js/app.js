@@ -20,6 +20,7 @@
     mode: null,          // 'detail' | 'edit' | 'collections' | null
     favOnly: false,      // nur Favoriten zeigen
     reviewOnly: false,   // nur "Zu prüfen"
+    onePotOnly: false,   // nur One-Pot-Gerichte
     depth: 0,            // wie viele Rezepte nacheinander per Antippen geöffnet wurden (für "Zurück")
     pushing: false       // gerade öffnet die App selbst ein Rezept
   };
@@ -103,6 +104,7 @@
   function passesFilters(r, skipKey) {
     if (state.favOnly && skipKey !== 'fav' && !r.favorite) return false;
     if (state.reviewOnly && skipKey !== 'review' && !r.review) return false;
+    if (state.onePotOnly && skipKey !== 'onepot' && !window.RecipeCollections.isOnePot(r)) return false;
     for (const f of FACETS) {
       if (f.key === skipKey) continue;
       const sel = state.filters[f.key];
@@ -158,11 +160,11 @@
     renderFilters(scored.map(x => x.r));
     renderGrid(results.map(x => x.r), all.length);
 
-    const active = state.query.trim() || state.favOnly || state.reviewOnly || FACETS.some(f => state.filters[f.key].size);
+    const active = state.query.trim() || state.favOnly || state.reviewOnly || state.onePotOnly || FACETS.some(f => state.filters[f.key].size);
     $('#count').textContent = results.length === 1 ? '1 Rezept' : results.length + ' Rezepte';
     $('#btnReset').hidden = !active;
     // Anzahl aktiver Filter am Filter-Knopf (wichtig, wenn zugeklappt)
-    const nActive = (state.favOnly ? 1 : 0) + (state.reviewOnly ? 1 : 0) + FACETS.reduce((n, f) => n + state.filters[f.key].size, 0);
+    const nActive = (state.favOnly ? 1 : 0) + (state.reviewOnly ? 1 : 0) + (state.onePotOnly ? 1 : 0) + FACETS.reduce((n, f) => n + state.filters[f.key].size, 0);
     $('#filterBadge').textContent = nActive ? String(nActive) : '';
     $('#filterBadge').hidden = !nActive;
     $('#qClear').hidden = !state.query;
@@ -227,6 +229,14 @@
           type: 'button', class: 'chip chip-fav', 'aria-pressed': state.favOnly ? 'true' : 'false',
           onclick: () => { state.favOnly = !state.favOnly; render(); }
         }, h('span', { class: 'star', 'aria-hidden': 'true', text: '★' }), 'Favoriten', h('span', { class: 'n', text: String(favCount) })));
+        // "One Pot": zusätzlich zur Sammlung, erscheint sobald es solche Rezepte gibt
+        const onePotCount = searchHits.filter(r => window.RecipeCollections.isOnePot(r) && passesFilters(r, 'onepot')).length;
+        if (onePotCount || state.onePotOnly) {
+          chips.children[0].after(h('button', {
+            type: 'button', class: 'chip chip-onepot', id: 'chipOnePot', 'aria-pressed': state.onePotOnly ? 'true' : 'false',
+            onclick: () => { state.onePotOnly = !state.onePotOnly; render(); }
+          }, 'One Pot', h('span', { class: 'n', text: String(onePotCount) })));
+        }
         // "Zu prüfen": nur sichtbar, solange es automatisch importierte, ungeprüfte Rezepte gibt
         if (Store.recipes().some(r => r.review) || state.reviewOnly) {
           const revCount = searchHits.filter(r => r.review && passesFilters(r, 'review')).length;
@@ -330,6 +340,7 @@
     state.query = '';
     state.favOnly = false;
     state.reviewOnly = false;
+    state.onePotOnly = false;
     $('#q').value = '';
     for (const k in state.filters) state.filters[k].clear();
     render();

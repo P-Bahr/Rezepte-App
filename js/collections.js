@@ -39,5 +39,8 @@
   const order = id => { const i = AUTO.findIndex(a => a.id === id); return i < 0 ? 99 : i; };
   const isAuto = id => AUTO.some(a => a.id === id);
 
-  window.RecipeCollections = { fromMethod, forRecipe, list, order, isAuto, FIXED_STAMP };
+  // "One Pot": alles in einem Topf, einer Pfanne oder auf einem Blech (zusätzlich zur normalen Sammlung)
+  const ONE_POT = /one[\s-]?pot|one[\s-]?pan|sheet[\s-]?pan|eintopf|ein[\s-]topf|(?:alles|alle zutaten)\s+(?:zusammen\s+)?(?:in|im)\s+(?:einem|einen|einer|den|die|dem)\s+(?:großen\s+)?(?:topf|pfanne|bräter|wok|kochtopf)|in\s+nur\s+einem\s+topf|aus\s+(?:einem|einer)\s+(?:topf|pfanne)|vom\s+blech|blechgericht|ofengericht vom blech/i;
+  const isOnePot = r => ONE_POT.test([r.title || '', (r.steps || []).join(' '), r.notes || ''].join(' '));
+  window.RecipeCollections = { isOnePot, fromMethod, forRecipe, list, order, isAuto, FIXED_STAMP };
 })();
