@@ -316,7 +316,7 @@
     const group = r0 && D.groupOf(r0, Store.recipes());
     if (!group) { closeDialog(); return; }
     const rec = D.recommend(group);
-    const diff = D.differences(group);
+    const diff = D.differences(rec.ranked.map(x => x.r)); // Reihenfolge wie die Karten
     const card = ({ r, q }) => {
       const best = r.id === rec.best.id;
       const facts = [q.nIng + ' Zutaten' + (q.nIng && q.withAmount === q.nIng ? ' (alle mit Menge)' : q.nIng ? ' (' + (q.nIng - q.withAmount) + ' ohne Menge)' : ''),

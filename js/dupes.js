@@ -206,6 +206,16 @@
       }
       per.set(r.id, { marks, oven: ovenDiff ? ovens[i] : null });
     });
+    // Gleiche Zutat in jedem Rezept an derselben Stelle: erst die mit anderer Menge, dann "nur hier",
+    // jeweils in der Reihenfolge, in der sie zuerst vorkommen
+    const order = [];
+    const keyOf = line => { const x = lists.flat().find(y => y.line === line); return x ? x.key : line; };
+    for (const kind of ['amount', 'only']) group.forEach(r => per.get(r.id).marks.filter(m => m.kind === kind).forEach(m => {
+      const k = keyOf(m.line);
+      if (!order.some(o => sameIngredient(o, k))) order.push(k);
+    }));
+    const pos = line => { const k = keyOf(line); const i = order.findIndex(o => sameIngredient(o, k)); return i < 0 ? 999 : i; };
+    group.forEach(r => per.get(r.id).marks.sort((a, b) => pos(a.line) - pos(b.line)));
     return { common, per };
   }
 
