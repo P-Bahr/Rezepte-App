@@ -263,6 +263,7 @@
   // ---------- Startassistent "Rezepte zusammentragen" ----------
   // Erscheint, bis man auf "Fertig" tippt; unter Einstellungen jederzeit wieder einblendbar.
   const START_DONE = 'rezepte.start.fertig';
+  let startOpen = false; // Kacheln in der schmalen Leiste aufgeklappt?
   function startDone() { try { return localStorage.getItem(START_DONE) === '1'; } catch (e) { return false; } }
   function renderStart() {
     const box = $('#start');
@@ -275,13 +276,30 @@
       h('span', { class: 'import-tile-icon', 'aria-hidden': 'true', text: icon }), h('span', { class: 'import-tile-name', text: name }), h('span', { class: 'import-tile-sub', text: sub }));
     box.textContent = '';
     box.hidden = false;
+    const dismiss = () => {
+      try { localStorage.setItem(START_DONE, '1'); } catch (e) { /* egal */ }
+      render(); toast('Ausgeblendet – unter Einstellungen wieder einblendbar');
+    };
+    const toReview = () => { resetAll(); state.reviewOnly = true; setFiltersOpen(true); render(); };
+    // Mit Rezepten: nur eine schmale Leiste, die Kacheln lassen sich aufklappen
+    box.classList.toggle('start-compact', !!own && !startOpen);
+    if (own && !startOpen) {
+      box.append(h('div', { class: 'start-bar' },
+        h('p', { class: 'start-bar-text', id: 'startProgress' }, h('b', { id: 'startTitle', text: 'Rezepte zusammentragen' }),
+          ' · ' + (own === 1 ? '1 gesammelt' : own + ' gesammelt') + (review ? ', ' + review + ' zu prüfen' : '')),
+        h('div', { class: 'start-bar-actions' },
+          review ? h('button', { type: 'button', class: 'btn btn-small', onclick: toReview }, 'Prüfen') : null,
+          h('button', { type: 'button', class: 'btn btn-small', id: 'startOpen', onclick: () => { startOpen = true; render(); } }, 'Wege zeigen'),
+          h('button', { type: 'button', class: 'icon-btn', id: 'startClose', 'aria-label': 'Ausblenden', onclick: dismiss }, '×'))));
+      return true;
+    }
     box.append(
       h('h2', { id: 'startTitle', text: own ? 'Rezepte zusammentragen' : 'Willkommen! Woher kommen deine Rezepte?' }),
       h('p', { class: 'hint', text: 'Hol deine Rezepte von überall an einen Ort. Danach kommen neue einfach dazu – über „Importieren“ oder das Teilen-Menü.' }),
       own ? h('p', { class: 'start-progress', id: 'startProgress' },
         h('b', { text: own === 1 ? '1 Rezept gesammelt' : own + ' Rezepte gesammelt' }),
         review ? ', ' + review + ' noch zu prüfen. ' : '.',
-        review ? h('button', { type: 'button', class: 'btn-link', onclick: () => { resetAll(); state.reviewOnly = true; setFiltersOpen(true); render(); } }, 'Jetzt prüfen') : null) : null,
+        review ? h('button', { type: 'button', class: 'btn-link', onclick: toReview }, 'Jetzt prüfen') : null) : null,
       h('div', { class: 'import-tiles start-tiles' },
         tile('startApp', '📦', 'Aus anderer App', 'z. B. Recipe Keeper', () => openImport('', false, 'app')),
         tile('startBoard', '📌', 'Pinterest', 'Bis zu 50 Pins je Pinnwand', () => openImport('', false, 'board')),
@@ -293,10 +311,8 @@
         Store.exampleCount() ? null : h('button', { type: 'button', class: 'btn', onclick: () => {
           try { const n = Store.loadExamples(); toast(n + ' Beispielrezepte geladen'); } catch (e) { toast(e.message); }
         } }, 'Beispielrezepte laden'),
-        h('button', { type: 'button', class: 'btn', id: 'startDone', onclick: () => {
-          try { localStorage.setItem(START_DONE, '1'); } catch (e) { /* egal */ }
-          render(); toast('Ausgeblendet – unter Einstellungen wieder einblendbar');
-        } }, own ? 'Fertig – ausblenden' : 'Ausblenden')));
+        own ? h('button', { type: 'button', class: 'btn', id: 'startLess', onclick: () => { startOpen = false; render(); } }, 'Einklappen') : null,
+        h('button', { type: 'button', class: 'btn', id: 'startDone', onclick: dismiss }, own ? 'Fertig – ausblenden' : 'Ausblenden')));
     return true;
   }
 
@@ -1675,7 +1691,7 @@
       h('div', { class: 'field examples' }, h('span', { class: 'label', text: 'Rezepte zusammentragen' }),
         h('p', { class: 'hint', text: 'Der Startassistent zeigt alle Wege, Rezepte in die App zu holen – auch die Anleitung für das Teilen-Menü.' }),
         h('div', { class: 'pick-actions' },
-          h('button', { type: 'button', class: 'btn', id: 'btnStartAgain', onclick: () => { try { localStorage.removeItem('rezepte.start.fertig'); } catch (e) { /* egal */ } closeDialog(); render(); window.scrollTo({ top: 0 }); } }, 'Startassistent einblenden'),
+          h('button', { type: 'button', class: 'btn', id: 'btnStartAgain', onclick: () => { try { localStorage.removeItem('rezepte.start.fertig'); } catch (e) { /* egal */ } startOpen = true; closeDialog(); render(); window.scrollTo({ top: 0 }); } }, 'Startassistent einblenden'),
           h('button', { type: 'button', class: 'btn', onclick: openShareGuide }, 'Teilen einrichten'))),
       versionBox());
     showDialog('settings', h('div', { style: 'display:contents' },
