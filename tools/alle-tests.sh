@@ -24,6 +24,7 @@ run "Abgleich-Regeln"   node tests/sync.test.js
 run "Link-Prüfung"      node tests/linkcheck.test.js
 run "Import"            node --experimental-strip-types --no-warnings tests/import.test.js
 run "App"               node tests/app.test.js "$OUT"
+run "Emojis & Sonderzeichen" node tests/emoji.test.js
 run "Testsammlung (132 Rezepte)" node tests/korpus.test.js
 run "Import im Browser" node --experimental-strip-types --no-warnings tests/import-e2e.test.js
 run "Zwei Geräte"       node tests/sync-e2e.test.js

@@ -8,8 +8,24 @@
 
   // ---------- Hilfen ----------
   const ENT = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+  /* Texte aus TikTok, Instagram, Facebook & Co. vereinheitlichen:
+     - Schmuckschrift (𝗭𝘂𝘁𝗮𝘁𝗲𝗻, 𝓩𝓾𝓽𝓪𝓽𝓮𝓷, Ｚｕｔａｔｅｎ, 🅉🅄🅃) -> normale Buchstaben
+     - unsichtbare Zeichen (Null-Breite-Leerzeichen, weiche Trennstriche, Schreibrichtung) weg
+     - Sonder-Leerzeichen -> normales Leerzeichen; Unterstreichen/Durchstreichen per Zeichen weg
+     - Umlaute aus zwei Zeichen (u + ¨, z. B. vom iPhone kopiert) -> ein Zeichen
+     - ℃ -> °C, ⌀ -> Ø, Bruchstrich ⁄ -> / */
+  const FANCY = /[\u{1D400}-\u{1D7FF}\u{FF01}-\u{FF5E}\u{1F100}-\u{1F1E5}\u{1F130}-\u{1F189}\u{FB00}-\u{FB06}\u{2100}-\u{214F}\u{24B6}-\u{24E9}\u{2070}-\u{209F}]/gu;
+  function socialText(x) {
+    return String(x == null ? '' : x).normalize('NFC')
+      .replace(/[\u2028\u2029\u0085]/g, '\n')
+      .replace(/[\u00A0\u1680\u2000-\u200A\u202F\u205F\u3000]/g, ' ')
+      .replace(/[\u00AD\u180E\u200B\u200C\u200E\u200F\u202A-\u202E\u2060-\u2064\u2066-\u2069\uFEFF\u034F]/g, '')
+      .replace(/[\u0305\u0331-\u0333\u0335-\u0338\u20D2\u20E5\u20EB]/g, '')
+      .replace(/\u2103/g, '°C').replace(/\u2109/g, '°F').replace(/[\u2300\u2205]/g, 'Ø').replace(/\u2044/g, '/')
+      .replace(FANCY, c => { if (/[\u2120-\u2122\u2117]/.test(c)) return c; const n = c.normalize('NFKC'); return n === c || /^[\p{L}\p{N}\p{P} ]+$/u.test(n) ? n : c; });
+  }
   function clean(s) {
-    return String(s == null ? '' : s)
+    return socialText(s)
       .replace(/<br\s*\/?>/gi, '\n').replace(/<\/p>/gi, '\n').replace(/<[^>]+>/g, ' ')
       .replace(/&(#x[0-9a-f]+|#\d+|[a-z]+);/gi, (all, e) => {
         if (e[0] === '#') { const n = e[1] === 'x' || e[1] === 'X' ? parseInt(e.slice(2), 16) : parseInt(e.slice(1), 10); return n > 0 && n < 0x110000 ? String.fromCodePoint(n) : all; }
@@ -520,6 +536,11 @@
     return validMain(guessMain(d.ingredients || [], d.title));
   }
   function withGuesses(d, category, keywords) {
+    // Letzte Sicherung: keine Emojis/Bildzeichen in Name, Zutaten und Schritten (egal woher)
+    if (d.title) d.title = stripSymbols(socialText(d.title));
+    d.ingredients = (d.ingredients || []).map(l => stripSymbols(foodEmoji(socialText(l)))).filter(l => /[\p{L}\p{N}]/u.test(l));
+    d.steps = (d.steps || []).map(l => stripSymbols(socialText(l)))
+      .map(l => l.split(/(?<=[.!?])\s+/).filter(x => !isFluffLine(x)).join(' ')).filter(l => /[\p{L}\p{N}]/u.test(l));
     const before = JSON.stringify(d.ingredients || []);
     d.ingredients = convertUnits(d.ingredients || []);
     if (JSON.stringify(d.ingredients) !== before) d.unitsConverted = true;
@@ -540,7 +561,18 @@
   const FLUFF_SEGMENT = new RegExp('(\\brezept\\b|\\bgrundrezept\\b|\\b' + PRAISE + '\\b|\\bin\\s+\\d+\\s*(min|minuten)\\b|\\bnur\\s+\\d+\\s+zutaten\\b|\\bso\\s+geht\'?s\\b|\\bwie\\s+bei\\s+oma\\b|\\bgarantiert\\b|\\bohne\\s+schnickschnack\\b|\\bschritt\\s+für\\s+schritt\\b|\\bmit\\s+video\\b)', 'iu');
   const GENERIC_SEG = /^(abendessen|mittagessen|frühstück|brunch|feierabend(küche|essen|rezept)?|meal ?prep|familienessen|sonntags(essen|braten)?|reste(verwertung|essen|küche)?|party(rezept|food|snack)?|fingerfood|weihnachts(rezept|essen|bäckerei|plätzchen)?|oster(rezept|brunch)?|soul ?food|comfort ?food|low ?carb|vegan|vegetarisch|glutenfrei|kinderleicht|alltags(rezept|küche)|wochenend(rezept|küche)|one ?pot|dessert|nachtisch|beilage|snack|ofengericht|pfannengericht|sommerrezept|winterrezept)$/iu;
   const LEADING_PRAISE = new RegExp('^(?:(?:das|der|die|mein|meine|unser|unsere)\\s+)?(?:' + PRAISE + '\\s+)+', 'iu');
-  const EMOJI_RE = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu;
+  // Alle Emojis und Bildzeichen (auch Flaggen, Hautfarben, ⭐ ⬇️ ➡️ ✓ ★ ♡ ® ™), aber nicht ° (Grad)
+  const SYM_SRC = '[\\u{1F1E6}-\\u{1F1FF}\\u{1F3FB}-\\u{1F3FF}\\u{E0020}-\\u{E007F}\\uFE0E\\uFE0F\\u200D\\u20E3\\u2022\\u2023\\u2043\\u2219\\u25E6\\u2190-\\u21FF\\u27F0-\\u27FF\\u2900-\\u297F\\u2B00-\\u2BFF]|(?!°)[\\p{Extended_Pictographic}\\p{So}]';
+  const EMOJI_RE = new RegExp(SYM_SRC, 'gu');
+  const stripSymbols = x => String(x || '').replace(EMOJI_RE, ' ').replace(/[ \t]{2,}/g, ' ').replace(/\s+([,.;:!?)])/g, '$1').replace(/\(\s*\)/g, '').trim();
+  // Emoji statt Wort hinter einer Menge ("2 🥚", "1 🍋") -> Wort
+  const FOOD_EMOJI = { '🥚': 'Eier', '🍳': 'Eier', '🍌': 'Bananen', '🍋': 'Zitronen', '🍎': 'Äpfel', '🍏': 'Äpfel', '🍐': 'Birnen', '🍊': 'Orangen', '🍓': 'Erdbeeren', '🫐': 'Heidelbeeren', '🍒': 'Kirschen', '🍑': 'Pfirsiche', '🥭': 'Mangos', '🍍': 'Ananas', '🥝': 'Kiwis', '🥥': 'Kokosnuss', '🍅': 'Tomaten', '🥕': 'Karotten', '🥔': 'Kartoffeln', '🧅': 'Zwiebeln', '🧄': 'Knoblauchzehen', '🥒': 'Gurken', '🫑': 'Paprika', '🌶': 'Chilischoten', '🥑': 'Avocados', '🍆': 'Auberginen', '🥦': 'Brokkoli', '🌽': 'Maiskolben', '🍄': 'Champignons', '🧈': 'Butter', '🥛': 'Milch', '🧀': 'Käse', '🍫': 'Schokolade', '🍯': 'Honig', '🧂': 'Salz', '🍞': 'Brot', '🥖': 'Baguette', '🥯': 'Bagels', '🍗': 'Hähnchenschenkel', '🥓': 'Bacon', '🍤': 'Garnelen', '🐟': 'Fisch', '🍝': 'Nudeln', '🍚': 'Reis', '🥜': 'Erdnüsse', '🌰': 'Kastanien' };
+  const FOOD_EMOJI_RE = new RegExp('(\\d(?:[.,/]\\d+)?\\s*(?:[½¼¾⅓⅔]\\s*)?(?:g|kg|ml|l|el|tl|stk\\.?|stück|x)?\\s*)(' + Object.keys(FOOD_EMOJI).join('|') + ')\\uFE0F?(?![\\s\\uFE0F]*\\p{L})', 'giu');
+  const FOOD_ONE = { 'Eier': 'Ei', 'Bananen': 'Banane', 'Zitronen': 'Zitrone', 'Äpfel': 'Apfel', 'Birnen': 'Birne', 'Orangen': 'Orange', 'Erdbeeren': 'Erdbeere', 'Kirschen': 'Kirsche', 'Pfirsiche': 'Pfirsich', 'Mangos': 'Mango', 'Kiwis': 'Kiwi', 'Tomaten': 'Tomate', 'Karotten': 'Karotte', 'Kartoffeln': 'Kartoffel', 'Zwiebeln': 'Zwiebel', 'Knoblauchzehen': 'Knoblauchzehe', 'Gurken': 'Gurke', 'Chilischoten': 'Chilischote', 'Avocados': 'Avocado', 'Auberginen': 'Aubergine', 'Maiskolben': 'Maiskolben', 'Bagels': 'Bagel', 'Hähnchenschenkel': 'Hähnchenschenkel' };
+  const foodEmoji = t => String(t).replace(FOOD_EMOJI_RE, (m, pre, e) => {
+    const w = FOOD_EMOJI[e], one = /^\s*1\s*(?:stk\.?|stück|x)?\s*$/i.test(pre);
+    return pre.replace(/\s*$/, ' ') + (one && FOOD_ONE[w] ? FOOD_ONE[w] : w);
+  });
 
   /* "Ofenpfannkuchen – das einfachste Rezept" -> "Ofenpfannkuchen"
      "Das einfachste Rezept: Ofenpfannkuchen" -> "Ofenpfannkuchen"
@@ -593,7 +625,7 @@
   }
 
   // Sätze ohne Rezeptinhalt am Ende/Anfang von Schritten und Texten
-  const FLUFF_LINE = /^(guten appetit|viel spa(ß|ss)|lasst es euch|lass es dir|enjoy|bon app[ée]tit|und fertig|fertig ist|mahlzeit|have fun|happy (baking|cooking)|ich wünsche|wenn (du|ihr) (dieses|das) rezept|hast du (dieses|das) rezept|teile? (gerne )?(dein|ein) foto|markiere mich|folge mir|(und )?für mehr .{0,30}(folg|folge|folgt) mir|speicher(e|t)? (dir )?(das|dieses|den|die) (rezept|post|video|beitrag)|pin(ne)? (es|das rezept)|werbung|anzeige|affiliate|newsletter|link in bio|mehr rezepte|skip to content|zum inhalt springen|menü$|navigation$|suche$|startseite$)/iu;
+  const FLUFF_LINE = /^(guten appetit|viel spa(ß|ss)|lasst es euch|lass es dir|enjoy|bon app[ée]tit|und fertig|fertig ist|mahlzeit|have fun|happy (baking|cooking)|ich wünsche|wenn (du|ihr) (dieses|das) rezept|hast du (dieses|das) rezept|teile? (gerne )?(dein|ein) foto|markiere mich|folge mir|(und )?für mehr .{0,30}(folg|folge|folgt) mir|speicher(e|t)? (dir )?(das|dieses|den|die) (rezept|post|video|beitrag)|pin(ne)? (es|das rezept)|werbung|anzeige|affiliate|newsletter|link (?:ist )?in (?:der|meiner|unserer) bio|link in bio|(?:das )?rezept (?:steht |findest du |gibt'?s )?(?:unten|im kommentar|in den kommentaren|in der (?:caption|beschreibung|bio)|auf meinem blog)|rezept$|rezept(?:e)? unten$|rezept (?:speichern|merken|pinnen|sichern)|folg(?:e|t)? (?:mir|uns)|abonnier|lass(?:t)? (?:mir |uns )?(?:gerne |doch )?(?:ein(?:en)? )?(?:like|herz|abo|kommentar)|(?:teil|schick|sende)(?:e|t)? (?:das|es|dieses)(?: video| rezept)? (?:mit|an|deine)|markier(?:e|t)? |kommentier(?:e|t)?|speicher(?:e|t)? (?:dir |euch )?(?:das|dieses|es|den|die)?|(?:unbezahlte |unbeauftragte )?werbung|mehr rezepte|skip to content|zum inhalt springen|menü$|navigation$|suche$|startseite$)/iu;
   const isFluffLine = l => FLUFF_LINE.test(String(l).replace(EMOJI_RE, '').trim()) || /^[\s\p{P}\p{S}]*$/u.test(String(l).replace(EMOJI_RE, ''));
   const cleanIngredientText = l => clean(l).replace(/\(?\*?\s*(affiliate[- ]?link|werbung|anzeige|\*)\s*\)?/giu, ' ').replace(/\s*\*+\s*/g, ' ').replace(/\s+/g, ' ').replace(/\s+([,.;])/g, '$1').trim();
 
@@ -620,9 +652,11 @@
   // ---------- Freier Text (TikTok-Beschreibung, Text aus Bildschirmfotos) ----------
   const HEAD_ING = /^(zutaten|ingredients?|du brauchst|ihr braucht|für den teig|für die füllung|einkaufsliste)\b[:\s]*$/i;
   const HEAD_STEP = /^(zubereitung|anleitung|so geht'?s|so wird'?s gemacht|instructions?|steps?|method|schritte)\b[:\s]*$/i;
-  const EMOJI = /[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]/gu;
+  const EMOJI = EMOJI_RE;
   // Emoji (auch mehrere) direkt vor einer Zahl oder einem großgeschriebenen Wort = Aufzählungszeichen
-  const EMOJI_BULLET = /\s*[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}][\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}\u{200D}]*\s*(?=[\p{Lu}\d½¼¾⅓])/gu;
+  const EMOJI_BULLET = new RegExp('[ \\t]*(?:' + SYM_SRC + ')(?:[ \\t]*(?:' + SYM_SRC + '))*[ \\t]*(?=[\\p{Lu}\\d½¼¾⅓])', 'gu');
+  // Nummern als Zeichen: 1️⃣ ① ❶ ➊ 🔟 ⑴ ⒈ -> neue Zeile
+  const NUM_BULLET = /(?:\d\uFE0F?\u20E3|[\u2460-\u2473\u2474-\u249B\u24EB-\u24FF\u2776-\u2793]|\u{1F51F})[ \t]*/gu;
   // Typische Verben in Zubereitungsschritten (ganze Wörter)
   const STEP_VERB = /(?<![\p{L}])(kochen|durchpressen|pressen|rühren|verrühren|unterrühren|unterheben|würzen|formen|backen|ausbacken|braten|anbraten|schneiden|hacken|geben|mischen|vermischen|vermengen|kneten|schälen|reiben|servieren|garen|köcheln|erhitzen|schmelzen|abgießen|abschrecken|vorheizen|bestreuen|anrichten|füllen|legen|verteilen|stellen|pürieren|aufkochen|abschmecken|fetten|einfetten|wenden|zugeben|hinzufügen|dünsten|anschwitzen|ablöschen|ruhen|abkühlen|abtropfen|zerdrücken|aufschlagen|schlagen)(?![\p{L}])/iu;
   // Lange Absätze in einzelne Schritte teilen: erst nach Sätzen, dann an Kommas nach einem Kochverb
@@ -779,10 +813,13 @@
   function fromText(text, hint) {
     hint = hint || {};
     // Einzeiliger Text (TikTok): doppelte Leerzeichen sind ehemalige Zeilenumbrüche
-    if (!/\n/.test(String(text || ''))) text = String(text || '').replace(/ {2,}/g, '\n');
-    let lines = String(text || '')
-      // Zahl-Emojis (1️⃣) und Aufzählungszeichen mitten im Text -> neue Zeile
-      .replace(/(\d)\uFE0F?\u20E3\s*/g, '\n')
+    text = socialText(text);
+    if (!/\n/.test(text)) text = text.replace(/ {2,}/g, '\n');
+    let lines = foodEmoji(text)
+      // Zahl-Emojis (1️⃣ ① ❶) und Aufzählungszeichen mitten im Text -> neue Zeile
+      .replace(NUM_BULLET, '\n')
+      // Pfeile und Striche als Aufzählung ("-> 200 g Mehl", "=> Teig kneten", "— 1 Ei")
+      .replace(/(^|\s)(?:->|=>|>>|~>)\s*(?=[\p{Lu}\d½¼¾⅓])|(^|\s)[–—-]\s+(?=\d|[½¼¾⅓])/gmu, '\n')
       .replace(/[’`´]/g, "'")
       // Emojis als Aufzählungszeichen ("🤎40 g Haferflocken 🤎150 ml Sojamilch") -> neue Zeile
       .replace(EMOJI_BULLET, '\n')
@@ -798,8 +835,9 @@
       .replace(/\s+(?=(?:so geht'?s|so wird'?s gemacht|zubereitung|anleitung)\b(?!\s*:))/gi, '\n')
       .replace(/\b(so geht'?s|so wird'?s gemacht)\s+(?=\d{1,2}\.\s)/gi, '$1\n')
       .split(/\r?\n|(?<=[.!)])\s+(?=\d{1,2}[.)]\s)|\s(?=\d{1,2}\.\s+\p{Lu})/u)
-      .map(l => l.replace(/#[\p{L}\p{N}_]+/gu, '').replace(/^[\s•·*\-–—>]+/, '').replace(/\s+/g, ' ').trim())
-      .filter(l => l && !/^@\w/.test(l));
+      .map(l => l.replace(/#[\p{L}\p{N}_]+/gu, '').replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1').replace(/^[\s•·*\-–—>]+/, '').replace(/\s+/g, ' ').trim())
+      // Trennlinien und Zeilen nur aus Zeichen ("━━━━", "~~~", "・゜・", "…") weglassen
+      .filter(l => l && !/^@\w/.test(l) && /[\p{L}\p{N}]/u.test(l));
     let title = hint.title || '';
     const ingredients = [], st = [], other = [];
     let mode = '';
@@ -890,7 +928,7 @@
       const verbs = other.filter(o => STEP_VERB.test(o) && o.split(' ').length >= 4);
       if (verbs.length) { verbs.forEach(v => { st.push(v); other.splice(other.indexOf(v), 1); }); }
     }
-    if (!title) title = (other.shift() || '').replace(/[:!]+$/, '').slice(0, 80);
+    if (!title) { const k = other.findIndex(o => !isFluffLine(o)); title = (k >= 0 ? other.splice(k, 1)[0] : '').replace(/[:!]+$/, '').slice(0, 80); }
     title = cleanTitle(title);
     const sameAsTitle = x => title && String(x).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '') === String(title).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
     for (let i = other.length - 1; i >= 0; i--) {
@@ -990,5 +1028,5 @@
 
   // Schritte aus einer anderen App: Nummern weg, leere weg, Erzählstil straffen, pro Satz ein Schritt
   const cleanSteps = list => splitSteps(arr(list).map(x => clean(x).replace(/^\d{1,2}[.)]\s*/, '')).filter(Boolean).map(tidyStep));
-  window.RecipeImporter = { isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();
