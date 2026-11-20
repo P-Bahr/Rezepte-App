@@ -552,3 +552,7 @@ dialog:focus { outline: none; }
 .app > .titlebar .title-wrap { flex: 1 1 auto; min-width: 0; }
 .titlebar-actions { flex: none; }
 .titlebar-actions .btn { white-space: nowrap; }
+
+/* Hinweis „Mehrfach gespeichert“ in der Übersicht: mittig */
+#dupNotice { text-align: center; }
+#dupNotice .row { justify-content: center; }
