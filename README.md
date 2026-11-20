@@ -94,6 +94,8 @@ Reines HTML, CSS und JavaScript, ohne Bauwerkzeuge.
 | `js/inbox.js` | Eingangsfach für geteilte Rezepte (Kurzbefehl) |
 | `supabase/eingang.sql` | Einrichtung Eingangsfach + Teilen-Schlüssel (einmal ausführen) |
 | `js/maingroups.js` | Hauptzutat -> feste Gruppe für den Filter (Fleisch, Fisch, Nudeln …) |
+| `js/rkimport.js` | Import aus Recipe Keeper (Export-zip mit recipes.html und Fotos) |
+| `js/vendor/jszip.min.js` | JSZip 3.10.1 zum Entpacken (MIT) |
 | `js/dupes.js` | Doppelte Rezepte erkennen |
 | `js/images.js` | Fotos verkleinern und im Bildspeicher (IndexedDB) ablegen |
 | `js/app.js` | Bedienoberfläche |

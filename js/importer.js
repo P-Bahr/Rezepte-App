@@ -78,7 +78,7 @@
     const cands = arr(yieldVal).map(y => clean(y)).filter(Boolean);
     cands.sort((a, b) => b.length - a.length); // die ausführlichste Angabe zuerst
     for (const c of cands) {
-      const m = c.match(/(\d+(?:[.,]\d+)?)\s*([A-Za-zÄÖÜäöüß]+)?/);
+      const m = c.match(/(\d+(?:[.,]\d+)?)(?:\s*(?:[-–]|bis)\s*\d+(?:[.,]\d+)?)?\s*([A-Za-zÄÖÜäöüß]+(?:\s+[A-ZÄÖÜ][a-zäöüß]+)?)?/);
       if (!m) continue;
       const n = parseFloat(m[1].replace(',', '.'));
       if (!(n > 0) || n > 200) continue;
@@ -91,7 +91,7 @@
         formSize = 'Ø ' + (dia ? (dia[1] || dia[2] || dia[3]) : 26) + ' cm';
       }
       // "96 Vanillekipferl", "12 Muffins", "20 Stück" -> Stück (sonst würde auf 4 Personen umgerechnet)
-      if (!F.UNITS.includes(unit)) unit = m[2] && !/^(x|mal|min|minuten|std|h)$/i.test(m[2]) ? 'Stück' : 'Personen';
+      if (!F.UNITS.includes(unit)) unit = m[2] && /^\p{Lu}/u.test(m[2]) && !/^(x|mal|min|minuten|std|h)$/i.test(m[2]) ? 'Stück' : 'Personen';
       return { servings: n, servingsUnit: unit, formSize };
     }
     return { servings: 4, servingsUnit: 'Personen', formSize: '', guessed: true };
@@ -117,11 +117,14 @@
     [/getränk|drink|beverage/i, 'Getränk'], [/snack/i, 'Snack'], [/sauce|soße|dip/i, 'Sauce & Dip']
   ];
   function guessCourse(title, category, keywords) {
-    if (/(kipferl|plätzchen|kekse?\b|cookies?|muffins?|kuchen|torte|brötchen|brot\b|brownies?|waffeln|schnecken|stollen|lebkuchen|makronen|taler\b|teilchen|krapfen|berliner|donuts?|croissants?|plunder|zopf|streusel|scones|cupcakes?|blechkuchen|hefeteig)/i.test(title)) return 'Gebäck';
+    if (!/(pfannkuchen|eierkuchen|kaiserschmarrn)/i.test(title) && /(kipferl|plätzchen|kekse?\b|cookies?|muffins?|kuchen|torte|brötchen|brot\b|brownies?|waffeln|schnecken|stollen|lebkuchen|makronen|taler\b|teilchen|krapfen|berliner|donuts?|croissants?|plunder|zopf|streusel|scones|cupcakes?|blechkuchen|hefeteig)/i.test(title)) return 'Gebäck';
     if (COURSE_RULES[0][1].test(title)) return 'Getränk';
     for (const c of arr(category)) for (const [re, v] of CATEGORY_MAP) if (re.test(clean(c))) return v;
     const hay = title + ' ' + arr(keywords).join(' ');
-    for (const [v, re] of COURSE_RULES) if (re.test(hay)) return v;
+    const headOnly = String(title).split(/\s+(?:mit|in|an|auf|und|zu|im)\s+/i)[0];
+    for (const [v, re] of COURSE_RULES) {
+      if (v === 'Sauce & Dip' ? re.test(headOnly) : re.test(hay)) return v; // "Hähnchen in Soße" ist kein Dip
+    }
     return 'Hauptgericht';
   }
   function guessMethod(stepsList, title) {
@@ -177,6 +180,8 @@
         const stem = stemOf(n);
         if (stem.length < 3) continue;
         let pos = head.lastIndexOf(stem);
+        // "Bandnudeln" passt zu "…-Nudeln": hinterer Wortteil (mind. 5 Buchstaben) im Namen
+        if (pos < 0) for (let k = 1; k <= stem.length - 5; k++) { const tail = stem.slice(k); const q = head.lastIndexOf(tail); if (q >= 0) { pos = q; break; } }
         // "Lachs auf Spinat" + "Lachsfilets": Zutat beginnt mit einem Wort aus dem Namen
         if (pos < 0) for (const w of headWords) if (n.startsWith(stemOf(w))) pos = Math.max(pos, head.lastIndexOf(w));
         if (pos > bestPos) { bestPos = pos; best = p.name; }
@@ -238,7 +243,7 @@
   }
 
   // Hauptzutat muss ein echtes Wort sein (keine Zahl, keine Zeit- oder Mengenangabe)
-  const NOT_MAIN = /^(minuten?|min|stunden?|std|sekunden|portionen?|personen|pers|stück|stk|gläser|zutaten|zubereitung|rezepte?|kcal|kj|bis|zu|ca|etwa|und|oder|mit|für|von|grad|gramm|liter|zeit|schritt|anleitung|hinweis|tipp|kinderrezepte?|familienessen|abendessen|mittagessen|ideen|eier|ei|eigelbe?|eiweiße?|salz|pfeffer|wasser)$/i;
+  const NOT_MAIN = /^(minuten?|min|stunden?|std|sekunden|portionen?|personen|pers|stück|stk|gläser|zutaten|zubereitung|rezepte?|kcal|kj|bis|zu|ca|etwa|und|oder|mit|für|von|grad|gramm|liter|zeit|schritt|anleitung|hinweis|tipp|kinderrezepte?|familienessen|abendessen|mittagessen|ideen|eier|ei|eigelbe?|eiweiße?|salz|pfeffer|wasser|light|leicht|kleiner?e?|große?r?|mittelgroße?|frische?r?|natur|fein|grob|optional|tk|bio|vegan|veggie|reife?|weiche?|kalte?|warme?|gehackte?|gewürfelte?|geriebene?r?)$/i;
   function validMain(v) {
     const t = clean(v);
     return /^\p{L}[\p{L}\s'’-]{1,40}$/u.test(t) && !NOT_MAIN.test(t) ? t : '';
@@ -366,6 +371,8 @@
     t = t.replace(/\s+(?:ganz\s+)?(?:einfach\s+)?(?:selber|selbst)\s+(?:machen|gemacht|herstellen|backen|kochen|zubereiten)\s*$/iu, '')
       .replace(/\s+(?:einfach\s+|schnell\s+)?(?:zubereiten|zubereitet|machen|gemacht)\s*$/iu, '')
       .replace(/^(?:selbst|selber)\s*gemachte[rsn]?\s+(?=\p{L})/iu, '');
+    // "15 Minuten Schlemmer One Pot", "5 Zutaten Fladenbrot", "3-Zutaten-Kuchen"
+    t = t.replace(/^\d+[\s-]*(?:minuten|min\.?|zutaten)[\s-]+(?=\p{L})/iu, '');
     // "Kinder Nudelsalat" / "Baby Brei" (mit Leerzeichen, nicht "Kinder-Pizza")
     t = t.replace(/^(?:[Kk]inder|[Kk]ids|[Bb]aby|[Ff]amilien)\s+(?=\p{Lu})/u, '');
     // "Besser als vom Bäcker, …" / "… unfassbar lecker!"
@@ -784,5 +791,7 @@
     throw new Error('Pinnwand nicht gefunden. Stimmen Name und Pinnwand, und ist sie öffentlich?');
   }
 
-  window.RecipeImporter = { reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  // Schritte aus einer anderen App: Nummern weg, leere weg, Erzählstil straffen, pro Satz ein Schritt
+  const cleanSteps = list => splitSteps(arr(list).map(x => clean(x).replace(/^\d{1,2}[.)]\s*/, '')).filter(Boolean).map(tidyStep));
+  window.RecipeImporter = { cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

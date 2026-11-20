@@ -879,6 +879,28 @@
       } catch (e) { say(status, ''); say(msg, e.message); } finally { pinBtn.disabled = false; }
     });
 
+    // ---- Aus einer anderen App (Recipe Keeper) ----
+    const appFile = h('input', { type: 'file', id: 'importApp', accept: '.zip,.html,.htm,application/zip,text/html', class: 'visually-hidden' });
+    const appBtn = h('label', { for: 'importApp', class: 'btn pick-btn', role: 'button', tabindex: '0' }, 'Export-Datei auswählen');
+    appBtn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); appFile.click(); } });
+    appFile.addEventListener('change', async () => {
+      const f = appFile.files[0];
+      appFile.value = '';
+      if (!f) return;
+      say(msg, ''); manual.hidden = true; say(status, 'Datei wird gelesen …');
+      try {
+        const list = await window.RecipeKeeper.read(f);
+        say(status, '');
+        if (!list.length) { say(msg, 'In der Datei wurden keine Rezepte gefunden.'); return; }
+        const pins = list.map((x, i) => ({ id: 'rk' + i, draft: x.draft, getImage: x.getImage, url: x.draft.sourceUrl || '', text: x.raw.name }));
+        openBoardImport({ pins }, {
+          title: 'Aus Recipe Keeper importieren', word: 'Rezepte', batchPrefix: 'rk-',
+          info: list.length + ' Rezepte gefunden' + (list.some(x => x.getImage) ? ', mit Fotos.' : '.'),
+          complete: d => !!(d && d.title)
+        });
+      } catch (e) { say(status, ''); say(msg, e.message || 'Die Datei konnte nicht gelesen werden.'); }
+    });
+
     const form = h('form', { class: 'form', novalidate: true, onsubmit: e => { e.preventDefault(); run(); } },
       h('div', { class: 'field' },
         h('label', { for: 'importUrl', text: 'Link zum Rezept' }), input,
@@ -893,6 +915,10 @@
         h('span', { class: 'hint', text: 'Zum Beispiel aus WhatsApp, einer E-Mail oder einem Facebook-Beitrag: Text kopieren, hier lange tippen, dann „Einsetzen“.' }),
         textArea,
         h('div', { class: 'pick-actions' }, textBtn)),
+      h('div', { class: 'field import-app' },
+        h('span', { class: 'label', text: 'Oder aus einer anderen Rezept-App' }),
+        h('span', { class: 'hint', text: 'Recipe Keeper: Einstellungen → Exportieren, die Datei „In Dateien sichern“ und hier auswählen. Alle Rezepte kommen auf einmal, mit Fotos, und werden als „Zu prüfen“ markiert.' }),
+        h('div', { class: 'pick-actions' }, appBtn, appFile)),
       h('div', { class: 'field import-board' },
         h('span', { class: 'label', text: 'Oder ganze Pinterest-Pinnwand' }),
         h('span', { class: 'hint', text: 'Holt die neuesten 50 Pins einer öffentlichen Pinnwand (mehr gibt Pinterest nicht heraus). Die Rezepte werden automatisch gespeichert und als „Zu prüfen“ markiert.' }),
@@ -928,7 +954,7 @@
     showDialog('board', h('div', { style: 'display:contents' }, head(opts.title || 'Pinnwand importieren', closeDialog), h('div', { class: 'dlg-scroll' }, box)));
     if (opts.autoStart) setTimeout(() => go.click(), 0);
 
-    const complete = d => d && d.title && d.title !== 'Importiertes Rezept' && d.ingredients.length >= 2 && d.steps.length >= 1;
+    const complete = opts.complete || (d => d && d.title && d.title !== 'Importiertes Rezept' && d.ingredients.length >= 2 && d.steps.length >= 1);
     const norm = u => String(u || '').replace(/[?#].*$/, '').replace(/\/$/, '').toLowerCase();
     go.addEventListener('click', async () => {
       go.remove();
@@ -937,8 +963,8 @@
       let done = 0;
       const queue = pins.slice();
       const one = async pin => {
-        let d = null;
-        if (pin.link) {
+        let d = pin.draft ? { ...pin.draft } : null; // schon fertig gelesen (z. B. aus Recipe Keeper)
+        if (!d && pin.link) {
           try { const r = window.RecipeImporter.toDraft(await S.fetchPage(pin.link)); d = r && r.draft; if (d) d.importHow = r.how; } catch (e) { d = null; }
         }
         if (!complete(d) && pin.text) {
@@ -952,8 +978,12 @@
         const same = Store.recipes().find(x => (x.sourceUrl && norm(x.sourceUrl) === norm(d.sourceUrl)) || (x.sourceUrl && pin.link && norm(x.sourceUrl) === norm(pin.link)))
           || window.RecipeDupes.findDuplicate(d, Store.recipes());
         if (same) { dup.push({ pin, label, same }); return; }
+        // Foto aus der Datei: verkleinern und im Bildspeicher ablegen
+        if (pin.getImage) {
+          try { const b = await pin.getImage(); if (b) d.imageId = await window.RecipeImages.save(await window.RecipeImages.resize(b)); } catch (e) { /* ohne Foto weiter */ }
+        }
         try { Store.saveRecipe({ ...d, review: true, importBatch: batch }); saved.push(label); }
-        catch (e) { failed.push({ pin, label }); }
+        catch (e) { if (d.imageId) window.RecipeImages.remove(d.imageId); failed.push({ pin, label }); }
       };
       const worker = async () => {
         while (queue.length) {

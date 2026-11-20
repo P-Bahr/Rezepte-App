@@ -202,6 +202,37 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   assert(await p.isVisible('.form-error:has-text("kein Rezept erkannt")'), 'Text ohne Rezept: verständliche Meldung');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
 
+  // Recipe Keeper: nachgebaute Export-Datei (zip mit recipes.html und Foto)
+  {
+    const JSZip = require('../js/vendor/jszip.min.js');
+    const rk = (id, name, course, cat, y, fav, ing, dir, src) => `<div class="recipe-details"><meta content="${id}" itemprop="recipeId"><meta content="${fav}" itemprop="recipeIsFavourite"><table><tr><td><img src="images/${id}_0.jpg" class="recipe-photo"/></td><td><h2 itemprop="name">${name}</h2><div>Rezeptarten: <span itemprop="recipeCourse">${course}</span></div><div>Kategorien: <span>${cat}</span><meta content="${cat}" itemprop="recipeCategory"></div><div>Quelle: <span itemprop="recipeSource">${src}</span></div><div>Portionsgr&#246;&#223;e: <span itemprop="recipeYield">${y}</span></div></td></tr><tr><td><div class="recipe-ingredients" itemprop="recipeIngredients">${ing.map(x => '<p>' + x + '</p>').join('')}</div></td><td><div itemprop="recipeDirections">${dir.map(x => '<p>' + x + '</p><p></p>').join('')}</div></td></tr></table><div class="recipe-notes" itemprop="recipeNotes"><p>Schmeckt auch kalt.</p></div><div class="recipe-photos-div"><img src="images/${id}_0.jpg" class="recipe-photos" itemprop=photo0 /></div><hr /></div>`;
+    const html = '<!DOCTYPE html><html><body>'
+      + rk('a1', '15 Minuten Schlemmer One Pot', 'Hauptgericht', 'Eintopf', '2 bis 4 Portionen', 'True', ['1kg Kartoffeln', '3-4 M&#246;hren', '1L Gem&#252;sebr&#252;he'], ['1. Zuerst schneiden wir die Kartoffeln klein.', '2. Alles 12 Minuten kochen.'], '<a href="https://vm.tiktok.com/ZGdxEbAA6/">https://vm.tiktok.com/ZGdxEbAA6/</a>')
+      + rk('a2', 'Schokoladenkekse', 'Backen', 'Pl&#228;tzchen', '12 Kekse', 'False', ['200 g Mehl', '100 g Schokolade'], ['Teig kneten und 12 Minuten backen.'], 'Recipe Keeper')
+      + '</body></html>';
+    const zip = new JSZip();
+    zip.file('recipes.html', html);
+    zip.file('images/a1_0.jpg', require('fs').readFileSync('icons/icon-192.png'));
+    const zpath = require('os').tmpdir() + '/rk-test-' + process.pid + '.zip';
+    require('fs').writeFileSync(zpath, await zip.generateAsync({ type: 'nodebuffer' }));
+    await p.click('#btnImport');
+    await p.setInputFiles('#importApp', zpath);
+    await p.waitForSelector('#boardGo');
+    assert((await p.textContent('.dlg-scroll')).includes('2 Rezepte gefunden, mit Fotos'), 'Recipe Keeper: Datei gelesen, 2 Rezepte mit Fotos');
+    await p.click('#boardGo');
+    await p.waitForSelector('#boardResult b', { timeout: 15000 });
+    assert((await p.textContent('#boardResult')).includes('2 importiert'), 'Recipe Keeper: beide importiert');
+    const rkr = await p.evaluate(() => Store.recipes().filter(r => (r.importBatch || '').startsWith('rk-')).map(r => ({ t: r.title, c: r.course, m: r.method, s: r.servings + ' ' + r.servingsUnit, f: r.favorite, img: !!r.imageId, st: r.steps, src: r.sourceUrl, n: r.notes, rev: r.review })).sort((a, b) => a.t.localeCompare(b.t)));
+    const [pot, kekse] = rkr;
+    assert(pot.t === 'Schlemmer One Pot' && pot.c === 'Hauptgericht' && pot.s === '2 Personen' && pot.f && pot.img && pot.rev, 'Recipe Keeper: Name ohne „15 Minuten“, Rezeptart, „2 bis 4 Portionen“ = 2 Personen, Favorit, Foto, „Zu prüfen“: ' + JSON.stringify(pot));
+    assert(JSON.stringify(pot.st) === JSON.stringify(['Kartoffeln klein schneiden.', 'Alles 12 Minuten kochen.']) && pot.src === 'https://vm.tiktok.com/ZGdxEbAA6/' && pot.n === 'Schmeckt auch kalt.', 'Recipe Keeper: Schritte ohne Nummern und gekürzt, Quelle, Notizen');
+    assert(kekse.c === 'Gebäck' && kekse.m === 'Backen' && kekse.s === '12 Stück' && !kekse.src && !kekse.f, 'Recipe Keeper: „Backen“ als Zubereitung, Kekse sind Gebäck, 12 Stück, „Recipe Keeper“ ist keine Quelle: ' + JSON.stringify(kekse));
+    await p.click('#boardUndo'); await p.click('#boardUndoYes');
+    assert(await p.evaluate(() => !Store.recipes().some(r => (r.importBatch || '').startsWith('rk-'))), 'Recipe Keeper: Import rückgängig');
+    await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+    require('fs').unlinkSync(zpath);
+  }
+
   // Pinterest-Pinnwand
   await p.click('#btnImport');
   await p.fill('#pinUser', '@oopusteblumeoo'); await p.fill('#pinBoard', 'Gibt es nicht'); await p.click('#pinLoad');
