@@ -309,6 +309,57 @@
   // Erscheint, bis man auf "Fertig" tippt; unter Einstellungen jederzeit wieder einblendbar.
   const START_DONE = 'rezepte.start.fertig';
   function startDone() { try { return localStorage.getItem(START_DONE) === '1'; } catch (e) { return false; } }
+  // ---------- Mehrfach gespeicherte Gerichte vergleichen ----------
+  function openDupes(anyId) {
+    const D = window.RecipeDupes;
+    const r0 = Store.recipe(anyId);
+    const group = r0 && D.groupOf(r0, Store.recipes());
+    if (!group) { closeDialog(); return; }
+    const rec = D.recommend(group);
+    const card = ({ r, q }) => {
+      const best = r.id === rec.best.id;
+      const facts = [q.nIng + ' Zutaten' + (q.nIng && q.withAmount === q.nIng ? ' (alle mit Menge)' : q.nIng ? ' (' + (q.nIng - q.withAmount) + ' ohne Menge)' : ''),
+        q.nSteps + (q.nSteps === 1 ? ' Schritt' : ' Schritte'), q.f.photo ? 'Foto' : 'kein Foto', r.totalTime ? 'Zeit: ' + window.RecipeTime.label(r) : ''].filter(Boolean).join(' · ');
+      const only = D.onlyHere(r, group);
+      return h('div', { class: 'dup-card' + (best ? ' dup-best' : ''), 'data-id': r.id },
+        imageBox('dup-img', r),
+        h('div', { class: 'dup-text' },
+          best ? h('span', { class: 'dup-badge', text: 'Empfehlung' }) : null,
+          h('b', { class: 'dup-title', text: r.title }),
+          h('span', { class: 'dup-facts', text: facts }),
+          only.length ? h('span', { class: 'dup-facts', text: 'Nur hier: ' + only.slice(0, 6).join(', ') }) : null,
+          best ? h('span', { class: 'dup-why', text: 'Warum: ' + rec.reasons.join(', ') }) : null,
+          h('button', { type: 'button', class: 'btn', onclick: () => openDetail(r.id) }, 'Ansehen')));
+    };
+    const foot = h('div', { class: 'dlg-foot' });
+    const normal = () => {
+      foot.textContent = '';
+      foot.append(
+        h('button', { type: 'button', class: 'btn', id: 'dupKeepAll', onclick: () => {
+          try { Store.setDupOk(group.map(x => x.id)); toast('Alle behalten – kein Hinweis mehr'); closeDialog(); } catch (e) { toast(e.message); }
+        } }, 'Alle behalten'),
+        h('button', { type: 'button', class: 'btn btn-primary', id: 'dupKeepBest', onclick: ask }, 'Nur Empfehlung behalten'));
+    };
+    const ask = () => {
+      foot.textContent = '';
+      const others = group.filter(x => x.id !== rec.best.id);
+      foot.append(h('div', { class: 'confirm' },
+        h('p', { text: (others.length === 1 ? '1 anderes Rezept' : others.length + ' andere Rezepte') + ' löschen und „' + rec.best.title + '“ behalten?' }),
+        h('button', { type: 'button', class: 'btn', onclick: normal }, 'Abbrechen'),
+        h('button', { type: 'button', class: 'btn btn-danger-solid', id: 'dupConfirm', onclick: () => {
+          try { others.forEach(x => Store.deleteRecipe(x.id)); toast(others.length === 1 ? '1 Rezept gelöscht' : others.length + ' Rezepte gelöscht'); openDetail(rec.best.id); }
+          catch (e) { toast(e.message); }
+        } }, 'Ja, löschen')));
+    };
+    normal();
+    showDialog('dupes', h('div', { style: 'display:contents' },
+      head('Gleiches Gericht, ' + group.length + '-mal', closeDialog),
+      h('div', { class: 'dlg-scroll' },
+        h('p', { class: 'hint', text: 'Empfohlen wird das vollständigste Rezept: Mengen bei allen Zutaten, klare Schritte, Foto, Zeit- und Portionsangabe – Favoriten zählen besonders. Wie es schmeckt, weißt nur du.' }),
+        h('div', { class: 'dup-list' }, rec.ranked.map(card))),
+      foot));
+  }
+
   function renderStart() {
     const box = $('#start');
     if (!box) return false;
@@ -438,6 +489,15 @@
     }
     empty.hidden = true;
     const frag = document.createDocumentFragment();
+    // Hinweis: dasselbe Gericht mehrfach gespeichert
+    const dupGroups = window.RecipeDupes.groups(Store.recipes());
+    if (dupGroups.length) {
+      const name = g => window.RecipeDupes.recommend(g).best.title;
+      frag.append(h('div', { class: 'notice dup-notice', id: 'dupNotice' },
+        h('p', null, h('b', { text: 'Mehrfach gespeichert: ' }), dupGroups.length === 1 ? '1 Gericht' : dupGroups.length + ' Gerichte'),
+        h('div', { class: 'row' }, dupGroups.slice(0, 4).map(g => h('button', { type: 'button', class: 'btn', onclick: () => openDupes(g[0].id) }, name(g) + ' (' + g.length + '×)')),
+          dupGroups.length > 4 ? h('span', { class: 'hint', text: '… und ' + (dupGroups.length - 4) + ' weitere' }) : null)));
+    }
     for (const r of list) {
       const meta = [window.RecipeTime.label(r), collectionName(r.collectionId)].filter(Boolean).join(' · ');
       const img = imageBox('tile-img', r);
@@ -474,6 +534,8 @@
     if (!dlg.open) {
       dlg.showModal();
       document.body.classList.add('modal-open');
+      // Kein Ring um den ersten Knopf (z. B. den Stern) beim Öffnen: das Fenster selbst bekommt den Fokus
+      if (!body.querySelector('[autofocus]')) { dlg.tabIndex = -1; dlg.focus({ preventScroll: true }); }
     }
     const scroller = body.querySelector('.dlg-scroll');
     if (scroller) scroller.scrollTop = 0;
@@ -675,7 +737,11 @@
           toast('Alles geprüft ✓');
         }
     }
-    const content = h('div', { class: 'detail' }, reviewBar,
+    const dupGroup = window.RecipeDupes.groupOf(r, Store.recipes());
+    const dupBar = dupGroup ? h('div', { class: 'notice dup-notice' },
+      h('p', null, h('b', { text: 'Dieses Gericht hast du ' + dupGroup.length + '-mal gespeichert.' }), ' Vergleichen und das beste behalten?'),
+      h('div', { class: 'row' }, h('button', { type: 'button', class: 'btn', id: 'dupCompare', onclick: () => openDupes(id) }, 'Vergleichen'))) : null;
+    const content = h('div', { class: 'detail' }, reviewBar, dupBar,
       (r.imageId || safeUrl(r.imageUrl)) ? (() => {
         const img = h('img', { class: 'detail-img', alt: '', referrerpolicy: 'no-referrer' });
         setImage(img, r, () => img.remove());

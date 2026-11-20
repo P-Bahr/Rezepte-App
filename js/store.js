@@ -290,6 +290,12 @@
     },
 
     // "Passt": Markierung "Zu prüfen" entfernen
+    // Mehrfach gespeichertes Gericht bewusst behalten (kein Hinweis mehr)
+    setDupOk(ids) {
+      const set = new Set(ids), now = new Date().toISOString(), before = data.recipes;
+      data.recipes = before.map(x => (set.has(x.id) && !x.dupOk ? { ...x, dupOk: true, updatedAt: now } : x));
+      try { save(); } catch (e) { data.recipes = before; throw e; }
+    },
     setReviewed(id) {
       if (!this.recipe(id)) return;
       const before = data.recipes;

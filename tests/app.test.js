@@ -129,6 +129,37 @@ const OUT = process.argv[2] || '.';
   await p.click('#chipOnePot');
   await p.evaluate(ids => ids.forEach(id => Store.deleteRecipe(id)), op);
 
+  // Gleiches Gericht mehrfach gespeichert: Hinweis, Vergleich, Empfehlung
+  {
+    const ids = await p.evaluate(() => [
+      Store.saveRecipe({ title: 'Cheeseburger Auflauf', servings: 4, totalTime: '45 Min.', ingredients: ['500 g Rinderhackfleisch', '800 g Kartoffeln', '200 g Cheddar', '4 Gewürzgurken', '1 Zwiebel', '2 EL Senf'], steps: ['Kartoffeln in Scheiben schneiden und in eine Auflaufform legen.', 'Hackfleisch mit Zwiebel krümelig anbraten und mit Senf würzen.', 'Mit Gurken und Cheddar belegen und bei 200 °C 30 Minuten backen.'] }).id,
+      Store.saveRecipe({ title: 'Low Carb Cheeseburger-Auflauf', review: true, ingredients: ['500 g Hackfleisch', 'Cheddar', 'Gewürzgurken', 'Zwiebel'], steps: ['Alles anbraten und im Ofen überbacken.'] }).id,
+      Store.saveRecipe({ title: 'Cheeseburgerauflauf mit Nudeln', ingredients: ['400 g Nudeln', '500 g Hackfleisch', '150 g Cheddar', '1 Zwiebel', '2 Gewürzgurken'], steps: ['Nudeln kochen.', 'Hack anbraten.', 'Alles in eine Form, Käse drüber, im Ofen 20 Minuten backen.'] }).id,
+      Store.saveRecipe({ title: 'Pfannkuchenteig', method: 'Braten', ingredients: ['250 g Mehl', '3 Eier', '500 ml Milch', '1 Prise Salz'], steps: ['Verrühren.', 'In der Pfanne ausbacken.'] }).id,
+      Store.saveRecipe({ title: 'Ofen-Pfannkuchenteig', method: 'Backen', ingredients: ['250 g Mehl', '3 Eier', '500 ml Milch', '1 Prise Salz'], steps: ['Verrühren.', 'Auf dem Blech im Ofen backen.'] }).id
+    ]);
+    const g = await p.evaluate(() => window.RecipeDupes.groups(Store.recipes()).map(x => x.map(r => r.title).sort().join(' / ')));
+    assert(g.length === 1 && /Cheeseburger Auflauf/.test(g[0]) && !/Pfannkuchen/.test(g.join()), 'Mehrfach: 3 Cheeseburger-Varianten erkannt, Pfanne/Ofen-Pfannkuchen nicht: ' + JSON.stringify(g));
+    assert(await p.locator('#dupNotice').count() === 1, 'Mehrfach: Hinweis in der Übersicht');
+    await p.click('#dupNotice .btn'); await p.waitForTimeout(300);
+    const first = await p.evaluate(() => [document.querySelector('.dup-card').dataset.id, document.querySelector('.dup-best .dup-why').textContent, document.querySelector('.dup-card:not(.dup-best) .dup-facts:nth-of-type(2)') ? document.querySelector('.dup-card:not(.dup-best)').textContent : '']);
+    assert(first[0] === ids[0] && /alle Zutaten mit Mengen/.test(first[1]), 'Mehrfach: das vollständigste Rezept wird empfohlen (' + first[1] + ')');
+    assert(await p.evaluate(() => [...document.querySelectorAll('.dup-card')].some(c => /Nur hier: .*Kartoffeln/.test(c.textContent))), 'Mehrfach: Unterschiede in den Zutaten werden gezeigt');
+    await p.click('#dupKeepAll'); await p.waitForTimeout(300);
+    assert(await p.locator('#dupNotice').count() === 0, 'Mehrfach: „Alle behalten“ blendet den Hinweis aus');
+    // Neue Variante dazu -> wieder Hinweis; "Nur Empfehlung behalten" löscht die anderen
+    const extra = await p.evaluate(() => Store.saveRecipe({ title: 'Cheeseburger Auflauf schnell', ingredients: ['500 g Hackfleisch', '150 g Cheddar', '1 Zwiebel', 'Gewürzgurken'], steps: ['Anbraten, im Ofen überbacken.'] }).id);
+    await p.waitForTimeout(200);
+    assert(await p.locator('#dupNotice').count() === 1, 'Mehrfach: neue Variante -> Hinweis wieder da');
+    await p.click('#dupNotice .btn'); await p.waitForTimeout(300);
+    await p.click('#dupKeepBest'); await p.click('#dupConfirm'); await p.waitForTimeout(300);
+    const left = await p.evaluate(ids => ids.filter(id => Store.recipe(id)), ids.slice(0, 3).concat(extra));
+    assert(left.length === 1 && left[0] === ids[0], 'Mehrfach: „Nur Empfehlung behalten“ löscht die anderen ' + JSON.stringify(left));
+    const focus = await p.evaluate(() => document.activeElement.tagName + (document.activeElement.className || ''));
+    assert(!/BUTTON/.test(focus), 'Beim Öffnen eines Rezepts kein Ring um den ersten Knopf (Fokus: ' + focus + ')');
+    await p.evaluate(() => { document.getElementById('dlg').close(); });
+    await p.evaluate(ids => ids.forEach(id => Store.recipe(id) && Store.deleteRecipe(id)), ids);
+  }
   // Aufräum-Runde für alle gespeicherten Rezepte (auch ohne Original, auch schon geprüfte)
   {
     const id = await p.evaluate(() => Store.saveRecipe({ title: 'Pilzpfanne', ingredients: ['200 g Champions', '1 Zwiebel'], steps: ['Pilze braten.', 'Guten Appetit!'], notes: 'x', review: false }).id);
