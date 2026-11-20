@@ -31,40 +31,24 @@ Eine eigene Rezept-App für iPad und Handy. Sie läuft als Web-App, die man auf 
 - Leere Sammlung nach dem Verschieben direkt löschbar
 - Notizen zeigen erwähnte eigene Rezepte als „Passt dazu ›“-Knopf („Dazu passen die Ofenkartoffeln“); × und Wischen vom linken Rand führen zum vorherigen Rezept zurück
 - Rezepte anlegen, bearbeiten und löschen; Sammlungen anlegen, umbenennen und löschen
-- 25 Beispielrezepte; unter „Sammlungen“ hinzufügen oder alle auf einmal entfernen
+- 25 Beispielrezepte; unter „Einstellungen“ hinzufügen oder alle auf einmal entfernen
 - Online-Abgleich (Supabase): Anmeldung mit E-Mail und Passwort, Rezepte, Sammlungen und Fotos auf allen Geräten; funktioniert auch offline und gleicht später ab; wurde ein Rezept auf zwei Geräten geändert, zeigt ein Fenster beide Versionen zur Auswahl
 
-**Als Nächstes (Import), abgesprochene Reihenfolge:**
-1. ✅ Rezeptseiten importieren über die eingebetteten Rezeptangaben (schema.org), kostenlos – gebaut und eingerichtet (Edge Function `import`, prüft die Anmeldung selbst; `verify_jwt` aus, weil neuere Projekte asymmetrische Schlüssel nutzen)
-2. ✅ TikTok-Beschreibung abrufen (oEmbed) und mit der eigenen Zutatenerkennung zerlegen, kostenlos – gebaut
-3. ✅ **Bildschirmfotos importieren (Pflicht):** Texterkennung auf dem Gerät (Tesseract, js/ocr.js), auch weiße TikTok-Schrift; räumt Bedienelemente/Nutzernamen weg, erkennt Rezeptname („Teil 7 …“), Portionen, umbrochene Zeilen und Zubereitung ohne Überschrift; KI-Variante noch offen. Foto(s) teilen oder auswählen; Texterkennung kostenlos in der App, optional per KI genauer (ca. 1 Cent)
-4. ~~Instagram~~ – gestrichen (nur mit Meta-Prüfung möglich, wird nicht genutzt)
-4b. ✅ **Pinterest:** Pin (auch Kurzlink pin.it) -> Link zur Rezeptseite folgen (Pinterest-Widget-Schnittstelle, sonst Pin-Seite); ohne Link Pin-Beschreibung
-4e. ✅ **Pinterest-Pinnwand** (neueste 50 Pins, Widget-Schnittstelle): automatisch gespeichert mit „Zu prüfen“, Liste „Nicht geklappt“, Import rückgängig
-4f. ✅ **Import-Fenster neu:** ein Feld für Link oder Text (erkennt selbst), „Einfügen“-Knopf, Kacheln für Bildschirmfotos (ein Rezept / viele Rezepte je Foto), Pinterest-Pinnwand, andere App, selbst eintragen
-4d. ✅ **Text einfügen** (WhatsApp, E-Mail, Facebook) im Import-Fenster; Erzählstil wird zu kurzen Anweisungen
-4c. ✅ **Teilen-Menü per Apple-Kurzbefehl:** Kurzbefehl schickt Link/Text mit persönlichem Teilen-Schlüssel an `share_add()` (supabase/eingang.sql) ins Eingangsfach; App zeigt „1 geteiltes Rezept“ (js/inbox.js). Schlüssel unter Einstellungen, online nur als SHA-256 gespeichert.
-5. Eigene Mini-KI für Rezeptart, Hauptzutat, Zubereitung (in der App, kostenlos)
-6. Zählen pro Konto und Obergrenze für KI-Importe gleich mit einbauen
+**Hinzufügen / Import** (Knopf „+ Hinzufügen“, js/app.js `openImport`): ✅ fertig
+- Startseite: ein Feld für Link oder Rezepttext (erkennt selbst; Einsetzen startet den Import), Kacheln: Selbst eintragen, Bildschirmfotos (ein Rezept / viele Rezepte je Foto), Pinterest-Pinnwand, Aus anderer App (Recipe Keeper), Über Teilen (Anleitung Kurzbefehl); Eingangsfach-Hinweis „Alle importieren“
+- Quellen: Rezeptseiten (JSON-LD, Microdata wie Kaufland, Seitentext als Notlösung), TikTok (Beschreibung aus der Videoseite, Kurzlinks), Facebook (og:title), Pinterest-Pin (Widget-API → Rezeptseite), Pinterest-Pinnwand (neueste 50, direkt vom Gerät), Bildschirmfotos (Tesseract auf dem Gerät), Text, Recipe-Keeper-Export (.zip mit Fotos, js/rkimport.js), Teilen-Menü über Apple-Kurzbefehl → Eingangsfach (supabase/eingang.sql, js/inbox.js)
+- Instagram gestrichen (nur mit Meta-Prüfung); offizieller Pinterest-Zugang (alle Pins) erst bei Veröffentlichung
+- Sammelimporte (openBoardImport): automatisch speichern, „Zu prüfen“ mit konkreten Prüf-Hinweisen (reviewHints), „Passt ✓“ springt zum nächsten, Liste „Nicht geklappt“, Doppelte überspringen, „Import rückgängig“
+- Aufräumen beim Import (js/importer.js): Werbung/Zusätze aus Namen (tidyTitle, auch für gespeicherte Rezepte), „wir/ich“-Erzählstil → kurze Anweisungen (condense), pro Satz ein Schritt, Tassen/oz/lb direkt in g/ml (doppelte Angaben nur metrisch), Abkürzungen ausschreiben, Packungsgröße in Klammern, Brüche ½, Doppelpunkte/Klammern/@-Werbung weg
+- Schätzungen: Rezeptart (Titel vor Seitenkategorie), Zubereitung, Hauptzutat (Name vor Menge; bei Dessert/Snack/Gebäck nur aus dem Namen), Portionen (ohne Angabe 4 Personen, kein Hinweis); ungeprüfte Importe werden beim Laden mit den aktuellen Regeln neu geschätzt (store.js autoSort)
 
-**Tote Links:** ✅ Quellen-Links werden geprüft (TikTok alle 7, andere alle 30 Tage, max. 1x täglich, je 20); entfernt erst nach zweimal „weg“ im Abstand ≥ 6 Std.; Rezept bleibt, Hinweis „nicht mehr verfügbar“. Prüf-Notizen nur lokal (js/linkcheck.js).
-Kein Auslesen direkt aus Videos (bewusst weggelassen).
+**Weitere Funktionen:** ✅ Bring!-Export (Vorrat wie Salz/Öl/Milch wird abgefragt statt mitgeschickt; Server erzeugt Rezeptseite aus Link-Daten, GET ?bring=…) · Chip „One Pot“ (nicht für Kuchen/Desserts) · Hauptzutat-Filter als feste Gruppen (js/maingroups.js) · Sicherung als .zip mit Fotos und Einspielen (js/backup.js) · Startassistent nur bei leerer App · „Nach oben“-Knopf · Tote Links prüfen (TikTok alle 7, sonst 30 Tage; entfernt nach zweimal „weg“)
 
-**Vor jeder Veröffentlichung:** `./tools/neue-version.sh` ausführen – geöffnete Apps erkennen dann die neue Version (version.json) und laden sie selbst.
+**Offen / später:** Kurzbefehl auf dem iPad einrichten (Anleitung unter Einstellungen → Teilen einrichten) · App Store (Capacitor, 99 €) · offizieller Pinterest-Zugang · KI für Kategorien (kostet, Anthropic-Konto) · Nutzerin wünscht: vor größeren Änderungen fragen, Deutsch, einfache genaue Schritte
+
+**Vor jeder Veröffentlichung:** `./tools/alle-tests.sh <scratch>` muss „ALLE TESTS OK“ melden, dann `./tools/neue-version.sh` – geöffnete Apps erkennen die neue Version (version.json).
 
 **Server-Programm aktualisieren:** `curl -X POST "https://api.supabase.com/v1/projects/raokoztpgowlsmfmmcbd/functions/deploy?slug=import" -H "Authorization: Bearer <Zugangsschlüssel>" -F 'metadata={"entrypoint_path":"index.ts","name":"import","verify_jwt":false};type=application/json' -F 'file=@supabase/functions/import/index.ts;filename=index.ts'`
-
-**Technische Notizen Import + KI:**
-- Import-Funktion als Supabase Edge Function (kein weiteres Konto nötig); liest Webseiten, später TikTok/Instagram/Pinterest
-- Dafür nötig: ein Claude-API-Schlüssel (console.anthropic.com), sicher als Geheimnis in Supabase hinterlegt, nie in der App
-- Doppelte-Rezepte-Prüfung (js/dupes.js) auch beim Import anwenden
-
-**Plan:**
-2. KI erkennt Rezeptart, Hauptzutat und Zubereitung automatisch
-3. Import von Webseiten
-4. Import aus TikTok, Instagram und Pinterest über das Teilen-Menü (per Apple-Kurzbefehl)
-5. Rezepte aus Videos auslesen
-6. ✅ Zutaten an **Bring!** schicken: Knopf im Rezept, aktuelle Mengen, abhaken was da ist; Server-Programm erzeugt dafür eine Rezeptseite aus den Daten im Link (GET ?bring=…), Bring! liest sie über seinen Deeplink
 
 ## Aufbau (für Entwickler)
 
