@@ -32,7 +32,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(d.steps.length === 4 && d.steps[0].startsWith('Mehl, Eier'), 'Schritte aus einem Text getrennt: ' + d.steps.length);
   ok(d.servings === 4 && d.servingsUnit === 'Personen', 'Portionen: ' + d.servings + ' ' + d.servingsUnit);
   ok(d.course === 'Hauptgericht' && d.method === 'Kochen', 'Kategorien: ' + d.course + ' / ' + d.method);
-  ok(d.mainIngredient === 'Bergkäse', 'Hauptzutat: Bergkäse (Mehl, Eier, Salz zählen als Grundzutaten): ' + d.mainIngredient);
+  ok(d.mainIngredient === 'Spätzle', 'Hauptzutat: Käsespätzle -> Spätzle (Gericht aus dem Namen): ' + d.mainIngredient);
   ok(d.notes === '' && d.imageUrl === 'https://img.example/kaese-gross.jpg', 'Bild übernommen, Werbebeschreibung nicht in den Notizen');
 
   // ---------- Seite 2: wie WordPress-Blogs (@graph, Abschnitte, Springform) ----------
