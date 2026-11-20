@@ -332,7 +332,7 @@
           best ? h('span', { class: 'dup-why', text: 'Warum: ' + rec.reasons.join(', ') }) : null),
         h('div', { class: 'dup-body' },
           d.marks.length ? h('ul', { class: 'dup-marks' }, d.marks.map(m => h('li', { class: 'dup-' + m.kind },
-            h('span', { class: 'dup-sign', 'aria-label': m.kind === 'only' ? 'nur hier' : 'andere Menge', text: m.kind === 'only' ? '＋' : '≠' }), m.line)))
+            h('span', { class: 'dup-sign', 'aria-label': m.kind === 'only' ? 'nur hier' : 'andere Menge', text: m.kind === 'only' ? '+' : '≠' }), m.line)))
             : h('span', { class: 'dup-facts', text: 'Keine eigenen Zutaten' }),
           ov ? h('span', { class: 'dup-oven', text: 'Ofen: ' + ov }) : (d.oven ? h('span', { class: 'dup-oven', text: 'Ofen: keine Angabe' }) : null),
           h('button', { type: 'button', class: 'btn', onclick: () => openDetail(r.id) }, 'Ansehen')));
@@ -362,7 +362,7 @@
       head('Gleiches Gericht, ' + group.length + '-mal', closeDialog),
       h('div', { class: 'dlg-scroll' },
         diff.common.length ? h('p', { class: 'dup-common' }, h('b', { text: 'In allen: ' }), diff.common.join(', ')) : null,
-        h('p', { class: 'hint' }, h('b', { class: 'dup-key', text: '＋' }), ' nur in diesem Rezept · ', h('b', { class: 'dup-key', text: '≠' }), ' andere Menge. Empfohlen wird das vollständigste Rezept; Favoriten zählen besonders.'),
+        h('p', { class: 'hint' }, h('b', { class: 'dup-key', text: '+' }), ' nur in diesem Rezept · ', h('b', { class: 'dup-key', text: '≠' }), ' andere Menge. Empfohlen wird das vollständigste Rezept; Favoriten zählen besonders.'),
         h('div', { class: 'dup-list' }, rec.ranked.map(card))),
       foot));
   }
