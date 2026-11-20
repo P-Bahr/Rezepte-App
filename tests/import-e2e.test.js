@@ -160,7 +160,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   await p.click('#tilePhotos');
   assert(await p.isVisible('label:has-text("Fotos für ein Rezept auswählen")') && await p.isVisible('label:has-text("je Rezept eins")') && await p.isVisible('#importBack'), 'Bildschirmfotos: „Ein Rezept“ und „Viele Rezepte“, mit „Zurück“');
   await p.click('#importBack');
-  assert(await p.isVisible('#tilePhotos') && (await p.textContent('#dlgTitle')) === 'Rezept importieren', '„Zurück“ führt zur Startseite');
+  assert(await p.isVisible('#tilePhotos') && (await p.textContent('#dlgTitle')) === 'Rezept hinzufügen', '„Zurück“ führt zur Startseite');
   await p.click('#tilePhotos');
   await pickShotsInto(['rezept'], 'importPhotos');
   await p.waitForSelector('#importNotice', { timeout: 60000 });

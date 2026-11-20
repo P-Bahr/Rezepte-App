@@ -130,7 +130,7 @@ const titles = p => p.$$eval('.tile-title', e => e.map(x => x.textContent));
   assert((await titles(B)).length === 25, 'Gerät B: sieht alle 25 Rezepte von Gerät A');
 
   // A: neues Rezept mit Foto -> B
-  await A.click('#btnNew');
+  await A.click('#btnImport'); await A.click('#tileManual');
   await A.fill('#fTitle', 'Omas Apfelstrudel');
   await A.fill('#fIngredients', 'Äpfel 1 kg\nZucker 80g');
   await A.fill('#fSteps', 'Äpfel schälen und in Scheiben schneiden.\n40 Minuten backen.');

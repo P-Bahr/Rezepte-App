@@ -847,7 +847,7 @@
     const say = (el, t) => { el.textContent = t || ''; el.hidden = !t; };
     const reset = () => { say(msg, ''); say(status, ''); manual.hidden = true; };
     const scroll = h('div', { class: 'dlg-scroll' });
-    const title = h('h2', { id: 'dlgTitle', text: 'Rezept importieren' });
+    const title = h('h2', { id: 'dlgTitle', text: 'Rezept hinzufügen' });
     const back = h('button', { type: 'button', class: 'btn-link import-back', id: 'importBack', hidden: true, onclick: () => show('home') }, '‹ Zurück');
     const header = h('div', { class: 'dlg-head' }, h('div', { class: 'import-title' }, back, title),
       h('div', { class: 'dlg-head-actions' }, h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Schließen', onclick: closeDialog }, '×')));
@@ -1030,11 +1030,11 @@
         msg, status,
         h('h3', { class: 'import-more', text: 'Weitere Wege' }),
         h('div', { class: 'import-tiles' },
+          tile('tileManual', '✍️', 'Selbst eintragen', 'Leeres Rezept', () => openEdit(null)),
           tile('tilePhotos', '📷', 'Bildschirmfotos', 'Rezept aus Video oder Bild', () => show('photos')),
           tile('tileBoard', '📌', 'Pinterest-Pinnwand', 'Bis zu 50 Pins auf einmal', () => show('board')),
           tile('tileApp', '📦', 'Aus anderer App', 'z. B. Recipe Keeper', () => show('app')),
-          tile('tileShare', '📲', 'Über Teilen', 'TikTok, Instagram & Co.', openShareGuide),
-          tile('tileManual', '✍️', 'Selbst eintragen', 'Leeres Rezept', () => openEdit(null))));
+          tile('tileShare', '📲', 'Über Teilen', 'TikTok, Instagram & Co.', openShareGuide)));
       form.addEventListener('paste', e => { // Bild einfügen -> Texterkennung
         const imgs = [...((e.clipboardData && e.clipboardData.files) || [])].filter(f => /^image\//.test(f.type));
         if (imgs.length) { e.preventDefault(); fromPhotos(imgs); }
@@ -1080,7 +1080,7 @@
         msg, status);
     }
     const VIEWS = {
-      home: ['Rezept importieren', viewHome],
+      home: ['Rezept hinzufügen', viewHome],
       photos: ['Bildschirmfotos', viewPhotos],
       board: ['Pinterest-Pinnwand', viewBoard],
       app: ['Aus anderer App', viewApp]
@@ -1712,7 +1712,6 @@
   try { const v = localStorage.getItem('rezepte.filterOffen'); if (v !== null) filtersOpen = v === '1'; } catch (e) { /* egal */ }
   setFiltersOpen(filtersOpen);
   $('#btnFilter').addEventListener('click', () => setFiltersOpen($('#filters').hidden));
-  $('#btnNew').addEventListener('click', () => openEdit(null));
   $('#btnImport').addEventListener('click', () => openImport(''));
 
   // Link beim Öffnen übergeben (Teilen-Menü / Kurzbefehl): ?url=… oder ?text=…
