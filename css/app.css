@@ -461,3 +461,5 @@ body:has(#inboxBanner:not(dialog #inboxBanner)) .to-top { bottom: calc(96px + en
 .import-steps, .import-tip ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
 .import-tip summary { cursor: pointer; color: var(--accent); font-weight: 600; min-height: var(--touch); display: flex; align-items: center; }
 .import-inbox { display: grid; gap: 10px; }
+
+.review-minor { margin: 0; font-size: 14px; color: var(--muted); }

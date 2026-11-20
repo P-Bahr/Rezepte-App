@@ -155,7 +155,9 @@
   // Hauptzutat aus dem Rezeptnamen: "Kohlrabi-Karotten-Nudeln" -> Nudeln (das Grundwort steht hinten),
   // "Hähnchen mit Reis" -> Hähnchen (vor "mit" steht das Gericht), "Kartoffelplätzchen" -> Kartoffeln
   function mainFromTitle(ingredients, title) {
-    const head = String(title || '').toLowerCase().split(/\s+(?:mit|an|auf|in|und|im|vom|aus|nach|à la|a la)\s+/)[0];
+    // Umlaute angleichen: "Äpfel" passt zu "Apfelkuchen"
+    const de = x => String(x).toLowerCase().replace(/ä/g, 'a').replace(/ö/g, 'o').replace(/ü/g, 'u');
+    const head = de(String(title || '').split(/\s+(?:mit|an|auf|in|und|im|vom|aus|nach|à la|a la)\s+/i)[0]);
     if (!head) return '';
     let best = '', bestPos = -1;
     for (const line of ingredients) {
@@ -163,7 +165,7 @@
       if (!p.name) continue;
       if (isStaple(p.name)) {
         // "Dinkelmehl" + "Dinkelwaffeln", "Kokosmilch" + "Kokos-Curry": der besondere Teil steht im Namen
-        const n = (noun(p.name) || '').toLowerCase();
+        const n = de(noun(p.name) || '');
         const front = n.replace(STAPLE_END, '');
         if (front.length >= 4 && front !== n && head.includes(front)) {
           const pos = head.lastIndexOf(front);
@@ -172,10 +174,10 @@
         continue;
       }
       const name = p.name.replace(/\s+(nach (wahl|belieben|geschmack)|zum \p{L}+|für \p{L}+.*)$/iu, '');
-      const stemOf = x => x.toLowerCase().replace(/(innen|en|n|e|s)$/, '');
+      const stemOf = x => de(x).replace(/(innen|en|n|e|s)$/, '');
       const headWords = head.split(/[\s-]+/).filter(w => w.length >= 4);
       for (const word of name.split(/[\s,]+/).filter(w => /^\p{Lu}/u.test(w))) {
-        const n = word.toLowerCase();
+        const n = de(word);
         if (/rezept|kinder|familie|essen$|ideen|gericht|küche/.test(n)) continue;
         const stem = stemOf(n);
         if (stem.length < 3) continue;
@@ -333,9 +335,12 @@
 
   // ---------- Prüf-Hinweise: Woran sollte man bei einem importierten Rezept schauen? ----------
   const NO_AMOUNT_OK = /^(salz|pfeffer|wasser|eiswürfel|eis\b|muskat|deko|garnitur)|\b(zum|zur|für (?:das|die|den)|nach belieben|nach geschmack|nach bedarf|optional|etwas|evtl|eventuell)\b/i;
+  // Liefert die Prüfpunkte; Nebeninfos (z. B. Zutaten ohne Menge) stehen in hints.minor
   function reviewHints(r) {
     const info = r.importInfo || r;
     const hints = [];
+    const minor = [];
+    hints.minor = minor;
     const ing = r.ingredients || [], st = r.steps || [];
     if (info.titleMissing || /^Rezept vom Bildschirmfoto \d+$/.test(r.title || '')) hints.push('Kein Name erkannt – bitte einen Namen eintragen.');
     if (info.how === 'photo') hints.push('Vom Bildschirmfoto gelesen – vor allem die Mengen prüfen, die Texterkennung kann sich bei Zahlen vertun.');
@@ -350,7 +355,7 @@
       const n = (noun(p.name || l) || '').toLowerCase();
       if (n.length > 2) { if (seen.has(n)) dup.add(noun(p.name || l)); else seen.set(n, true); }
     }
-    if (noAmount.length) hints.push('Ohne Mengenangabe: ' + noAmount.slice(0, 4).join(', ') + (noAmount.length > 4 ? ' …' : '') + '.');
+    if (noAmount.length) minor.push('Ohne Mengenangabe: ' + noAmount.slice(0, 6).join(', ') + (noAmount.length > 6 ? ' …' : '') + '.');
     if (odd.length) hints.push('Seltsame Zutatenzeile: „' + odd[0].slice(0, 60) + (odd[0].length > 60 ? '…' : '') + '“' + (odd.length > 1 ? ' (und ' + (odd.length - 1) + ' weitere)' : '') + '.');
     if (dup.size) hints.push('Zutat doppelt: ' + [...dup].join(', ') + ' – vielleicht für Teig und Belag getrennt? Dann stimmt es.');
     if (info.unitsConverted) hints.push('Tassen/Unzen wurden in g bzw. ml umgerechnet – die Mengen sind ungefähr.');
@@ -363,11 +368,17 @@
     }
     // Keine Portionsangabe: einfach 4 Personen, ohne Hinweis
     if (info.courseGuessed) hints.push('Rezeptart nur geraten: „' + (r.course || 'Hauptgericht') + '“.');
-    if (!r.mainIngredient) hints.push('Keine Hauptzutat erkannt.');
+    if (!r.mainIngredient && !NO_MAIN_COURSES.test(r.course || '')) hints.push('Keine Hauptzutat erkannt.');
     if ((r.title || '').length > 45) hints.push('Der Name ist sehr lang – kürzen?');
     return hints;
   }
 
+  // Snacks, Desserts und Gebäck haben meist keine Hauptzutat – nur wenn sie im Namen steckt ("Apfelkuchen")
+  const NO_MAIN_COURSES = /^(Dessert|Snack|Gebäck)$/;
+  function mainFor(d) {
+    if (NO_MAIN_COURSES.test(d.course || '')) return validMain(mainFromTitle(d.ingredients || [], d.title)) || '';
+    return validMain(guessMain(d.ingredients || [], d.title));
+  }
   function withGuesses(d, category, keywords) {
     const before = JSON.stringify(d.ingredients || []);
     d.ingredients = convertUnits(d.ingredients || []);
@@ -375,7 +386,7 @@
     if (!d.course) d.courseGuessed = !courseSure(d.title, category, keywords);
     d.course = d.course || guessCourse(d.title, category, keywords);
     d.method = d.method || guessMethod(d.steps, d.title);
-    d.mainIngredient = validMain(d.mainIngredient) || validMain(guessMain(d.ingredients, d.title));
+    d.mainIngredient = validMain(d.mainIngredient) || mainFor(d);
     // Salat mit nur gekochten Nudeln/Kartoffeln/Eiern: wird kalt gegessen -> Sammlung "Kalt"
     if (d.course === 'Salat' && d.method === 'Kochen') d.method = 'Kalt zubereitet';
     return d;
@@ -826,5 +837,5 @@
 
   // Schritte aus einer anderen App: Nummern weg, leere weg, Erzählstil straffen, pro Satz ein Schritt
   const cleanSteps = list => splitSteps(arr(list).map(x => clean(x).replace(/^\d{1,2}[.)]\s*/, '')).filter(Boolean).map(tidyStep));
-  window.RecipeImporter = { cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

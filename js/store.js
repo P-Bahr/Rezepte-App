@@ -112,8 +112,9 @@
         ingredients: r.ingredients,
         course: I.guessCourse(title, [], []) === 'Hauptgericht' ? (r.course || 'Hauptgericht') : I.guessCourse(title, [], []),
         method: I.guessMethod(r.steps || [], title),
-        mainIngredient: I.validMain(I.guessMain(r.ingredients || [], title)) || r.mainIngredient
+        mainIngredient: ''
       };
+      next.mainIngredient = I.mainFor ? I.mainFor({ ...r, title, course: next.course }) : (I.validMain(I.guessMain(r.ingredients || [], title)) || r.mainIngredient);
       if (next.course === 'Salat' && next.method === 'Kochen') next.method = 'Kalt zubereitet';
       if (next.course === r.course && next.method === r.method && next.mainIngredient === r.mainIngredient && JSON.stringify(next.ingredients) === JSON.stringify(r.ingredients)) return r;
       changed = true;

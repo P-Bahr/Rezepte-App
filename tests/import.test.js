@@ -47,7 +47,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(d.title === 'Käsekuchen ohne Boden' && d.ingredients.length === 4, 'Blog: Rezept im @graph gefunden');
   ok(d.steps.join(' | ') === 'Vorbereitung: Ofen auf 175 °C vorheizen. | Teig: Alle Zutaten glatt rühren. | 60 Minuten backen.', 'Abschnitte übernommen: ' + d.steps.join(' | '));
   ok(d.servings === 1 && d.servingsUnit === 'Springform' && d.formSize === 'Ø 26 cm', 'Springform Ø 26 erkannt: ' + d.servings + ' ' + d.servingsUnit + ' ' + d.formSize);
-  ok(d.course === 'Gebäck' && d.method === 'Backen' && d.mainIngredient === 'Quark', 'Kategorien: ' + d.course + ' / ' + d.method + ' / ' + d.mainIngredient);
+  ok(d.course === 'Gebäck' && d.method === 'Backen' && d.mainIngredient === '', 'Kategorien (Gebäck: keine Hauptzutat, wenn sie nicht im Namen steckt): ' + d.course + ' / ' + d.method + ' / ' + d.mainIngredient);
   ok(d.imageUrl === 'https://img.example/kk.jpg', 'Bild aus ImageObject');
 
   // ---------- Seite 3: englische Angaben, Schritte als Liste ----------
@@ -274,7 +274,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(JSON.stringify(dual) === JSON.stringify(['50 g Butter, geschmolzen', '600 g Frischkäse', '175 g Zucker', '2 EL Mehl (Type 405)', '450 g Pflaumentomaten', '50 g Butter', '125 g flour', '125 g Graham Cracker Krümel']), 'Nur metrische Angabe bleibt, Rest direkt umgerechnet: ' + dual.join(' | '));
   // Prüf-Hinweise
   let hs = I.reviewHints({ title: 'Nudelsalat', ingredients: ['250 g Nudeln', 'Gurke', 'Salz', '300 g Mehl', '250 g Mehl'], steps: ['Alles mischen.'], mainIngredient: '', servings: 4, servingsUnit: 'Personen', importInfo: { how: 'text', servingsGuessed: true, courseGuessed: true }, course: 'Hauptgericht' });
-  ok(hs.some(x => /Seitentext/.test(x)) && hs.some(x => /Ohne Mengenangabe: Gurke\./.test(x)) && hs.some(x => /doppelt: Mehl/.test(x)) && !hs.some(x => /Personen/.test(x)) && hs.some(x => /Rezeptart nur geraten/.test(x)) && hs.some(x => /Keine Hauptzutat/.test(x)), 'Prüf-Hinweise sagen genau, worauf zu achten ist: ' + hs.join(' / '));
+  ok(hs.some(x => /Seitentext/.test(x)) && !hs.some(x => /Ohne Mengenangabe/.test(x)) && hs.minor.some(x => /Ohne Mengenangabe: Gurke\./.test(x)) && hs.some(x => /doppelt: Mehl/.test(x)) && !hs.some(x => /Personen/.test(x)) && hs.some(x => /Rezeptart nur geraten/.test(x)) && hs.some(x => /Keine Hauptzutat/.test(x)), 'Prüf-Hinweise sagen genau, worauf zu achten ist: ' + hs.join(' / '));
   ok(I.reviewHints({ title: 'Linsensuppe', ingredients: ['250 g Linsen', '1 Zwiebel', '1 l Brühe'], steps: ['Kochen.'], mainIngredient: 'Linsen', servings: 4 }).length === 0, 'Vollständiges Rezept: keine Hinweise');
 
   // Hühnereier sind kein Hähnchen; Werbung und "Gewürze:" in Zutaten
@@ -302,6 +302,9 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   const bp = fn.bringPage(bringData);
   ok(bp && bp.includes('"recipeIngredient":["200 g Mehl","2 \\"Eier\\""]') && !bp.includes('<script>') && bp.includes('Suppe &lt;script&gt;'), 'Bring!-Seite: Zutaten als Rezeptangaben, nichts Ausführbares');
   ok(fn.bringPage('kaputt!!') === null && fn.bringPage(Buffer.from('{"t":"x","i":[]}').toString('base64url')) === null, 'Bring!-Seite: ungültige Daten -> nicht gefunden');
+
+  ok(I.mainFor({ title: 'Brownie Cookies', course: 'Dessert', ingredients: ['200 g Haferflocken', '100 g Backkakao'] }) === '' && I.mainFor({ title: 'Apfelkuchen', course: 'Gebäck', ingredients: ['1 kg Äpfel', '200 g Mehl'] }) === 'Äpfel', 'Dessert/Gebäck/Snack: Hauptzutat nur aus dem Namen');
+  ok(!I.reviewHints({ title: 'Kekse', course: 'Gebäck', ingredients: ['200 g Mehl', '100 g Butter', '50 g Zucker'], steps: ['Backen.'], mainIngredient: '' }).some(x => /Hauptzutat/.test(x)), 'Gebäck ohne Hauptzutat: kein Prüf-Hinweis');
 
   // ---------- Pinterest ----------
   const pinAnswers = {

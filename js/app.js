@@ -541,7 +541,8 @@
       h('p', null, h('b', { text: hints.length ? 'Bitte prüfen:' : 'Sieht vollständig aus.' }),
         hints.length ? '' : ' Nur kurz drüberschauen und unten auf „Passt ✓“ tippen.'),
       hints.length ? h('ul', { class: 'review-hints' }, hints.map(x => h('li', { text: x }))) : null,
-      hints.length ? h('p', { class: 'hint', text: 'Passt alles? Unten auf „Passt ✓“ tippen, sonst „Bearbeiten“.' }) : null) : null;
+      hints.length ? h('p', { class: 'hint', text: 'Passt alles? Unten auf „Passt ✓“ tippen, sonst „Bearbeiten“.' }) : null,
+      (hints.minor || []).length ? h('p', { class: 'review-minor', text: hints.minor.join(' ') }) : null) : null;
     function markReviewed() {
         // Nächstes ungeprüftes Rezept (in der Reihenfolge der Übersicht) direkt öffnen
         const order = [...document.querySelectorAll('#grid .tile[data-id]')].map(t => t.dataset.id);
@@ -1294,6 +1295,7 @@
       // Konkret sagen, worauf zu achten ist
       const hs = window.RecipeImporter.reviewHints({ ...draft, how: draft.importHow || '' });
       if (hs.length) importNote.append(h('ul', { class: 'review-hints' }, hs.map(x => h('li', { text: x }))));
+      if ((hs.minor || []).length) importNote.append(h('p', { class: 'review-minor', text: hs.minor.join(' ') }));
     }
     const form = h('form', { class: 'form', id: 'recipeForm', novalidate: true },
       importNote,
