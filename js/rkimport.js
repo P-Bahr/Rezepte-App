@@ -53,7 +53,8 @@
     const methodFromCourse = raw.courses.map(c => METHOD_COURSE[c.toLowerCase()]).find(Boolean);
     const d = {
       title,
-      ingredients: raw.ingredients,
+      // Zwischenüberschriften aus Recipe Keeper ("Für den Zitronenquark", "Dienen") sind keine Zutaten
+      ingredients: raw.ingredients.filter(l => !(/^(für|zum|zur|dienen|deko|dekoration|topping|teig|boden|füllung|creme|soße|sauce|glasur)\b/i.test(l) && !/\d/.test(l))),
       steps: I.cleanSteps(raw.directions),
       notes: raw.notes,
       servings: sv.servings, servingsUnit: sv.servingsUnit, formSize: sv.formSize, servingsGuessed: !raw.yield,

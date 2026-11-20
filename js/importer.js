@@ -116,7 +116,7 @@
     [/vorspeise|starter|appetizer/i, 'Vorspeise'], [/beilage|side/i, 'Beilage'], [/frühstück|breakfast|brunch/i, 'Frühstück'],
     [/getränk|drink|beverage/i, 'Getränk'], [/snack/i, 'Snack'], [/sauce|soße|dip/i, 'Sauce & Dip']
   ];
-  function guessCourse(title, category, keywords) {
+  function guessCourse(title, category, keywords, recipe) {
     if (!/(pfannkuchen|eierkuchen|kaiserschmarrn)/i.test(title) && /(kipferl|plätzchen|kekse?\b|cookies?|muffins?|kuchen|torte|brötchen|brot\b|brownies?|waffeln|schnecken|stollen|lebkuchen|makronen|taler\b|teilchen|krapfen|berliner|donuts?|croissants?|plunder|zopf|streusel|scones|cupcakes?|blechkuchen|hefeteig)/i.test(title)) return 'Gebäck';
     if (COURSE_RULES[0][1].test(title)) return 'Getränk';
     for (const c of arr(category)) for (const [re, v] of CATEGORY_MAP) if (re.test(clean(c))) return v;
@@ -125,7 +125,27 @@
     for (const [v, re] of COURSE_RULES) {
       if (v === 'Sauce & Dip' ? re.test(headOnly) : re.test(hay)) return v; // "Hähnchen in Soße" ist kein Dip
     }
-    return 'Hauptgericht';
+    return courseFromContent(recipe) || 'Hauptgericht';
+  }
+
+  // Rezeptart aus Zutaten und Schritten, wenn der Name nichts verrät
+  const MEAT = /hähnchen|hühnchen|huhn|rind|schwein|hack|speck|schinken|wurst|würstchen|wiener|lachs|thunfisch|fisch|garnele|pute|lamm|salami|bacon|chorizo|gyros/i;
+  const SAVORY = /zwiebel|knoblauch|lauch|brühe|fond|senf|sojasauce|sojasoße|pfeffer|oregano|paprikapulver|curry/i;
+  const SWEET = /zucker|honig|ahornsirup|agavendicksaft|süßstoff|erythrit|xylit|schokolade|kakao|vanille|marmelade|puderzucker|dattel|nutella|karamell/i;
+  const BAKE = /backen|backofen|ofen|°c|backblech|backform|springform|muffinform|umluft|ober-\/unterhitze|waffeleisen/i;
+  function courseFromContent(r) {
+    if (!r) return '';
+    const ing = (r.ingredients || []).join(' | ').toLowerCase(), st = (r.steps || []).join(' ').toLowerCase();
+    if (!ing) return '';
+    const meat = MEAT.test(ing), savory = SAVORY.test(ing), sweet = SWEET.test(ing), bake = BAKE.test(st);
+    if (bake && /mehl|teig|haferflocken|biskuit/.test(ing) && sweet && !meat && !savory) return 'Gebäck';
+    if (/haferflocken|porridge|müsli|granola|chiasamen|overnight/.test(ing) && /milch|joghurt|skyr|quark|kefir/.test(ing) && !meat && !savory && !bake) return 'Frühstück';
+    if (sweet && !meat && !savory && !bake && /quark|joghurt|skyr|sahne|pudding|mascarpone|creme|beeren|frucht|obst|apfel|äpfel|banane|schokolade|mango|kirsch/.test(ing)) return 'Dessert';
+    // Suppe nur bei viel Brühe (ab 1 l) ohne Nudeln/Reis/Kartoffeln als Sättigungsbeilage (sonst ist es meist ein Pfannen-/Topfgericht)
+    if (/(?:^|\|\s*)(?:[1-9](?:[.,]\d+)?)\s*l\b[^|]*(brühe|fond)|(\d{4})\s*ml\b[^|]*(brühe|fond)/.test(ing) && /koch|köchel|garen/.test(st) && !/nudel|spaghetti|reis\b|gnocchi|kartoffel/.test(ing)) return 'Suppe';
+    if (/salat|rucola|eisberg|feldsalat|blattsalat/.test(ing) && /dressing|vinaigrette|essig|mischen|vermengen/.test(ing + ' ' + st) && !bake) return 'Salat';
+    if (meat || (/nudel|spaghetti|penne|reis\b|kartoffel|gnocchi|couscous|linsen|bohnen|kichererbsen|tofu/.test(ing) && savory)) return 'Hauptgericht';
+    return '';
   }
   function guessMethod(stepsList, title) {
     const t = (title + ' ' + stepsList.join(' ')).toLowerCase();
@@ -221,6 +241,7 @@
     return first;
   }
 
+  const SPICE = /salz|pfeffer|paprikapulver|currypulver|curry\b|kurkuma|kreuzkümmel|kümmel|zimt|muskat|oregano|thymian|rosmarin|basilikum|majoran|chili|cayenne|knoblauchpulver|zwiebelpulver|lorbeer|nelke|piment|vanille|backpulver|natron|gewürz|ingwerpulver|koriander|hefe|zitronenschale|orangenschale|abrieb|puddingpulver|speisestärke/i;
   function guessMain(ingredients, title) {
     let best = mainFromTitle(ingredients, title) || null, bestScore = best ? Infinity : -1;
     ingredients.forEach((line, i) => {
@@ -233,15 +254,19 @@
       let g = isNaN(v) ? 0 : v;
       const u = (p.unit || '').toLowerCase();
       if (u === 'kg' || u === 'l') g *= 1000; else if (u === 'g' || u === 'ml') g *= 1; else if (!u) g *= /dattel|feige|olive|nuss|nüsse|mandel|kirsche|beere|knoblauch|chili|schalotte|champignon|radieschen|cracker|keks|zweig|blatt|blätter/i.test(p.name) ? 10 : 120; else g *= 15;
-      if (/^(tl|el|prise|msp|messerspitze|spritzer|tropfen|teelöffel|esslöffel)/.test(u) || g < 15) return; // Gewürzmengen ("½ TL Zitronenschale") sind nie die Hauptzutat
+      // Gewürze/Backzutaten nie; Würzmengen (Löffel, Prise, bis 20 g – in den Rezepten im Schnitt ~9 g) auch nicht
+      if (SPICE.test(p.name) || /^(tl|el|prise|msp|messerspitze|spritzer|tropfen|teelöffel|esslöffel)/.test(u) || ((u === 'g' || u === 'ml') && g <= 20)) return;
       const score = g - i; // bei Gleichstand: weiter oben gewinnt
       if (score > bestScore) { bestScore = score; best = p.name; }
     });
+    return mainLabel(best);
+  }
+  // Zutatenname -> kurze Hauptzutat ("Hähnchenbrustfilets" -> "Hähnchen", "Rolle Blätterteig" -> "Blätterteig")
+  function mainLabel(best) {
     if (!best) return '';
-    // "Hähnchenbrustfilets" -> "Hähnchen", "festkochende Kartoffeln" -> "Kartoffeln"
     const w = noun(best) || best;
     if (/hühnerei|eiklar|eiweiß|eigelb/i.test(best)) return '';
-    const MAP = [[/hähnchen|huhn|hühner(?!ei)|chicken/i, 'Hähnchen'], [/rind/i, 'Rind'], [/schwein/i, 'Schwein'], [/hack/i, 'Hackfleisch'], [/lachs/i, 'Lachs'], [/garnele|shrimp/i, 'Garnelen'], [/nudel|spaghetti|pasta|penne|linguine|tagliatelle|fusilli/i, 'Nudeln'], [/kartoffel/i, 'Kartoffeln'], [/reis\b/i, 'Reis'], [/linse/i, 'Linsen'], [/tofu/i, 'Tofu'], [/apfel|äpfel/i, 'Äpfel'], [/schoko/i, 'Schokolade'], [/quark/i, 'Quark']];
+    const MAP = [[/hähnchen|huhn|hühner(?!ei)|chicken/i, 'Hähnchen'], [/rind/i, 'Rind'], [/schwein/i, 'Schwein'], [/hack/i, 'Hackfleisch'], [/lachs/i, 'Lachs'], [/thunfisch/i, 'Thunfisch'], [/garnele|shrimp/i, 'Garnelen'], [/nudel|spaghetti|pasta|penne|linguine|tagliatelle|fusilli/i, 'Nudeln'], [/kartoffel/i, 'Kartoffeln'], [/reis\b/i, 'Reis'], [/linse/i, 'Linsen'], [/tofu/i, 'Tofu'], [/apfel|äpfel/i, 'Äpfel'], [/schoko/i, 'Schokolade'], [/quark/i, 'Quark']];
     for (const [re, v] of MAP) if (re.test(best)) return v;
     return w.charAt(0).toUpperCase() + w.slice(1);
   }
@@ -329,10 +354,10 @@
   }
 
   // Ist die Rezeptart wirklich erkannt (oder nur "Hauptgericht" als Notlösung)?
-  function courseSure(title, category, keywords) {
+  function courseSure(title, category, keywords, recipe) {
     if (arr(category).some(c => CATEGORY_MAP.some(([re]) => re.test(clean(c))))) return true;
     const hay = title + ' ' + arr(keywords).join(' ');
-    return COURSE_RULES.some(([, re]) => re.test(hay)) || /(kipferl|plätzchen|kuchen|torte)/i.test(title);
+    return COURSE_RULES.some(([, re]) => re.test(hay)) || /(kipferl|plätzchen|kuchen|torte)/i.test(title) || !!courseFromContent(recipe);
   }
 
   // ---------- Prüf-Hinweise: Woran sollte man bei einem importierten Rezept schauen? ----------
@@ -369,7 +394,7 @@
       if (link >= 0) hints.push('Schritt ' + (link + 1) + ' enthält einen Link oder Hashtag.');
     }
     // Keine Portionsangabe: einfach 4 Personen, ohne Hinweis
-    if (info.courseGuessed) hints.push('Rezeptart nur geraten: „' + (r.course || 'Hauptgericht') + '“.');
+    if (info.courseGuessed && !courseSure(r.title || '', [], [], r)) hints.push('Rezeptart nicht eindeutig erkennbar – „' + (r.course || 'Hauptgericht') + '“ angenommen.');
     if (!r.mainIngredient && !NO_MAIN_COURSES.test(r.course || '')) hints.push('Keine Hauptzutat erkannt.');
     if ((r.title || '').length > 45) hints.push('Der Name ist sehr lang – kürzen?');
     return hints;
@@ -378,15 +403,15 @@
   // Snacks, Desserts und Gebäck haben meist keine Hauptzutat – nur wenn sie im Namen steckt ("Apfelkuchen")
   const NO_MAIN_COURSES = /^(Dessert|Snack|Gebäck)$/;
   function mainFor(d) {
-    if (NO_MAIN_COURSES.test(d.course || '')) return validMain(mainFromTitle(d.ingredients || [], d.title)) || '';
+    if (NO_MAIN_COURSES.test(d.course || '')) return validMain(mainLabel(mainFromTitle(d.ingredients || [], d.title))) || '';
     return validMain(guessMain(d.ingredients || [], d.title));
   }
   function withGuesses(d, category, keywords) {
     const before = JSON.stringify(d.ingredients || []);
     d.ingredients = convertUnits(d.ingredients || []);
     if (JSON.stringify(d.ingredients) !== before) d.unitsConverted = true;
-    if (!d.course) d.courseGuessed = !courseSure(d.title, category, keywords);
-    d.course = d.course || guessCourse(d.title, category, keywords);
+    if (!d.course) d.courseGuessed = !courseSure(d.title, category, keywords, d);
+    d.course = d.course || guessCourse(d.title, category, keywords, d);
     d.method = d.method || guessMethod(d.steps, d.title);
     d.mainIngredient = validMain(d.mainIngredient) || mainFor(d);
     // Salat mit nur gekochten Nudeln/Kartoffeln/Eiern: wird kalt gegessen -> Sammlung "Kalt"

@@ -110,7 +110,7 @@
       const title = I.tidyTitle ? I.tidyTitle(r.title) : r.title;
       const next = {
         ingredients: r.ingredients,
-        course: I.guessCourse(title, [], []) === 'Hauptgericht' ? (r.course || 'Hauptgericht') : I.guessCourse(title, [], []),
+        course: (() => { const c = I.guessCourse(title, [], [r.notes || ''], r); return c === 'Hauptgericht' && r.course ? r.course : c; })(),
         method: I.guessMethod(r.steps || [], title),
         mainIngredient: ''
       };

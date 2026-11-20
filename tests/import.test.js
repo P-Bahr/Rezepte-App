@@ -274,7 +274,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(JSON.stringify(dual) === JSON.stringify(['50 g Butter, geschmolzen', '600 g Frischkäse', '175 g Zucker', '2 EL Mehl (Type 405)', '450 g Pflaumentomaten', '50 g Butter', '125 g flour', '125 g Graham Cracker Krümel']), 'Nur metrische Angabe bleibt, Rest direkt umgerechnet: ' + dual.join(' | '));
   // Prüf-Hinweise
   let hs = I.reviewHints({ title: 'Nudelsalat', ingredients: ['250 g Nudeln', 'Gurke', 'Salz', '300 g Mehl', '250 g Mehl'], steps: ['Alles mischen.'], mainIngredient: '', servings: 4, servingsUnit: 'Personen', importInfo: { how: 'text', servingsGuessed: true, courseGuessed: true }, course: 'Hauptgericht' });
-  ok(hs.some(x => /Seitentext/.test(x)) && !hs.some(x => /Ohne Mengenangabe/.test(x)) && hs.minor.some(x => /Ohne Mengenangabe: Gurke\./.test(x)) && hs.some(x => /doppelt: Mehl/.test(x)) && !hs.some(x => /Personen/.test(x)) && hs.some(x => /Rezeptart nur geraten/.test(x)) && hs.some(x => /Keine Hauptzutat/.test(x)), 'Prüf-Hinweise sagen genau, worauf zu achten ist: ' + hs.join(' / '));
+  ok(hs.some(x => /Seitentext/.test(x)) && !hs.some(x => /Ohne Mengenangabe/.test(x)) && hs.minor.some(x => /Ohne Mengenangabe: Gurke\./.test(x)) && hs.some(x => /doppelt: Mehl/.test(x)) && !hs.some(x => /Personen/.test(x))  && hs.some(x => /Keine Hauptzutat/.test(x)), 'Prüf-Hinweise sagen genau, worauf zu achten ist: ' + hs.join(' / '));
   ok(I.reviewHints({ title: 'Linsensuppe', ingredients: ['250 g Linsen', '1 Zwiebel', '1 l Brühe'], steps: ['Kochen.'], mainIngredient: 'Linsen', servings: 4 }).length === 0, 'Vollständiges Rezept: keine Hinweise');
 
   // Hühnereier sind kein Hähnchen; Werbung und "Gewürze:" in Zutaten
@@ -311,6 +311,17 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(d.title === 'Zimtschnecke zum Löffeln' && d.servings === 1, 'TikTok mit 🤎-Aufzählung: Name und 1 Portion: ' + d.title);
   ok(JSON.stringify(d.ingredients) === JSON.stringify(['40 g Haferflocken', '150 ml Sojamilch', '1 TL Chiasamen', '1 Dattel', '1 ordentliche Prise Zimt', 'Sojajoghurt', '1 TL Mandelmus mit Zimt vermischt']), 'TikTok mit 🤎-Aufzählung: Zutaten einzeln, „Topping“ ist Zwischenüberschrift: ' + d.ingredients.join(' | '));
   ok(d.steps.length === 3 && /^Alle Zutaten/.test(d.steps[0]) && d.course === 'Frühstück' && d.mainIngredient === 'Haferflocken', 'TikTok: 3 Schritte (ohne Werbung, ohne „4.“), Frühstück aus dem Begleittext, Hauptzutat Haferflocken: ' + JSON.stringify(d.steps) + ' ' + d.course + ' ' + d.mainIngredient);
+
+  // Rezeptart aus Zutaten und Schritten, wenn der Name nichts verrät
+  for (const [t, ing, st, want] of [
+    ['Omas Liebling', ['250 g Mehl', '100 g Zucker', '1 Pck. Backpulver', '2 Eier'], ['Bei 180 °C 30 Minuten backen.'], 'Gebäck'],
+    ['Mein Morgenglück', ['40 g Haferflocken', '150 ml Milch', '1 EL Chiasamen'], ['Über Nacht quellen lassen.'], 'Frühstück'],
+    ['Wolke 7', ['250 g Quark', '200 ml Sahne', '2 EL Zucker', '300 g Beeren'], ['Alles verrühren und kalt stellen.'], 'Dessert'],
+    ['Wintertraum', ['1 l Gemüsebrühe', '500 g Möhren', '1 Zwiebel'], ['20 Minuten köcheln lassen.'], 'Suppe'],
+    ['Papas Pfanne', ['500 g Hackfleisch', '1 Zwiebel', '2 Paprika'], ['Anbraten.'], 'Hauptgericht']
+  ]) ok(I.guessCourse(t, [], [], { ingredients: ing, steps: st }) === want, 'Rezeptart aus den Zutaten: ' + t + ' -> ' + I.guessCourse(t, [], [], { ingredients: ing, steps: st }));
+  // Gewürze nie Hauptzutat, Würzmengen bis 20 g auch nicht
+  ok(I.guessMain(['18 g Ingwer, frisch', '12 g Salz', '8 g Backpulver', '30 g Haferflocken'], 'Test') === 'Haferflocken', 'Gewürze und Mengen bis 20 g nie Hauptzutat: ' + I.guessMain(['18 g Ingwer, frisch', '12 g Salz', '8 g Backpulver', '30 g Haferflocken'], 'Test'));
 
   // ---------- Pinterest ----------
   const pinAnswers = {
