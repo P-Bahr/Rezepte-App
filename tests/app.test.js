@@ -144,7 +144,11 @@ const OUT = process.argv[2] || '.';
     await p.click('#dupNotice .btn'); await p.waitForTimeout(300);
     const first = await p.evaluate(() => [document.querySelector('.dup-card').dataset.id, document.querySelector('.dup-best .dup-why').textContent, document.querySelector('.dup-card:not(.dup-best) .dup-facts:nth-of-type(2)') ? document.querySelector('.dup-card:not(.dup-best)').textContent : '']);
     assert(first[0] === ids[0] && /alle Zutaten mit Mengen/.test(first[1]), 'Mehrfach: das vollständigste Rezept wird empfohlen (' + first[1] + ')');
-    assert(await p.evaluate(() => [...document.querySelectorAll('.dup-card')].some(c => /Nur hier: .*Kartoffeln/.test(c.textContent))), 'Mehrfach: Unterschiede in den Zutaten werden gezeigt');
+    const marks = await p.evaluate(() => ({ only: [...document.querySelectorAll('.dup-only')].map(x => x.textContent), amount: [...document.querySelectorAll('.dup-amount')].map(x => x.textContent), common: (document.querySelector('.dup-common') || {}).textContent || '', oven: [...document.querySelectorAll('.dup-oven')].map(x => x.textContent) }));
+    assert(marks.only.some(x => /800 g Kartoffeln/.test(x)) && marks.only.some(x => /Nudeln/.test(x)), 'Mehrfach: Zutaten nur in einer Variante markiert (＋) ' + JSON.stringify(marks.only));
+    assert(marks.amount.some(x => /Cheddar/.test(x)), 'Mehrfach: andere Menge markiert (≠) ' + JSON.stringify(marks.amount));
+    assert(/hackfleisch/i.test(marks.common) && /Zwiebel/.test(marks.common), 'Mehrfach: Gemeinsames einmal oben ' + marks.common);
+    assert(marks.oven.some(x => /200 °C/.test(x)), 'Mehrfach: Ofentemperatur im Vergleich ' + JSON.stringify(marks.oven));
     await p.click('#dupKeepAll'); await p.waitForTimeout(300);
     assert(await p.locator('#dupNotice').count() === 0, 'Mehrfach: „Alle behalten“ blendet den Hinweis aus');
     // Neue Variante dazu -> wieder Hinweis; "Nur Empfehlung behalten" löscht die anderen

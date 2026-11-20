@@ -501,14 +501,23 @@ dialog:focus { outline: none; }
 .dup-notice .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
 #grid > .dup-notice { grid-column: 1 / -1; }
 .dup-list { display: grid; gap: 14px; margin-top: 12px; }
-.dup-card { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); }
+.dup-card { display: grid; grid-template-columns: 64px minmax(0, 1fr); gap: 12px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius); }
 .dup-card.dup-best { border: 2px solid var(--fg); }
-.dup-img { width: 96px; aspect-ratio: 3 / 4; border-radius: 12px; overflow: hidden; position: relative; background: radial-gradient(circle at 30% 20%, var(--ph-a), var(--ph-b)); }
+.dup-img { width: 64px; aspect-ratio: 3 / 4; border-radius: 12px; overflow: hidden; position: relative; background: radial-gradient(circle at 30% 20%, var(--ph-a), var(--ph-b)); }
 .dup-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.dup-img .ph { font-size: 36px; color: var(--ph-fg); }
+.dup-img .ph { font-size: 28px; color: var(--ph-fg); }
 .dup-text { display: grid; gap: 4px; align-content: start; min-width: 0; }
 .dup-text .btn { justify-self: start; margin-top: 4px; }
 .dup-title { font-size: 18px; line-height: 1.25; }
 .dup-facts { font-size: 15px; color: var(--muted); }
 .dup-why { font-size: 15px; font-weight: 600; }
 .dup-badge { justify-self: start; padding: 2px 10px; border-radius: 999px; background: var(--accent); color: var(--accent-fg); font-size: 14px; font-weight: 700; }
+
+.dup-common { margin: 0; padding: 10px 14px; border-radius: 12px; background: var(--chip); }
+.dup-marks { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
+.dup-marks li { display: flex; gap: 8px; align-items: baseline; padding: 4px 10px; border-radius: 10px; background: var(--chip); font-weight: 600; }
+.dup-marks .dup-amount { font-weight: 400; }
+.dup-sign { flex: none; width: 1.2em; text-align: center; font-weight: 800; }
+.dup-oven { font-size: 16px; font-weight: 600; }
+.dup-body { grid-column: 1 / -1; display: grid; gap: 6px; }
+.dup-body .btn { justify-self: start; }

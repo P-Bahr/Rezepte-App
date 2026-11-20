@@ -316,19 +316,25 @@
     const group = r0 && D.groupOf(r0, Store.recipes());
     if (!group) { closeDialog(); return; }
     const rec = D.recommend(group);
+    const diff = D.differences(group);
     const card = ({ r, q }) => {
       const best = r.id === rec.best.id;
       const facts = [q.nIng + ' Zutaten' + (q.nIng && q.withAmount === q.nIng ? ' (alle mit Menge)' : q.nIng ? ' (' + (q.nIng - q.withAmount) + ' ohne Menge)' : ''),
         q.nSteps + (q.nSteps === 1 ? ' Schritt' : ' Schritte'), q.f.photo ? 'Foto' : 'kein Foto', r.totalTime ? 'Zeit: ' + window.RecipeTime.label(r) : ''].filter(Boolean).join(' · ');
-      const only = D.onlyHere(r, group);
+      const d = diff.per.get(r.id) || { marks: [] };
+      const ov = d.oven && [d.oven.temp, d.oven.time].filter(Boolean).join(', ');
       return h('div', { class: 'dup-card' + (best ? ' dup-best' : ''), 'data-id': r.id },
         imageBox('dup-img', r),
         h('div', { class: 'dup-text' },
           best ? h('span', { class: 'dup-badge', text: 'Empfehlung' }) : null,
           h('b', { class: 'dup-title', text: r.title }),
           h('span', { class: 'dup-facts', text: facts }),
-          only.length ? h('span', { class: 'dup-facts', text: 'Nur hier: ' + only.slice(0, 6).join(', ') }) : null,
-          best ? h('span', { class: 'dup-why', text: 'Warum: ' + rec.reasons.join(', ') }) : null,
+          best ? h('span', { class: 'dup-why', text: 'Warum: ' + rec.reasons.join(', ') }) : null),
+        h('div', { class: 'dup-body' },
+          d.marks.length ? h('ul', { class: 'dup-marks' }, d.marks.map(m => h('li', { class: 'dup-' + m.kind },
+            h('span', { class: 'dup-sign', 'aria-label': m.kind === 'only' ? 'nur hier' : 'andere Menge', text: m.kind === 'only' ? '＋' : '≠' }), m.line)))
+            : h('span', { class: 'dup-facts', text: 'Keine eigenen Zutaten' }),
+          ov ? h('span', { class: 'dup-oven', text: 'Ofen: ' + ov }) : (d.oven ? h('span', { class: 'dup-oven', text: 'Ofen: keine Angabe' }) : null),
           h('button', { type: 'button', class: 'btn', onclick: () => openDetail(r.id) }, 'Ansehen')));
     };
     const foot = h('div', { class: 'dlg-foot' });
@@ -338,7 +344,7 @@
         h('button', { type: 'button', class: 'btn', id: 'dupKeepAll', onclick: () => {
           try { Store.setDupOk(group.map(x => x.id)); toast('Alle behalten – kein Hinweis mehr'); closeDialog(); } catch (e) { toast(e.message); }
         } }, 'Alle behalten'),
-        h('button', { type: 'button', class: 'btn btn-primary', id: 'dupKeepBest', onclick: ask }, 'Nur Empfehlung behalten'));
+        h('button', { type: 'button', class: 'btn btn-primary', id: 'dupKeepBest', onclick: ask }, 'Nur Empfehlung'));
     };
     const ask = () => {
       foot.textContent = '';
@@ -355,7 +361,8 @@
     showDialog('dupes', h('div', { style: 'display:contents' },
       head('Gleiches Gericht, ' + group.length + '-mal', closeDialog),
       h('div', { class: 'dlg-scroll' },
-        h('p', { class: 'hint', text: 'Empfohlen wird das vollständigste Rezept: Mengen bei allen Zutaten, klare Schritte, Foto, Zeit- und Portionsangabe – Favoriten zählen besonders. Wie es schmeckt, weißt nur du.' }),
+        diff.common.length ? h('p', { class: 'dup-common' }, h('b', { text: 'In allen: ' }), diff.common.join(', ')) : null,
+        h('p', { class: 'hint' }, h('b', { text: '＋' }), ' nur in diesem Rezept · ', h('b', { text: '≠' }), ' andere Menge. Empfohlen wird das vollständigste Rezept; Favoriten zählen besonders.'),
         h('div', { class: 'dup-list' }, rec.ranked.map(card))),
       foot));
   }

@@ -163,5 +163,51 @@
     return out;
   }
 
-  window.RecipeDupes = { similarity, isDuplicate, findDuplicate, sameDish, groups, groupOf, quality, recommend, onlyHere };
+  // ---------- Unterschiede auf einen Blick ----------
+  // Zutaten eines Rezepts: Schlüssel (Hauptwort) -> Zeile, Menge pro Person, schöner Name
+  function ingList(r) {
+    const per = r.servings > 0 ? r.servings : 4; // ohne Angabe gilt wie überall: 4 Personen
+    const out = [];
+    for (const line of r.ingredients || []) {
+      const p = Sc.parseIngredient(Sc.normalizeIngredient(line));
+      const name = p.name.replace(/\(.*?\)/g, '');
+      const w = S.words(name).filter(x => !STOP.has(x) && !/^\d/.test(x) && x.length > 1);
+      if (!w.length) continue;
+      const v = Sc.parseNum(String(p.amount || '').split(/[–-]/)[0]);
+      const shown = (name.trim().split(/\s+/).pop() || w[w.length - 1]).replace(/[,.;:]+$/, '');
+      out.push({ key: w[w.length - 1], line, unit: (p.unit || '').toLowerCase(), amount: isNaN(v) ? null : (per ? v / per : v), perPerson: !!per, nice: shown.charAt(0).toUpperCase() + shown.slice(1) });
+    }
+    return out;
+  }
+  // Ofen und Zeit aus den Schritten ("bei 200 °C 30 Minuten backen")
+  function oven(r) {
+    const t = (r.steps || []).join(' ');
+    const temp = (t.match(/(\d{2,3})\s*°\s*C?/i) || [])[1];
+    const time = (t.match(/(\d+(?:[.,]\d+)?)\s*(?:-|–|bis)?\s*(?:\d+\s*)?(min(?:uten|\.)?|std\.?|stunden?)\b[^.]*\b(backen|garen|überbacken|im ofen)/i) || t.match(/(?:backen|garen|überbacken|im ofen)[^.]*?\b(\d+(?:[.,]\d+)?)\s*(min(?:uten|\.)?|std\.?|stunden?)\b/i));
+    return { temp: temp ? temp + ' °C' : '', time: time ? time[1] + ' ' + (/^std|^stunde/i.test(time[2]) ? 'Std.' : 'Min.') : '' };
+  }
+  /* Für jedes Rezept der Gruppe: was nur hier vorkommt, was mit anderer Menge, und was alle gemeinsam haben */
+  function differences(group) {
+    const lists = group.map(ingList);
+    const has = (list, key) => list.find(x => sameIngredient(key, x.key));
+    const first = lists[0] || [];
+    const common = first.filter(x => lists.every(l => has(l, x.key))).map(x => x.nice);
+    const ovens = group.map(oven);
+    const ovenDiff = new Set(ovens.map(o => o.temp + '|' + o.time)).size > 1;
+    const per = new Map();
+    group.forEach((r, i) => {
+      const marks = [];
+      for (const x of lists[i]) {
+        const others = lists.filter((_, j) => j !== i).map(l => has(l, x.key));
+        if (others.every(o => !o)) { marks.push({ kind: 'only', line: x.line }); continue; }
+        // gleiche Zutat, aber deutlich andere Menge (pro Person verglichen, wenn Portionen bekannt)
+        const diff = others.some(o => o && o.unit === x.unit && x.amount != null && o.amount != null && x.perPerson === o.perPerson && Math.abs(o.amount - x.amount) / Math.max(o.amount, x.amount) > 0.15);
+        if (diff) marks.push({ kind: 'amount', line: x.line });
+      }
+      per.set(r.id, { marks, oven: ovenDiff ? ovens[i] : null });
+    });
+    return { common, per };
+  }
+
+  window.RecipeDupes = { similarity, isDuplicate, findDuplicate, sameDish, groups, groupOf, quality, recommend, onlyHere, differences, oven };
 })();
