@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Meine Rezepte</title>
 <meta name="theme-color" content="#2f7a55">
-<meta name="app-version" content="2026-11-20T11:15:24">
+<meta name="app-version" content="2026-11-20T11:22:03">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-title" content="Rezepte">
@@ -48,6 +48,7 @@
   <div class="banner" id="storageWarning" hidden>Achtung: Dieses Gerät erlaubt gerade kein dauerhaftes Speichern (zum Beispiel im privaten Fenster). Neue Rezepte gehen beim Schließen verloren.</div>
 
   <main>
+    <section class="start" id="start" hidden aria-labelledby="startTitle"></section>
     <div class="grid-tools"><label class="sort"><span class="sort-label">Sortieren:</span><select id="sort" aria-label="Rezepte sortieren"></select></label></div>
     <div class="grid" id="grid"></div>
     <div class="empty" id="empty" hidden></div>

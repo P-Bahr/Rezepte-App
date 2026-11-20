@@ -260,6 +260,71 @@
     }, arranging ? 'Fertig' : 'Reihenfolge ändern')));
   }
 
+  // ---------- Startassistent "Rezepte zusammentragen" ----------
+  // Erscheint, bis man auf "Fertig" tippt; unter Einstellungen jederzeit wieder einblendbar.
+  const START_DONE = 'rezepte.start.fertig';
+  function startDone() { try { return localStorage.getItem(START_DONE) === '1'; } catch (e) { return false; } }
+  function renderStart() {
+    const box = $('#start');
+    if (!box) return false;
+    if (startDone()) { box.hidden = true; box.textContent = ''; return false; }
+    const all = Store.recipes();
+    const own = all.filter(r => !r.example).length;
+    const review = all.filter(r => r.review).length;
+    const tile = (id, icon, name, sub, onclick) => h('button', { type: 'button', class: 'import-tile', id, onclick },
+      h('span', { class: 'import-tile-icon', 'aria-hidden': 'true', text: icon }), h('span', { class: 'import-tile-name', text: name }), h('span', { class: 'import-tile-sub', text: sub }));
+    box.textContent = '';
+    box.hidden = false;
+    box.append(
+      h('h2', { id: 'startTitle', text: own ? 'Rezepte zusammentragen' : 'Willkommen! Woher kommen deine Rezepte?' }),
+      h('p', { class: 'hint', text: 'Hol deine Rezepte von überall an einen Ort. Danach kommen neue einfach dazu – über „Importieren“ oder das Teilen-Menü.' }),
+      own ? h('p', { class: 'start-progress', id: 'startProgress' },
+        h('b', { text: own === 1 ? '1 Rezept gesammelt' : own + ' Rezepte gesammelt' }),
+        review ? ', ' + review + ' noch zu prüfen. ' : '.',
+        review ? h('button', { type: 'button', class: 'btn-link', onclick: () => { resetAll(); state.reviewOnly = true; setFiltersOpen(true); render(); } }, 'Jetzt prüfen') : null) : null,
+      h('div', { class: 'import-tiles start-tiles' },
+        tile('startApp', '📦', 'Aus anderer App', 'z. B. Recipe Keeper', () => openImport('', false, 'app')),
+        tile('startBoard', '📌', 'Pinterest', 'Ganze Pinnwand', () => openImport('', false, 'board')),
+        tile('startShare', '📲', 'TikTok, Instagram & Co.', 'Über „Teilen“ sammeln', openShareGuide),
+        tile('startPhotos', '📷', 'Bildschirmfotos', 'Viele auf einmal', () => openImport('', false, 'photos')),
+        tile('startLink', '🔗', 'Link oder Text', 'Webseite, WhatsApp …', () => openImport('')),
+        tile('startManual', '✍️', 'Selbst eintragen', 'Omas Rezeptbuch', () => openEdit(null))),
+      h('div', { class: 'pick-actions' },
+        Store.exampleCount() ? null : h('button', { type: 'button', class: 'btn', onclick: () => {
+          try { const n = Store.loadExamples(); toast(n + ' Beispielrezepte geladen'); } catch (e) { toast(e.message); }
+        } }, 'Beispielrezepte laden'),
+        h('button', { type: 'button', class: 'btn', id: 'startDone', onclick: () => {
+          try { localStorage.setItem(START_DONE, '1'); } catch (e) { /* egal */ }
+          render(); toast('Ausgeblendet – unter Einstellungen wieder einblendbar');
+        } }, own ? 'Fertig – ausblenden' : 'Ausblenden')));
+    return true;
+  }
+
+  // Anleitung: Teilen-Menü einrichten (Apple-Kurzbefehl "zu Rezepten")
+  function openShareGuide() {
+    const li = t => h('li', { text: t });
+    const keyBox = shareBox();
+    const content = h('div', { class: 'form' },
+      h('p', { class: 'hint', text: 'Damit schickst du Rezepte aus TikTok, Instagram, Facebook, Pinterest oder Safari mit „Teilen → zu Rezepten“ direkt in die App. Einmal pro Gerät einrichten, dauert etwa 5 Minuten.' }),
+      h('div', { class: 'import-choice' }, h('p', { class: 'import-choice-name', text: '1. Schlüssel erstellen' }),
+        keyBox || h('p', { class: 'hint', text: 'Dafür bitte zuerst anmelden (Online-Speicher).' })),
+      h('div', { class: 'import-choice' }, h('p', { class: 'import-choice-name', text: '2. Kurzbefehl anlegen' }),
+        h('ol', { class: 'import-steps' },
+          li('App „Kurzbefehle“ öffnen, unten „Kurzbefehle“, oben rechts „+“.'),
+          li('Oben auf den Namen tippen → „Umbenennen“ → zu Rezepten.'),
+          li('Unten auf ⓘ → „Im Share-Sheet anzeigen“ einschalten. Oben „Alle“ antippen und nur „URLs“ und „Text“ lassen.'),
+          li('Unten „Suchen“ → „Inhalte von URL abrufen“. Blaues „URL“ antippen → Adresse von oben einfügen.'),
+          li('Pfeil ⌄ in der Aktion: Methode POST. „Neue Überschrift hinzufügen“: Schlüssel apikey, Text = apikey von oben.'),
+          li('„Haupttext anfordern: JSON“ → „Neues Feld“ → Text: p_key = Schlüssel von oben. Noch ein Feld: p_input = „Variable auswählen“ → Kurzbefehleingabe.'),
+          li('Unten „Suchen“ → „Mitteilung anzeigen“, Text löschen → „Variable auswählen“ → Inhalte der URL. Fertig.'))),
+      h('div', { class: 'import-choice' }, h('p', { class: 'import-choice-name', text: '3. Sammeln' }),
+        h('ol', { class: 'import-steps' },
+          li('In TikTok & Co. bei einem Rezept auf „Teilen“ → „Mehr“ → zu Rezepten. Beim ersten Mal „Immer erlauben“.'),
+          li('Beliebig viele so teilen – sie warten im Eingangsfach.'),
+          li('In der App erscheint „📥 … geteilte Rezepte“ → „Alle importieren“.'))));
+    showDialog('share-guide', h('div', { style: 'display:contents' }, head('Teilen einrichten', closeDialog), h('div', { class: 'dlg-scroll' }, content)));
+  }
+
   function placeholder(title) {
     return h('div', { class: 'ph', 'aria-hidden': 'true', text: (title.trim()[0] || '?').toUpperCase() });
   }
@@ -290,6 +355,8 @@
     grid.textContent = '';
     empty.textContent = '';
 
+    const startShown = renderStart();
+    if (!total && startShown) { empty.hidden = true; return; }
     if (!total) {
       empty.hidden = false;
       empty.append(
@@ -1605,6 +1672,11 @@
       accountBox(),
       shareBox(),
       backupBox(),
+      h('div', { class: 'field examples' }, h('span', { class: 'label', text: 'Rezepte zusammentragen' }),
+        h('p', { class: 'hint', text: 'Der Startassistent zeigt alle Wege, Rezepte in die App zu holen – auch die Anleitung für das Teilen-Menü.' }),
+        h('div', { class: 'pick-actions' },
+          h('button', { type: 'button', class: 'btn', id: 'btnStartAgain', onclick: () => { try { localStorage.removeItem('rezepte.start.fertig'); } catch (e) { /* egal */ } closeDialog(); render(); window.scrollTo({ top: 0 }); } }, 'Startassistent einblenden'),
+          h('button', { type: 'button', class: 'btn', onclick: openShareGuide }, 'Teilen einrichten'))),
       versionBox());
     showDialog('settings', h('div', { style: 'display:contents' },
       head('Einstellungen', closeDialog), h('div', { class: 'dlg-scroll' }, content)));

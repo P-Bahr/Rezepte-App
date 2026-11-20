@@ -463,3 +463,11 @@ body:has(#inboxBanner:not(dialog #inboxBanner)) .to-top { bottom: calc(96px + en
 .import-inbox { display: grid; gap: 10px; }
 
 .review-minor { margin: 0; font-size: 14px; color: var(--muted); }
+
+/* Startassistent */
+.start { display: grid; gap: 10px; margin: 4px 0 16px; padding: 16px; border-radius: var(--radius); background: var(--chip); }
+.start h2 { margin: 0; font-size: 20px; }
+.start .hint, .start-progress { margin: 0; }
+.start-tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+@media (min-width: 700px) { .start-tiles { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.start .import-tile { min-height: 96px; }
