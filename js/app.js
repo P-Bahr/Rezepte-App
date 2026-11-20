@@ -1478,6 +1478,41 @@
   }
 
   // App-Version und Suche nach neuer Version
+  const nWord = (n, one, many) => n + ' ' + (n === 1 ? one : many);
+  // Sicherung als Datei (Dateien/iCloud) und wieder einspielen
+  function backupBox() {
+    const B = window.RecipeBackup;
+    if (!B) return null;
+    const lastIso = B.last();
+    const lastTxt = lastIso ? new Date(lastIso).toLocaleDateString('de-DE') : 'noch nie';
+    const info = h('p', { class: 'hint', 'aria-live': 'polite', id: 'backupInfo', text: nWord(Store.recipes().length, 'Rezept', 'Rezepte') + '. Zuletzt gesichert: ' + lastTxt + '.' });
+    const err = h('div', { class: 'form-error', role: 'alert', hidden: true });
+    const save = h('button', { type: 'button', class: 'btn btn-primary', id: 'btnBackup' }, 'Alle Rezepte sichern');
+    save.addEventListener('click', async () => {
+      save.disabled = true; err.hidden = true; info.textContent = 'Sicherung wird erstellt …';
+      try {
+        const r = await B.backup(t => { info.textContent = t; });
+        info.textContent = r.how === 'abgebrochen' ? 'Abgebrochen – nichts gesichert.'
+          : nWord(r.count, 'Rezept', 'Rezepte') + ' und ' + nWord(r.photos, 'Foto', 'Fotos') + ' gesichert. ' + (r.how === 'geteilt' ? 'Tipp: „In Dateien sichern“ wählen, am besten in iCloud Drive.' : 'Die Datei liegt bei den Downloads.');
+      } catch (e) { err.textContent = e.message || 'Die Sicherung ist fehlgeschlagen.'; err.hidden = false; info.textContent = ''; }
+      save.disabled = false;
+    });
+    const file = h('input', { type: 'file', id: 'restoreFile', accept: '.zip,application/zip', class: 'visually-hidden' });
+    const load = h('label', { for: 'restoreFile', class: 'btn pick-btn', role: 'button', tabindex: '0' }, 'Sicherung einspielen');
+    file.addEventListener('change', async () => {
+      const f = file.files[0]; file.value = '';
+      if (!f) return;
+      err.hidden = true; info.textContent = 'Sicherung wird gelesen …';
+      try {
+        const r = await B.restore(f, t => { info.textContent = t; });
+        info.textContent = r.added ? nWord(r.added, 'Rezept', 'Rezepte') + ' aus der Sicherung übernommen' + (r.skipped ? ', ' + r.skipped + (r.skipped === 1 ? ' war' : ' waren') + ' schon da.' : '.') : 'Alle ' + r.total + ' Rezepte aus der Sicherung sind schon vorhanden – nichts geändert.';
+      } catch (e) { err.textContent = e.message || 'Die Sicherung konnte nicht eingespielt werden.'; err.hidden = false; info.textContent = ''; }
+    });
+    return h('div', { class: 'field examples', id: 'backupBox' }, h('span', { class: 'label', text: 'Sicherung' }),
+      h('p', { class: 'hint', text: 'Speichert alle Rezepte mit Fotos als eine Datei – z. B. in iCloud Drive. Beim Einspielen kommen nur fehlende Rezepte dazu, vorhandene bleiben unverändert.' }),
+      info, h('div', { class: 'pick-actions' }, save, load, file), err);
+  }
+
   function versionBox() {
     const U = window.RecipeUpdate;
     if (!U) return null;
@@ -1569,6 +1604,7 @@
       linksBox(),
       accountBox(),
       shareBox(),
+      backupBox(),
       versionBox());
     showDialog('settings', h('div', { style: 'display:contents' },
       head('Einstellungen', closeDialog), h('div', { class: 'dlg-scroll' }, content)));

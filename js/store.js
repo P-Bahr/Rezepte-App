@@ -296,6 +296,20 @@
       return true;
     },
 
+    // Sicherung einspielen: fehlende Rezepte (nach ID) übernehmen, vorhandene bleiben, wie sie sind
+    restore(list) {
+      const have = new Set(data.recipes.map(r => r.id));
+      const now = new Date().toISOString();
+      const add = (Array.isArray(list) ? list : []).filter(r => r && r.id && r.title && !have.has(r.id))
+        .map(r => ({ ...r, ingredients: (r.ingredients || []).map(cleanIngredient).filter(Boolean), steps: r.steps || [], updatedAt: now }));
+      if (!add.length) return 0;
+      const before = data.recipes;
+      data.recipes = before.concat(add);
+      autoSort(now);
+      try { save(); } catch (e) { data.recipes = before; throw e; }
+      return add.length;
+    },
+
     exampleCount() { return data.recipes.filter(r => r.example).length; },
 
     // Entfernt alle Beispielrezepte und die durch sie entstandenen, jetzt leeren Sammlungen.

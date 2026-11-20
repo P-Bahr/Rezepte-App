@@ -66,6 +66,33 @@ const OUT = process.argv[2] || '.';
   await p.click('#toTop'); await p.waitForFunction(() => window.scrollY === 0, null, { timeout: 3000 });
   assert(true, '„Nach oben“ scrollt zum Anfang');
   await p.setViewportSize({ width: 1024, height: 1366 }); await p.waitForTimeout(100);
+  // Sicherung: alles als Datei, dann ein Rezept löschen und wieder einspielen (mit Foto)
+  {
+    const fid = await p.evaluate(async () => {
+      const cv = document.createElement('canvas'); cv.width = 40; cv.height = 40; cv.getContext('2d').fillRect(0, 0, 20, 20);
+      const blob = await new Promise(r => cv.toBlob(r, 'image/jpeg'));
+      const imageId = await window.RecipeImages.save(blob);
+      return Store.saveRecipe({ title: 'Sicherungstest-Torte', ingredients: ['200 g Mehl'], steps: ['Backen.'], imageId }).id;
+    });
+    const before = await p.evaluate(() => Store.recipes().length);
+    await p.click('#btnCollections');
+    const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#btnBackup')]);
+    const bpath = require('os').tmpdir() + '/sicherung-' + process.pid + '.zip';
+    await dl.saveAs(bpath);
+    assert(/^Rezepte-Sicherung-\d{4}-\d{2}-\d{2}\.zip$/.test(dl.suggestedFilename()) && (await p.textContent('#backupInfo')).includes(before + ' Rezepte und 1 Foto gesichert'), 'Sicherung: Datei mit allen Rezepten und Fotos: ' + dl.suggestedFilename() + ' / ' + await p.textContent('#backupInfo'));
+    const img = await p.evaluate(id => Store.recipe(id).imageId, fid);
+    await p.evaluate(([id, img]) => { Store.deleteRecipe(id); return window.RecipeImages.remove(img); }, [fid, img]);
+    await p.setInputFiles('#restoreFile', bpath);
+    await p.waitForFunction(() => /übernommen/.test(document.getElementById('backupInfo').textContent));
+    const back = await p.evaluate(async id => { const r = Store.recipe(id); return r && { t: r.title, img: !!(await window.RecipeImages.blob(r.imageId)) }; }, fid);
+    assert(back && back.t === 'Sicherungstest-Torte' && back.img && (await p.textContent('#backupInfo')).startsWith('1 Rezept aus der Sicherung übernommen'), 'Sicherung einspielen: gelöschtes Rezept samt Foto zurück, vorhandene unverändert: ' + await p.textContent('#backupInfo'));
+    await p.setInputFiles('#restoreFile', bpath);
+    await p.waitForFunction(() => /schon vorhanden/.test(document.getElementById('backupInfo').textContent));
+    assert(true, 'Zweites Einspielen: nichts doppelt');
+    await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+    await p.evaluate(id => Store.deleteRecipe(id), fid);
+    require('fs').unlinkSync(bpath);
+  }
   // One Pot: zusätzlicher Chip bei den Sammlungen
   const op = await p.evaluate(() => [
     Store.saveRecipe({ title: 'One-Pot-Pasta', ingredients: ['250 g Spaghetti'], steps: ['Alles in einem Topf 12 Minuten kochen.'] }).id,

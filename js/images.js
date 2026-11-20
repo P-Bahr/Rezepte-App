@@ -89,6 +89,8 @@
       });
     },
     blob(key) { return key ? tx('readonly', s => s.get(key)) : Promise.resolve(null); },
+    // Bild unter einer bestimmten ID ablegen (beim Einspielen einer Sicherung)
+    put(key, blob) { return tx('readwrite', s => s.put(blob, key)).then(() => key); },
     setRemote(fn) { remote = fn; },
     remove(key) {
       if (!key) return Promise.resolve();
