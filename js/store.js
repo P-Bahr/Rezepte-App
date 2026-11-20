@@ -86,19 +86,72 @@
   function cleanMethod(m) { return /^roh\s*\/\s*ohne kochen$/i.test(clean(m)) ? 'Kalt zubereitet' : clean(m); }
   /* Sammlung aus der Zubereitung bestimmen (für alle Rezepte) und nur die festen Sammlungen behalten.
      Gibt true zurück, wenn sich etwas geändert hat. Auf jedem Gerät gleiches Ergebnis. */
+  // Felder, die beim Import automatisch entstehen (und später mit besseren Regeln neu entstehen können)
+  const IMPORT_FIELDS = ['title', 'course', 'mainIngredient', 'method', 'servings', 'servingsUnit', 'formSize', 'totalTime', 'ingredients', 'steps', 'notes'];
+  // So, wie saveRecipe die Felder ablegt – damit "unverändert" sicher erkannt wird
+  function snap(input) {
+    const ps = window.RecipeScale.parseServings(input.servings);
+    const o = {
+      title: clean(input.title), course: clean(input.course), mainIngredient: clean(input.mainIngredient), method: cleanMethod(input.method),
+      servings: ps.servings, servingsUnit: window.RecipeForms.normalizeUnit(clean(input.servingsUnit) || ps.unit),
+      formSize: clean(input.formSize), totalTime: clean(input.totalTime),
+      ingredients: cleanList(input.ingredients).map(l => cleanIngredient(window.RecipeScale.normalizeIngredient(l))).filter(Boolean),
+      steps: cleanList(input.steps), notes: clean(input.notes)
+    };
+    if (window.RecipeCollections) o.method = window.RecipeCollections.forRecipe(o).method;
+    return o;
+  }
+  const same = (a, b) => JSON.stringify(a == null ? '' : a) === JSON.stringify(b == null ? '' : b);
+  const isEmpty = v => v == null || v === '' || (Array.isArray(v) && !v.length);
+  const appVersion = () => { try { const m = document.querySelector('meta[name="app-version"]'); return (m && m.content) || ''; } catch (e) { return ''; } };
+  /* Noch nicht geprüfte Importe mit den aktuellen Regeln aus dem Original neu einlesen.
+     Nur Felder, die seit dem Import niemand geändert hat, werden ersetzt – eigene Änderungen bleiben. */
+  function reparse(r, now, V) {
+    const I = window.RecipeImporter;
+    if (!I || !I.rebuild || !r.review || !r.importSource || !r.importResult || (V && r.importV === V)) return null;
+    let nd = null;
+    try { nd = I.rebuild(r.importSource); } catch (e) { nd = null; }
+    if (nd === undefined) return null; // Baustein noch nicht geladen: später noch einmal
+    const out = { ...r, importV: V };
+    if (!nd) return out;
+    if (nd.title === 'Importiertes Rezept') nd.title = '';
+    const ns = snap(nd);
+    const res = { ...r.importResult };
+    let diff = false;
+    for (const f of IMPORT_FIELDS) {
+      if (!same(r[f], r.importResult[f]) || isEmpty(ns[f])) continue; // selbst geändert oder neu nichts gefunden
+      res[f] = ns[f];
+      if (!same(ns[f], r[f])) { out[f] = ns[f]; diff = true; }
+    }
+    out.importResult = res;
+    if (diff) {
+      out.updatedAt = now;
+      const info = { ...(r.importInfo || {}) };
+      if (nd.courseGuessed !== undefined) info.courseGuessed = !!nd.courseGuessed;
+      if (nd.unitsConverted) info.unitsConverted = true;
+      out.importInfo = info;
+    }
+    return out;
+  }
+
   function autoSort(now) {
     const C = window.RecipeCollections;
     const I = window.RecipeImporter;
     let changed = false;
+    const V = appVersion();
+    // Zuerst: ungeprüfte Importe mit Original neu einlesen (die übrigen Reparaturen brauchen sie dann nicht)
+    data.recipes = data.recipes.map(r => { const n = reparse(r, now, V); if (!n) return r; changed = true; return n; });
+    const fresh = r => !!(r.review && r.importSource && r.importResult);
     // Unsinnige Hauptzutaten aus früheren Importen ("Minuten", "1050") neu bestimmen – als echte Änderung,
     // damit sie auch im Online-Speicher und auf den anderen Geräten repariert wird
     if (I && I.validMain) data.recipes = data.recipes.map(r => {
-      if (!r.mainIngredient || I.validMain(r.mainIngredient)) return r;
+      if (fresh(r) || !r.mainIngredient || I.validMain(r.mainIngredient)) return r;
       changed = true;
       return { ...r, mainIngredient: I.validMain(I.guessMain(r.ingredients || [], r.title)), updatedAt: now };
     });
     // Tassen, oz, lb in g/ml; doppelte Angaben ("¼ Tasse / 50g") nur metrisch – bei allen Rezepten
     if (I && I.convertUnits) data.recipes = data.recipes.map(r => {
+      if (fresh(r)) return r;
       const conv = I.convertUnits(r.ingredients || []).map(l => cleanIngredient(window.RecipeScale.normalizeIngredient(l)));
       if (JSON.stringify(conv) === JSON.stringify(r.ingredients || [])) return r;
       changed = true;
@@ -106,7 +159,7 @@
     });
     // Noch nicht geprüfte Importe: Schätzungen (Rezeptart, Zubereitung, Hauptzutat) mit den aktuellen Regeln neu berechnen
     if (I && I.guessMethod) data.recipes = data.recipes.map(r => {
-      if (!r.review) return r;
+      if (!r.review || fresh(r)) return r;
       const title = I.tidyTitle ? I.tidyTitle(r.title) : r.title;
       const next = {
         ingredients: r.ingredients,
@@ -122,6 +175,7 @@
     });
     // Namen ohne "für Kinder und Familie", "nach Omas bestem Rezept" …
     if (I && I.tidyTitle) data.recipes = data.recipes.map(r => {
+      if (fresh(r)) return r;
       const t = I.tidyTitle(r.title);
       if (!t || t === r.title) return r;
       changed = true;
@@ -143,6 +197,7 @@
   const Store = {
     get storageOk() { return storageOk; },
     onChange(fn) { listeners.push(fn); },
+    reparseNow() { const now = new Date().toISOString(); if (autoSort(now)) save(); }, // für Tests
 
     recipes() { return data.recipes.slice(); },
     recipe(id) { return data.recipes.find(r => r.id === id) || null; },
@@ -185,6 +240,10 @@
         // Was beim Import nur geschätzt war (für die Prüf-Hinweise)
         importInfo: existing ? (existing.importInfo || null) : (input.importHow || input.servingsGuessed || input.courseGuessed || input.unitsConverted || input.titleMissing
           ? { how: clean(input.importHow), servingsGuessed: !!input.servingsGuessed, courseGuessed: !!input.courseGuessed, unitsConverted: !!input.unitsConverted, titleMissing: !!input.titleMissing } : null),
+        // Original des Imports und was die App damals daraus gemacht hat (für Neu-Einlesen und Lernen aus Korrekturen)
+        importSource: existing ? (existing.importSource || null) : (input.importSource || null),
+        importResult: existing ? (existing.importResult || null) : (input.importSource ? snap(input.importDraft || input) : null),
+        importV: existing ? (existing.importV || '') : (input.importSource ? appVersion() : ''),
         createdAt: existing ? existing.createdAt : now,
         updatedAt: now
       };
@@ -195,7 +254,13 @@
       if (!data.collections.some(c => c.id === auto.id)) data.collections = window.RecipeCollections.list();
       const before = data.recipes;
       data.recipes = existing ? before.map(r => (r.id === recipe.id ? recipe : r)) : before.concat(recipe);
-      try { save(); } catch (e) { data.recipes = before; throw e; }
+      try { save(); } catch (e) {
+        // Speicher voll: lieber ohne Original speichern als gar nicht
+        if (!recipe.importSource) { data.recipes = before; throw e; }
+        recipe.importSource = null; recipe.importResult = null;
+        data.recipes = existing ? before.map(r => (r.id === recipe.id ? recipe : r)) : before.concat(recipe);
+        try { save(); } catch (e2) { data.recipes = before; throw e2; }
+      }
       return recipe;
     },
 

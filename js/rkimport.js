@@ -64,6 +64,8 @@
       method: methodFromCourse || '',
       importHow: 'app'
     };
+    // Original aus Recipe Keeper merken (für spätere Verbesserungen der Regeln)
+    d.importSource = { kind: 'rk', raw: { name: raw.name, ingredients: raw.ingredients, directions: raw.directions, notes: raw.notes, yield: raw.yield, source: raw.source, courses: raw.courses, categories: raw.categories, favorite: raw.favorite } };
     I.withGuesses(d, raw.categories.concat(raw.courses), raw.categories);
     if (!own) d.courseGuessed = !!d.courseGuessed;
     return d;

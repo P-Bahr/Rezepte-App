@@ -1512,7 +1512,10 @@
           course: val('fCourse'), mainIngredient: val('fMain'), method: val('fMethod'),
           servings: val('fServings'), servingsUnit: unitSel.value, formSize,
           ingredients: ingRows.lines(), steps: lines('fSteps'), notes: val('fNotes'),
-          imageId, imageUrl: val('fImage'), sourceUrl: val('fSource'), dupOk: allowDuplicate, review: false
+          imageId, imageUrl: val('fImage'), sourceUrl: val('fSource'), dupOk: allowDuplicate, review: false,
+          // Neu importiert: Original und Vorschlag der App mitspeichern (Grundlage fürs Lernen aus Korrekturen)
+          importSource: !id && draft && draft.importSource ? draft.importSource : undefined,
+          importDraft: !id && draft && draft.importSource ? draft : undefined
         });
         // Altes Foto aufräumen, wenn es ersetzt oder entfernt wurde
         if (v.imageId && v.imageId !== imageId) window.RecipeImages.remove(v.imageId);
@@ -1781,6 +1784,8 @@
 
   render();
   syncFromHash();
+  // Ungeprüfte Importe mit den aktuellen Regeln neu einlesen, wenn alle Bausteine geladen sind
+  setTimeout(() => { try { Store.reparseNow(); } catch (e) { /* beim nächsten Start wieder */ } }, 1500);
 
   // "Nach oben"-Knopf, sobald man weit genug gescrollt hat
   const toTop = $('#toTop');

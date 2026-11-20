@@ -128,6 +128,36 @@ const OUT = process.argv[2] || '.';
   assert(opTitles.includes('One-Pot-Pasta') && opTitles.includes('Ofengemüse vom Blech') && !opTitles.includes('Brownies') && !opTitles.includes('Apfelkuchen vom Blech') && !opTitles.includes('Vanillesoße') && opCol === 'col-topf', 'Chip „One Pot“ zeigt Eintopf-/Blechgerichte, Rezept bleibt zusätzlich in „Topf“: ' + opTitles);
   await p.click('#chipOnePot');
   await p.evaluate(ids => ids.forEach(id => Store.deleteRecipe(id)), op);
+
+  // Original aufbewahren: ungeprüfte Importe werden mit neuen Regeln neu eingelesen, eigene Änderungen bleiben
+  {
+    const ids = await p.evaluate(() => {
+      const I = window.RecipeImporter;
+      const a = Store.saveRecipe({ ...I.fromText('Käsespätzle\nZutaten:\n500 g Mehl\n5 Eier\n300 g Bergkäse\nZubereitung:\nTeig rühren und in kochendes Salzwasser schaben.\nMit Käse schichten.'), review: true, importBatch: 'test-re' });
+      const b = Store.saveRecipe({ ...I.fromText('Linsensuppe\nZutaten:\n250 g Tellerlinsen\n1,5 l Gemüsebrühe\nZubereitung:\nAlles 40 Minuten kochen.'), review: true, importBatch: 'test-re' });
+      const c = Store.saveRecipe({ ...I.fromText('Apfelkuchen\nZutaten:\n1 kg Äpfel\n200 g Mehl\nZubereitung:\nBei 180 °C backen.'), review: false, importBatch: 'test-re' });
+      return [a.id, b.id, c.id, !!(a.importSource && a.importSource.text.includes('Bergkäse') && a.importResult && a.importResult.mainIngredient === a.mainIngredient)];
+    });
+    assert(ids[3], 'Import merkt sich Original und Vorschlag der App');
+    // So tun, als hätten ältere Regeln falsch geschätzt (und die Nutzerin bei b die Rezeptart selbst geändert)
+    await p.evaluate(([a, b, c]) => {
+      const KEY = 'rezepte.daten.v1', d = JSON.parse(localStorage.getItem(KEY));
+      for (const r of d.recipes) {
+        if (![a, b, c].includes(r.id)) continue;
+        r.importV = 'alt';
+        if (r.id === a) { r.mainIngredient = r.importResult.mainIngredient = 'Bergkäse'; r.course = r.importResult.course = 'Beilage'; }
+        if (r.id === b) { r.mainIngredient = r.importResult.mainIngredient = 'Gemüsebrühe'; r.importResult.course = 'Hauptgericht'; r.course = 'Vorspeise'; }
+        if (r.id === c) { r.mainIngredient = r.importResult.mainIngredient = 'Mehl'; }
+      }
+      localStorage.setItem(KEY, JSON.stringify(d));
+    }, ids);
+    await p.reload(); await p.waitForTimeout(1800);
+    const after = await p.evaluate(ids => ids.slice(0, 3).map(id => { const r = Store.recipe(id); return [r.mainIngredient, r.course]; }), ids);
+    assert(after[0][0] === 'Spätzle' && after[0][1] === 'Hauptgericht', 'Neu eingelesen: falsche Hauptzutat und Rezeptart korrigiert ' + JSON.stringify(after[0]));
+    assert(after[1][0] === 'Linsen' && after[1][1] === 'Vorspeise', 'Neu eingelesen: Hauptzutat korrigiert, selbst geänderte Rezeptart bleibt ' + JSON.stringify(after[1]));
+    assert(after[2][0] === 'Mehl', 'Schon geprüftes Rezept („Passt“) bleibt unverändert ' + JSON.stringify(after[2]));
+    await p.evaluate(() => Store.deleteBatch('test-re'));
+  }
   // Zutaten-Filter: mehrere Zutaten, Rezepte müssen alle enthalten
   {
     const ids = await p.evaluate(() => [

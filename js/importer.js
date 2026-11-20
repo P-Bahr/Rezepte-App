@@ -811,6 +811,14 @@
   }
 
   function fromText(text, hint) {
+    const d = fromTextInner(text, hint);
+    // Originaltext merken: werden die Regeln besser, liest die App das Rezept damit neu ein
+    const h = {};
+    for (const k of ['title', 'image', 'url', 'ocr']) if (hint && hint[k]) h[k] = hint[k];
+    d.importSource = { kind: 'text', text: String(text || '').slice(0, SRC_MAX), hint: h };
+    return d;
+  }
+  function fromTextInner(text, hint) {
     hint = hint || {};
     // Einzeiliger Text (TikTok): doppelte Leerzeichen sind ehemalige Zeilenumbrüche
     text = socialText(text);
@@ -954,7 +962,40 @@
   }
 
   // Ergebnis des Server-Programms -> Entwurf (oder null, wenn kein Rezept erkennbar)
+  // Nur das Nötige aufheben (das Rezept aus der Seite, nicht die ganze Seite)
+  const SRC_MAX = 15000;
+  function compactRes(res, how) {
+    const out = {};
+    for (const k of ['kind', 'url', 'title', 'image', 'link', 'pinImage']) if (res[k]) out[k] = String(res[k]).slice(0, 2000);
+    if (res.kind === 'page') {
+      let node = null;
+      for (const block of res.jsonld || []) { node = findRecipe(block); if (node) break; }
+      if (node && how === 'page') {
+        const keep = {};
+        for (const k of ['@type', 'name', 'headline', 'recipeIngredient', 'ingredients', 'recipeInstructions', 'recipeYield', 'recipeCategory', 'recipeCuisine', 'keywords', 'totalTime', 'prepTime', 'cookTime', 'image', 'description']) if (node[k] != null) keep[k] = node[k];
+        out.jsonld = [keep];
+      } else out.jsonld = [];
+      if (how === 'text') out.text = String(res.text || '').slice(0, SRC_MAX);
+      if (how === 'pin') out.pinText = String(res.pinText || '').slice(0, SRC_MAX);
+    } else if (res.text) out.text = String(res.text).slice(0, SRC_MAX);
+    return out;
+  }
   function toDraft(res) {
+    const r = toDraftInner(res);
+    if (r && r.draft) {
+      try { const src = compactRes(res, r.how); if (JSON.stringify(src).length < SRC_MAX * 2) r.draft.importSource = { kind: 'res', res: src }; else delete r.draft.importSource; } catch (e) { delete r.draft.importSource; }
+    }
+    return r;
+  }
+  // Rezept aus dem gemerkten Original mit den aktuellen Regeln neu einlesen
+  function rebuild(src) {
+    if (!src) return null;
+    if (src.kind === 'res') { const r = toDraftInner(src.res); return r && r.draft; }
+    if (src.kind === 'text') return fromTextInner(src.text, src.hint);
+    if (src.kind === 'rk') return window.RecipeKeeper ? window.RecipeKeeper.toDraft(src.raw) : undefined; // undefined = noch nicht geladen
+    return null;
+  }
+  function toDraftInner(res) {
     if (!res) return null;
     if (res.kind === 'page') {
       const d = fromPage(res);
@@ -1028,5 +1069,5 @@
 
   // Schritte aus einer anderen App: Nummern weg, leere weg, Erzählstil straffen, pro Satz ein Schritt
   const cleanSteps = list => splitSteps(arr(list).map(x => clean(x).replace(/^\d{1,2}[.)]\s*/, '')).filter(Boolean).map(tidyStep));
-  window.RecipeImporter = { socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

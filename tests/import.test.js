@@ -34,6 +34,9 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(d.course === 'Hauptgericht' && d.method === 'Kochen', 'Kategorien: ' + d.course + ' / ' + d.method);
   ok(d.mainIngredient === 'Spätzle', 'Hauptzutat: Käsespätzle -> Spätzle (Gericht aus dem Namen): ' + d.mainIngredient);
   ok(d.notes === '' && d.imageUrl === 'https://img.example/kaese-gross.jpg', 'Bild übernommen, Werbebeschreibung nicht in den Notizen');
+  // Original aufbewahren: nur das Rezept aus der Seite (nicht die ganze Seite), daraus genau dasselbe Rezept
+  ok(d.importSource && d.importSource.kind === 'res' && !d.importSource.res.text && d.importSource.res.jsonld.length === 1 && JSON.stringify(d.importSource).length < 6000, 'Original gemerkt, klein (' + JSON.stringify(d.importSource || {}).length + ' Zeichen)');
+  { const again = I.rebuild(d.importSource); ok(again && JSON.stringify([again.title, again.ingredients, again.steps, again.course, again.method, again.mainIngredient, again.servings]) === JSON.stringify([d.title, d.ingredients, d.steps, d.course, d.method, d.mainIngredient, d.servings]), 'Aus dem Original entsteht genau dasselbe Rezept'); }
 
   // ---------- Seite 2: wie WordPress-Blogs (@graph, Abschnitte, Springform) ----------
   const blog = `<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebPage","name":"Blog"},
@@ -76,7 +79,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   d = tt.draft;
   ok(tt.how === 'tiktok' && d.ingredients.join(' | ') === '250 g Spaghetti | 200 g Cherrytomaten | 2 Knoblauchzehen | 500 ml Gemüsebrühe | 50 g Parmesan', 'TikTok: Zutaten erkannt und geordnet: ' + d.ingredients.join(' | '));
   ok(d.steps.length === 3 && d.steps[0] === 'Alles in einen Topf geben und aufkochen.', 'TikTok: Schritte ohne Nummern');
-  ok(d.title === 'Cremige One-Pot-Pasta' && !/#/.test(JSON.stringify(d)), 'TikTok: Titel ohne „in 15 Minuten“, Emojis und Hashtags entfernt: ' + d.title);
+  ok(d.title === 'Cremige One-Pot-Pasta' && !/#/.test(JSON.stringify({ ...d, importSource: null })), 'TikTok: Titel ohne „in 15 Minuten“, Emojis und Hashtags entfernt: ' + d.title);
   ok(d.mainIngredient === 'Nudeln' && !d.notes.includes('@koch'), 'TikTok: Hauptzutat Nudeln, kein Konto-Hinweis in den Notizen');
 
   // Alles in einer Zeile
