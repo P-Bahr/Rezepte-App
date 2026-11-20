@@ -19,28 +19,27 @@
 <body>
 <!--APP-START-->
 <div class="app">
+  <!-- Überschrift scrollt mit weg; stehen bleibt nur Suche + Filter -->
+  <div class="titlebar">
+    <div class="title-wrap">
+      <h1>Rezepte</h1>
+      <button type="button" class="sync-status" id="syncStatus" hidden aria-live="polite" title="Jetzt abgleichen"></button>
+    </div>
+    <div class="titlebar-actions">
+      <button type="button" class="btn btn-quiet icon-only" id="btnCollections" aria-label="Einstellungen" title="Einstellungen"><span aria-hidden="true">⚙︎</span></button>
+      <button type="button" class="btn btn-primary" id="btnImport" aria-label="Rezept hinzufügen">+ Hinzufügen</button>
+    </div>
+  </div>
   <header class="top" id="top">
-    <div class="titlebar">
-      <div class="title-wrap">
-        <h1>Rezepte</h1>
-        <button type="button" class="sync-status" id="syncStatus" hidden aria-live="polite" title="Jetzt abgleichen"></button>
+    <div class="searchrow">
+      <div class="searchbar" id="searchbar">
+        <label for="q" class="visually-hidden">Rezepte durchsuchen</label>
+        <input type="search" id="q" placeholder="Suchen: Name, Zutat …" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
+        <button type="button" class="clear" id="qClear" aria-label="Suche leeren" hidden>×</button>
       </div>
-      <div class="titlebar-actions">
-        <button type="button" class="btn btn-quiet" id="btnCollections">Einstellungen</button>
-        <button type="button" class="btn btn-primary" id="btnImport" aria-label="Rezept hinzufügen">+ Hinzufügen</button>
-      </div>
-    </div>
-    <div class="searchbar" id="searchbar">
-      <label for="q" class="visually-hidden">Rezepte durchsuchen</label>
-      <input type="search" id="q" placeholder="Suchen: Name, Zutat, Sammlung …" autocomplete="off" autocorrect="off" spellcheck="false" enterkeyhint="search">
-      <button type="button" class="clear" id="qClear" aria-label="Suche leeren" hidden>×</button>
-    </div>
-    <div class="status">
       <button type="button" class="btn filter-toggle" id="btnFilter" aria-expanded="true" aria-controls="filters">
-        <span class="chev" aria-hidden="true">▾</span> Filter <span class="badge" id="filterBadge" hidden></span>
+        Filter <span class="badge" id="filterBadge" hidden></span><span class="chev" aria-hidden="true">▾</span>
       </button>
-      <span id="count" aria-live="polite"></span>
-      <button type="button" class="btn-link" id="btnReset" hidden>Zurücksetzen</button>
     </div>
     <div class="filters" id="filters"></div>
   </header>
@@ -49,7 +48,11 @@
 
   <main>
     <section class="start" id="start" hidden aria-labelledby="startTitle"></section>
-    <div class="grid-tools"><label class="sort"><span class="sort-label">Sortieren:</span><select id="sort" aria-label="Rezepte sortieren"></select></label></div>
+    <div class="grid-tools status">
+      <span id="count" aria-live="polite"></span>
+      <button type="button" class="btn-link" id="btnReset" hidden>Zurücksetzen</button>
+      <label class="sort"><span class="visually-hidden">Sortieren</span><select id="sort" aria-label="Rezepte sortieren"></select></label>
+    </div>
     <div class="grid" id="grid"></div>
     <div class="empty" id="empty" hidden></div>
   </main>

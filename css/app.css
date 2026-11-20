@@ -407,11 +407,10 @@ dialog::backdrop { background: var(--backdrop); }
   .top { display: contents; }
   .titlebar { padding-top: 12px; }
   .filters { margin-top: 4px; }
-  .searchbar { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); padding-block: 6px; }
+  .searchrow { position: sticky; top: env(safe-area-inset-top, 0px); z-index: 20; background: var(--bg); padding-block: 6px; }
   .searchbar .clear { top: 50%; }
   .facet { flex-direction: column; align-items: stretch; gap: 2px; }
   .facet-label { width: auto; }
-  .titlebar h1 { font-size: 36px; }
   .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 }
 @media (prefers-reduced-motion: no-preference) {
@@ -521,3 +520,15 @@ dialog:focus { outline: none; }
 .dup-oven { font-size: 16px; font-weight: 600; }
 .dup-body { grid-column: 1 / -1; display: grid; gap: 6px; }
 .dup-body .btn { justify-self: start; }
+
+/* Kompakter Kopf: Überschrift scrollt weg, nur Suche + Filter bleiben stehen */
+.app > .titlebar { padding-top: 10px; flex-wrap: nowrap; }
+.titlebar h1 { font-size: 32px; }
+.titlebar-actions { flex-wrap: nowrap; }
+.icon-only { width: var(--touch); padding: 0; font-size: 22px; }
+.top { padding-block: 8px; gap: 8px; }
+.searchrow { display: flex; gap: 8px; align-items: center; }
+.searchrow .searchbar { flex: 1; min-width: 0; }
+.searchrow .filter-toggle { flex: none; min-height: 48px; }
+.grid-tools.status { justify-content: space-between; margin: 2px 0 10px; min-height: var(--touch); }
+.grid-tools .sort { margin-left: auto; }
