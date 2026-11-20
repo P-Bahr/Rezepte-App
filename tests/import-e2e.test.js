@@ -156,7 +156,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
     input.dispatchEvent(new Event('change', { bubbles: true }));
   }, [kinds, target]);
   await p.click('#btnImport');
-  assert(await p.isVisible('#importPaste') && await p.isVisible('#tilePhotos') && await p.isVisible('#tileBoard') && await p.isVisible('#tileApp') && await p.isVisible('#tileManual'), 'Import-Start: ein Feld mit „Einfügen“, darunter Kacheln für die anderen Wege');
+  assert(await p.isVisible('#importPaste') && await p.isVisible('#tilePhotos') && await p.isVisible('#tileBoard') && await p.isVisible('#tileApp') && await p.isVisible('#tileShare') && await p.isVisible('#tileManual'), 'Import-Start: ein Feld mit „Einfügen“, darunter Kacheln für die anderen Wege');
   await p.click('#tilePhotos');
   assert(await p.isVisible('label:has-text("Fotos für ein Rezept auswählen")') && await p.isVisible('label:has-text("je Rezept eins")') && await p.isVisible('#importBack'), 'Bildschirmfotos: „Ein Rezept“ und „Viele Rezepte“, mit „Zurück“');
   await p.click('#importBack');
