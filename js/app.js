@@ -1785,7 +1785,11 @@
   render();
   syncFromHash();
   // Ungeprüfte Importe mit den aktuellen Regeln neu einlesen, wenn alle Bausteine geladen sind
-  setTimeout(() => { try { Store.reparseNow(); } catch (e) { /* beim nächsten Start wieder */ } }, 1500);
+  setTimeout(() => {
+    try { Store.reparseNow(); } catch (e) { /* beim nächsten Start wieder */ }
+    const n = Store.takeImproved();
+    if (n) toast(n === 1 ? '1 Rezept mit den neuen Regeln verbessert' : n + ' Rezepte mit den neuen Regeln verbessert');
+  }, 1500);
 
   // "Nach oben"-Knopf, sobald man weit genug gescrollt hat
   const toTop = $('#toTop');

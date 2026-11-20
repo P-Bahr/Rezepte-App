@@ -104,11 +104,12 @@
   const same = (a, b) => JSON.stringify(a == null ? '' : a) === JSON.stringify(b == null ? '' : b);
   const isEmpty = v => v == null || v === '' || (Array.isArray(v) && !v.length);
   const appVersion = () => { try { const m = document.querySelector('meta[name="app-version"]'); return (m && m.content) || ''; } catch (e) { return ''; } };
-  /* Noch nicht geprüfte Importe mit den aktuellen Regeln aus dem Original neu einlesen.
+  /* Importe (auch schon mit „Passt“ bestätigte) mit den aktuellen Regeln aus dem Original neu einlesen.
      Nur Felder, die seit dem Import niemand geändert hat, werden ersetzt – eigene Änderungen bleiben. */
+  let improved = 0;
   function reparse(r, now, V) {
     const I = window.RecipeImporter;
-    if (!I || !I.rebuild || !r.review || !r.importSource || !r.importResult || (V && r.importV === V)) return null;
+    if (!I || !I.rebuild || !r.importSource || !r.importResult || (V && r.importV === V)) return null;
     let nd = null;
     try { nd = I.rebuild(r.importSource); } catch (e) { nd = null; }
     if (nd === undefined) return null; // Baustein noch nicht geladen: später noch einmal
@@ -125,6 +126,7 @@
     }
     out.importResult = res;
     if (diff) {
+      improved++;
       out.updatedAt = now;
       const info = { ...(r.importInfo || {}) };
       if (nd.courseGuessed !== undefined) info.courseGuessed = !!nd.courseGuessed;
@@ -139,9 +141,9 @@
     const I = window.RecipeImporter;
     let changed = false;
     const V = appVersion();
-    // Zuerst: ungeprüfte Importe mit Original neu einlesen (die übrigen Reparaturen brauchen sie dann nicht)
+    // Zuerst: Importe mit Original neu einlesen (die übrigen Reparaturen brauchen sie dann nicht)
     data.recipes = data.recipes.map(r => { const n = reparse(r, now, V); if (!n) return r; changed = true; return n; });
-    const fresh = r => !!(r.review && r.importSource && r.importResult);
+    const fresh = r => !!(r.importSource && r.importResult);
     // Unsinnige Hauptzutaten aus früheren Importen ("Minuten", "1050") neu bestimmen – als echte Änderung,
     // damit sie auch im Online-Speicher und auf den anderen Geräten repariert wird
     if (I && I.validMain) data.recipes = data.recipes.map(r => {
@@ -197,6 +199,7 @@
   const Store = {
     get storageOk() { return storageOk; },
     onChange(fn) { listeners.push(fn); },
+    takeImproved() { const n = improved; improved = 0; return n; }, // wie viele Rezepte seit dem letzten Mal verbessert wurden
     reparseNow() { const now = new Date().toISOString(); if (autoSort(now)) save(); }, // für Tests
 
     recipes() { return data.recipes.slice(); },

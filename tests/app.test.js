@@ -147,7 +147,7 @@ const OUT = process.argv[2] || '.';
         r.importV = 'alt';
         if (r.id === a) { r.mainIngredient = r.importResult.mainIngredient = 'Bergkäse'; r.course = r.importResult.course = 'Beilage'; }
         if (r.id === b) { r.mainIngredient = r.importResult.mainIngredient = 'Gemüsebrühe'; r.importResult.course = 'Hauptgericht'; r.course = 'Vorspeise'; }
-        if (r.id === c) { r.mainIngredient = r.importResult.mainIngredient = 'Mehl'; }
+        if (r.id === c) { r.mainIngredient = r.importResult.mainIngredient = 'Mehl'; r.importResult.course = 'Gebäck'; r.course = 'Dessert'; }
       }
       localStorage.setItem(KEY, JSON.stringify(d));
     }, ids);
@@ -155,7 +155,7 @@ const OUT = process.argv[2] || '.';
     const after = await p.evaluate(ids => ids.slice(0, 3).map(id => { const r = Store.recipe(id); return [r.mainIngredient, r.course]; }), ids);
     assert(after[0][0] === 'Spätzle' && after[0][1] === 'Hauptgericht', 'Neu eingelesen: falsche Hauptzutat und Rezeptart korrigiert ' + JSON.stringify(after[0]));
     assert(after[1][0] === 'Linsen' && after[1][1] === 'Vorspeise', 'Neu eingelesen: Hauptzutat korrigiert, selbst geänderte Rezeptart bleibt ' + JSON.stringify(after[1]));
-    assert(after[2][0] === 'Mehl', 'Schon geprüftes Rezept („Passt“) bleibt unverändert ' + JSON.stringify(after[2]));
+    assert(after[2][0] === 'Äpfel' && after[2][1] === 'Dessert', 'Auch mit „Passt“ bestätigt: verbessert, selbst geänderte Rezeptart bleibt ' + JSON.stringify(after[2]));
     await p.evaluate(() => Store.deleteBatch('test-re'));
   }
   // Zutaten-Filter: mehrere Zutaten, Rezepte müssen alle enthalten
