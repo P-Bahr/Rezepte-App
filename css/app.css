@@ -547,3 +547,8 @@ dialog:focus { outline: none; }
 .icon-btn, .icon-only, .chev, .clear, .star, .fav-badge, .chip .x, .toTop, #toTop {
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; font-size-adjust: none;
 }
+
+/* Kopfzeile: Knöpfe nie umbrechen; die Abgleich-Anzeige rückt bei Platzmangel unter die Überschrift */
+.app > .titlebar .title-wrap { flex: 1 1 auto; min-width: 0; }
+.titlebar-actions { flex: none; }
+.titlebar-actions .btn { white-space: nowrap; }
