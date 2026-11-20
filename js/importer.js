@@ -535,12 +535,54 @@
     if (NO_MAIN_COURSES.test(d.course || '')) return validMain(mainLabel(mainFromTitle(d.ingredients || [], d.title, { noStaple: true, prefer: SWEET_FIRST }))) || '';
     return validMain(guessMain(d.ingredients || [], d.title));
   }
+  // Häufige Tippfehler und alte Schreibweisen in Rezepten (nur ganze Wörter, auch in Zusammensetzungen am Wortende)
+  const SPELL = [
+    [/champions\b/gi, 'Champignons'], [/champingons?\b/gi, 'Champignons'], [/zuchinis?\b/gi, 'Zucchini'], [/zucchinis\b/gi, 'Zucchini'], [/brokoli\b/gi, 'Brokkoli'], [/broccoli\b/gi, 'Brokkoli'],
+    [/spagetti\b/gi, 'Spaghetti'], [/mozarella\b/gi, 'Mozzarella'], [/mozzarela\b/gi, 'Mozzarella'], [/jogurt\b/gi, 'Joghurt'], [/joghourt\b/gi, 'Joghurt'], [/yoghurt\b/gi, 'Joghurt'],
+    [/zimmt\b/gi, 'Zimt'], [/vanilie\b/gi, 'Vanille'], [/vanile\b/gi, 'Vanille'], [/ruccola\b/gi, 'Rucola'], [/tomatten\b/gi, 'Tomaten'], [/kartofeln\b/gi, 'Kartoffeln'], [/kartofel\b/gi, 'Kartoffel'],
+    [/backpulfer\b/gi, 'Backpulver'], [/paprikapulfer\b/gi, 'Paprikapulver'], [/parmasan\b/gi, 'Parmesan'], [/parmesankäse\b/gi, 'Parmesan'], [/basilikumm\b/gi, 'Basilikum'], [/oreganno\b/gi, 'Oregano'],
+    [/muskatnuß\b/gi, 'Muskatnuss'], [/kokosnuß\b/gi, 'Kokosnuss'], [/haselnuß\b/gi, 'Haselnuss'], [/walnuß\b/gi, 'Walnuss'], [/erdnuß\b/gi, 'Erdnuss'], [/\bnuß\b/gi, 'Nuss'], [/nüße\b/gi, 'Nüsse'],
+    [/\bmuß\b/g, 'muss'], [/\bdaß\b/g, 'dass'], [/\bläßt\b/g, 'lässt'], [/\bgeschloßen\b/g, 'geschlossen'], [/\bbißchen\b/g, 'bisschen'], [/\bnaß\b/g, 'nass'], [/\bfaß\b/g, 'Fass'],
+    [/\bschlagsahnne\b/gi, 'Schlagsahne'], [/\bsahnne\b/gi, 'Sahne'], [/\bzwiebbel(n?)\b/gi, 'Zwiebel$1'], [/\bknoblauchzehn\b/gi, 'Knoblauchzehen'], [/\bpetersielie\b/gi, 'Petersilie'],
+    [/\bzitronnen\b/gi, 'Zitronen'], [/\bmandarinnen\b/gi, 'Mandarinen'], [/\bhimbeern\b/gi, 'Himbeeren'], [/\berdbeern\b/gi, 'Erdbeeren'], [/\bheidelbeern\b/gi, 'Heidelbeeren'],
+    [/\bgries\b/gi, 'Grieß'], [/\bweizengries\b/gi, 'Weizengrieß'], [/\bpuderzuker\b/gi, 'Puderzucker'], [/\bzuker\b/gi, 'Zucker'], [/\bbutterschmaltz\b/gi, 'Butterschmalz'], [/\bschmaltz\b/gi, 'Schmalz'],
+    [/\bgemüsebrüe\b/gi, 'Gemüsebrühe'], [/\bbrüe\b/gi, 'Brühe'], [/\bmilch reis\b/gi, 'Milchreis'], [/\bkräuter salz\b/gi, 'Kräutersalz'], [/\bolivenoel\b/gi, 'Olivenöl'], [/\boel\b/gi, 'Öl']
+  ];
+  // Großschreibung des Originals übernehmen ("champions" -> "Champignons", am Satzanfang groß)
+  function fixSpelling(t) {
+    let out = String(t || '');
+    for (const [re, rep] of SPELL) out = out.replace(re, (m, ...g) => {
+      let w = rep.replace(/\$(\d)/g, (x, i) => g[i - 1] || '');
+      if (/^\p{Lu}/u.test(m) && /^\p{Ll}/u.test(w)) w = w.charAt(0).toUpperCase() + w.slice(1);
+      return w;
+    });
+    return out;
+  }
+  // Schreibweise glätten: doppelte Leerzeichen, Leerzeichen vor Satzzeichen, fehlendes nach Komma, Satzanfang groß
+  const tidyText = t => fixSpelling(String(t || '')).replace(/[ \t]{2,}/g, ' ').replace(/ +([,.;:!?])(?=\s|$)/g, '$1').replace(/,(?=\p{L})/gu, ', ').replace(/([.!?])\1{1,}/g, '$1').trim();
+  const capFirst = t => t.replace(/^(\p{Ll})/u, c => c.toUpperCase());
+  // Notizen: Werbung, Aufrufe, Hashtags, @Namen, Emojis und Wiederholung des Namens weg; echte Hinweise (Haltbarkeit, Tipps) bleiben
+  function cleanNotes(notes, title) {
+    const t = String(title || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+    return String(notes || '').split(/\n/)
+      .map(l => stripSymbols(socialText(l)).replace(/#[\p{L}\p{N}_]+/gu, '').replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1'))
+      .map(l => l.split(/(?<=[.!?])\s+/).filter(x => !isFluffLine(x)).join(' '))
+      .map(l => tidyText(l))
+      .filter(l => /[\p{L}\p{N}]/u.test(l) && l.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '') !== t && !/^(zutaten|zubereitung|anleitung|so geht'?s|rezept|notizen?|tipps?)\s*:?$/i.test(l))
+      .join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  }
+  /* Aufräumen für jedes Rezept (neu importiert oder schon gespeichert):
+     Emojis, Schmuckschrift, unsichtbare Zeichen, Werbesätze, Hashtags, Tippfehler */
+  function tidyRecipe(r) {
+    const title = r.title ? capFirst(tidyText(stripSymbols(socialText(r.title))).replace(/[.!,;:]+$/, '')) : r.title;
+    const ingredients = (r.ingredients || []).map(l => tidyText(stripSymbols(foodEmoji(socialText(l))).replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1').replace(/#[\p{L}\p{N}_]+/gu, ''))).filter(l => /[\p{L}\p{N}]/u.test(l));
+    const steps = (r.steps || []).map(l => stripSymbols(socialText(l)).replace(/#[\p{L}\p{N}_]+/gu, '').replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1'))
+      .map(l => capFirst(tidyText(l.split(/(?<=[.!?])\s+/).filter(x => !isFluffLine(x)).join(' ')))).filter(l => /[\p{L}\p{N}]/u.test(l));
+    return { title, ingredients, steps, notes: cleanNotes(r.notes, title) };
+  }
   function withGuesses(d, category, keywords) {
-    // Letzte Sicherung: keine Emojis/Bildzeichen in Name, Zutaten und Schritten (egal woher)
-    if (d.title) d.title = stripSymbols(socialText(d.title));
-    d.ingredients = (d.ingredients || []).map(l => stripSymbols(foodEmoji(socialText(l)))).filter(l => /[\p{L}\p{N}]/u.test(l));
-    d.steps = (d.steps || []).map(l => stripSymbols(socialText(l)))
-      .map(l => l.split(/(?<=[.!?])\s+/).filter(x => !isFluffLine(x)).join(' ')).filter(l => /[\p{L}\p{N}]/u.test(l));
+    // Letzte Sicherung: keine Emojis, Werbesätze, Tippfehler in Name, Zutaten, Schritten und Notizen (egal woher)
+    Object.assign(d, tidyRecipe(d));
     const before = JSON.stringify(d.ingredients || []);
     d.ingredients = convertUnits(d.ingredients || []);
     if (JSON.stringify(d.ingredients) !== before) d.unitsConverted = true;
@@ -625,7 +667,7 @@
   }
 
   // Sätze ohne Rezeptinhalt am Ende/Anfang von Schritten und Texten
-  const FLUFF_LINE = /^(guten appetit|viel spa(ß|ss)|lasst es euch|lass es dir|enjoy|bon app[ée]tit|und fertig|fertig ist|mahlzeit|have fun|happy (baking|cooking)|ich wünsche|wenn (du|ihr) (dieses|das) rezept|hast du (dieses|das) rezept|teile? (gerne )?(dein|ein) foto|markiere mich|folge mir|(und )?für mehr .{0,30}(folg|folge|folgt) mir|speicher(e|t)? (dir )?(das|dieses|den|die) (rezept|post|video|beitrag)|pin(ne)? (es|das rezept)|werbung|anzeige|affiliate|newsletter|link (?:ist )?in (?:der|meiner|unserer) bio|link in bio|(?:das )?rezept (?:steht |findest du |gibt'?s )?(?:unten|im kommentar|in den kommentaren|in der (?:caption|beschreibung|bio)|auf meinem blog)|rezept$|rezept(?:e)? unten$|rezept (?:speichern|merken|pinnen|sichern)|folg(?:e|t)? (?:mir|uns)|abonnier|lass(?:t)? (?:mir |uns )?(?:gerne |doch )?(?:ein(?:en)? )?(?:like|herz|abo|kommentar)|(?:teil|schick|sende)(?:e|t)? (?:das|es|dieses)(?: video| rezept)? (?:mit|an|deine)|markier(?:e|t)? |kommentier(?:e|t)?|speicher(?:e|t)? (?:dir |euch )?(?:das|dieses|es|den|die)?|(?:unbezahlte |unbeauftragte )?werbung|mehr rezepte|skip to content|zum inhalt springen|menü$|navigation$|suche$|startseite$)/iu;
+  const FLUFF_LINE = /^(guten appetit|viel spa(ß|ss)|lasst es euch|lass es dir|enjoy|bon app[ée]tit|und fertig|fertig ist|mahlzeit|have fun|happy (baking|cooking)|ich wünsche|wenn (du|ihr) (dieses|das) rezept|hast du (dieses|das) rezept|teile? (gerne )?(dein|ein) foto|markiere mich|folge mir|(und )?für mehr .{0,30}(folg|folge|folgt) mir|speicher(e|t)? (dir )?(das|dieses|den|die) (rezept|post|video|beitrag)|pin(ne)? (es|das rezept)|werbung|anzeige|affiliate|newsletter|link (?:ist )?in (?:der|meiner|unserer) bio|link in bio|(?:das )?rezept (?:steht |findest du |gibt'?s )?(?:unten|im kommentar|in den kommentaren|in der (?:caption|beschreibung|bio)|auf meinem blog)|rezept$|rezept(?:e)? unten$|rezept (?:speichern|merken|pinnen|sichern)|folg(?:e|t)? (?:mir|uns)|abonnier|lass(?:t)? (?:mir |uns )?(?:gerne |doch )?(?:ein(?:en)? )?(?:like|herz|abo|kommentar)|(?:teil|schick|sende)(?:e|t)? (?:das|es|dieses)(?: video| rezept)? (?:mit|an|deine)|markier(?:e|t)? |kommentier(?:e|t)?|speicher(?:e|t)? (?:dir|euch) |(?:unbezahlte |unbeauftragte )?werbung|mehr rezepte|skip to content|zum inhalt springen|menü$|navigation$|suche$|startseite$)/iu;
   const isFluffLine = l => FLUFF_LINE.test(String(l).replace(EMOJI_RE, '').trim()) || /^[\s\p{P}\p{S}]*$/u.test(String(l).replace(EMOJI_RE, ''));
   const cleanIngredientText = l => clean(l).replace(/\(?\*?\s*(affiliate[- ]?link|werbung|anzeige|\*)\s*\)?/giu, ' ').replace(/\s*\*+\s*/g, ' ').replace(/\s+/g, ' ').replace(/\s+([,.;])/g, '$1').trim();
 
@@ -1069,5 +1111,5 @@
 
   // Schritte aus einer anderen App: Nummern weg, leere weg, Erzählstil straffen, pro Satz ein Schritt
   const cleanSteps = list => splitSteps(arr(list).map(x => clean(x).replace(/^\d{1,2}[.)]\s*/, '')).filter(Boolean).map(tidyStep));
-  window.RecipeImporter = { rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

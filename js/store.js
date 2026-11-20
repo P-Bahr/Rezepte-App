@@ -142,6 +142,21 @@
     // Zuerst: ungeprüfte Importe mit Original neu einlesen (die übrigen Reparaturen brauchen sie dann nicht)
     data.recipes = data.recipes.map(r => { const n = reparse(r, now, V); if (!n) return r; changed = true; return n; });
     const fresh = r => !!(r.review && r.importSource && r.importResult);
+    // Alle Rezepte aufräumen: Emojis, Schmuckschrift, Werbesätze, Hashtags, sinnlose Notizen, Tippfehler
+    if (I && I.tidyRecipe) data.recipes = data.recipes.map(r => {
+      const t = I.tidyRecipe(r);
+      const ing = t.ingredients.map(l => cleanIngredient(window.RecipeScale.normalizeIngredient(l))).filter(Boolean);
+      const next = { title: t.title || r.title, ingredients: ing, steps: t.steps, notes: t.notes };
+      if (['title', 'ingredients', 'steps', 'notes'].every(f => same(next[f], r[f]))) return r;
+      changed = true;
+      const out = { ...r, ...next, updatedAt: now };
+      // Beim gemerkten Vorschlag genauso aufräumen, sonst sähe es wie eine eigene Änderung aus
+      if (r.importResult) {
+        const ir = I.tidyRecipe(r.importResult);
+        out.importResult = { ...r.importResult, title: ir.title || r.importResult.title, ingredients: ir.ingredients.map(l => cleanIngredient(window.RecipeScale.normalizeIngredient(l))).filter(Boolean), steps: ir.steps, notes: ir.notes };
+      }
+      return out;
+    });
     // Unsinnige Hauptzutaten aus früheren Importen ("Minuten", "1050") neu bestimmen – als echte Änderung,
     // damit sie auch im Online-Speicher und auf den anderen Geräten repariert wird
     if (I && I.validMain) data.recipes = data.recipes.map(r => {
