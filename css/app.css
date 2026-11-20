@@ -8,7 +8,7 @@
   --fg: #0a0a0a;
   --muted: #6a6a6a;
   --line: #e3e3e3;
-  --accent: #0a0a0a;
+  --accent: #3a3a3a; /* Hauptknöpfe und Schilder: dunkelgrau statt schwarz */
   --accent-fg: #ffffff;
   --link: #0a0a0a; --sel: #0a0a0a; --sel-fg: #ffffff;
   --chip: #f1f1f1;
