@@ -251,7 +251,7 @@
   // ---------- Amerikanische Maße (Tasse/cup, oz, lb) umrechnen ----------
   // Deutsches Rezept: gleich umrechnen ("½ Tasse Gurke" -> "75 g Gurke");
   // englisches Rezept: Original lassen, Umrechnung in Klammern dahinter ("1 cup flour (ca. 125 g)")
-  const CUP_G = [[/puderzucker|powdered sugar|icing sugar/i, 120], [/brauner zucker|brown sugar/i, 220], [/mehl|flour/i, 125], [/zucker|sugar/i, 200], [/haferflocken|oats/i, 90],
+  const CUP_G = [[/krümel|brösel|crumbs/i, 100], [/puderzucker|powdered sugar|icing sugar/i, 120], [/brauner zucker|brown sugar/i, 220], [/mehl|flour/i, 125], [/zucker|sugar/i, 200], [/haferflocken|oats/i, 90],
     [/reis|rice/i, 185], [/butter/i, 225], [/geriebene[rn]? käse|käse.*gerieben|shredded cheese|grated cheese|parmesan/i, 100], [/mandeln|nüsse|nuts|almonds|walnüsse|walnuts|cashews/i, 140],
     [/kakao|cocoa/i, 100], [/quinoa/i, 170], [/couscous/i, 180], [/linsen|lentils/i, 190], [/schoko|chocolate/i, 170], [/rosinen|raisins/i, 150], [/kokos(raspeln|flocken)|shredded coconut/i, 80],
     [/spinat|spinach|salat|lettuce|rucola|kräuter|herbs|petersilie|parsley|basilikum|basil/i, 30],
@@ -261,25 +261,50 @@
   const DE_HINT = /\b(und|oder|gehackt|gewürfelt|frisch|EL|TL|Prise|nach Geschmack|Stück|Zehe|Bund|Dose|ml|g)\b|[äöüß]/;
   const NUMV = '(\\d+(?:[.,]\\d+)?(?:\\s?[½⅓⅔¼¾⅛])?|[½⅓⅔¼¾⅛]|\\d+\\/\\d+|\\d+\\s\\d+\\/\\d+)';
   const CUP_RE = new RegExp('^' + NUMV + '\\s*(?:[–-]\\s*' + NUMV + '\\s*)?(tassen?|cups?|c\\.)\\s+(.+)$', 'i');
-  const OZ_RE = new RegExp('^' + NUMV + '\\s*(fl\\.?\\s*oz|oz|ounces?|lbs?|pounds?)\\.?\\s+(.+)$', 'i');
+  const OZ_RE = new RegExp('^' + NUMV + '\\s*(fl\\.?\\s*oz|oz|ounces?|lbs?|pounds?)\\.?\\s*(\\p{L}.+)$', 'iu');
   const round = (v, step) => Math.max(step, Math.round(v / step) * step);
   function metricFor(cups, rest) {
     if (LIQUID.test(rest)) { const ml = round(cups * 240, cups * 240 >= 100 ? 10 : 5); return ml >= 1000 ? Sc.parseNum ? (String(ml / 1000).replace('.', ',') + ' l') : ml + ' ml' : ml + ' ml'; }
     for (const [re, g] of CUP_G) if (re.test(rest)) return round(cups * g, 5) + ' g';
     return round(cups * 240, 10) + ' ml';
   }
+  // Fremde Maße immer direkt in g/ml umrechnen; steht schon g/ml daneben, nur das behalten
+  const FOREIGN = '(?:tassen?|cups?|c\\.|oz\\.?|ounces?|lbs?\\.?|pounds?|fl\\.?\\s*oz\\.?)';
+  const METRIC = '(\\d+(?:[.,]\\d+)?)\\s*(g|kg|ml|l|cl)\\b\\.?';
+  const DUAL_A = new RegExp('^' + NUMV + '\\s*' + FOREIGN + '\\s*/\\s*' + METRIC + '\\s*(.*)$', 'i');   // "¼ Tasse / 50g Butter"
+  const DUAL_B = new RegExp('^' + METRIC + '\\s*/\\s*' + NUMV + '\\s*' + FOREIGN + '\\s*(.*)$', 'i');   // "50 g / ¼ cup butter"
+  const DUAL_M = new RegExp('^(\\d+(?:[.,]\\d+)?)\\s*(?:g|ml)\\s*/\\s*' + METRIC + '\\s*(.*)$', 'i');     // früher doppelt umgerechnet: "37 g / 50 g Butter"
+  const PAREN_CA = /\s*\(ca\.\s*(\d+(?:[.,]\d+)?)\s*(g|ml|l)\)\s*$/i;                                    // früher: "1 cup flour (ca. 125 g)"
+  const fmtMetric = (n, u) => n + ' ' + u.toLowerCase().replace(/^l$/, 'l');
+  function tidyLine(l) {
+    return String(l)
+      .replace(/(\d)\s*(?:esslöffel|eßlöffel|tablespoons?|tbsps?\.?)(?=\s|$)/gi, '$1 EL').replace(/^(?:esslöffel|eßlöffel)\s/i, 'EL ')
+      .replace(/(\d)\s*(?:teelöffel|teaspoons?|tsps?\.?)(?=\s|$)/gi, '$1 TL').replace(/^teelöffel\s/i, 'TL ')
+      .replace(/\b(\p{L}{3,})\s+\1\b/giu, '$1') // "Zucker Zucker"
+      .replace(/allzweckmehl|all-purpose flour/gi, 'Mehl (Type 405)')
+      .replace(/\s{2,}/g, ' ').trim();
+  }
   function convertUnits(lines) {
-    const en = lines.filter(l => EN_HINT.test(l)).length, de = lines.filter(l => DE_HINT.test(l)).length;
-    const english = en > de;
-    return lines.map(l => {
-      let m = l.match(CUP_RE);
+    return lines.map(raw => {
+      let l = tidyLine(raw);
+      let m;
+      // Früher in Klammern umgerechnet -> Gramm vorn, fremde Angabe weg
+      if ((m = l.match(PAREN_CA)) && new RegExp('^' + NUMV + '\\s*' + FOREIGN + '\\s', 'i').test(l)) {
+        const rest = l.replace(PAREN_CA, '').replace(new RegExp('^' + NUMV + '\\s*' + FOREIGN + '\\s*', 'i'), '');
+        return fmtMetric(m[1], m[2]) + ' ' + rest;
+      }
+      if ((m = l.match(DUAL_A))) return fmtMetric(m[2], m[3]) + ' ' + m[4];
+      if ((m = l.match(DUAL_B))) return fmtMetric(m[1], m[2]) + ' ' + m[4];
+      if ((m = l.match(DUAL_M))) return fmtMetric(m[2], m[3]) + ' ' + m[4];
+      // "20 oz./600g Frischkäse" ohne Leerzeichen
+      if ((m = l.match(new RegExp('^' + NUMV + '\\s*' + FOREIGN + '\\s*/\\s*' + METRIC + '(.*)$', 'i')))) return fmtMetric(m[2], m[3]) + ' ' + m[4].trim();
+      m = l.match(CUP_RE);
       if (m) {
         const a = Sc.parseNum(m[1]), b = m[2] ? Sc.parseNum(m[2]) : NaN;
         if (isNaN(a)) return l;
-        const met = metricFor(a, m[4]) + (isNaN(b) ? '' : '');
-        const metB = isNaN(b) ? '' : metricFor(b, m[4]);
-        const amount = metB ? met.replace(/\s.*$/, '') + '–' + metB : met;
-        return english ? l + ' (ca. ' + amount + ')' : amount + ' ' + m[4];
+        const met = metricFor(a, m[4]);
+        const amount = isNaN(b) ? met : met.replace(/\s.*$/, '') + '–' + metricFor(b, m[4]);
+        return amount + ' ' + m[4];
       }
       m = l.match(OZ_RE);
       if (m) {
@@ -287,7 +312,7 @@
         if (isNaN(a)) return l;
         const unit = m[2].toLowerCase();
         const met = /fl/.test(unit) ? round(a * 30, 5) + ' ml' : /lb|pound/.test(unit) ? round(a * 454, 10) + ' g' : round(a * 28, 5) + ' g';
-        return english ? l + ' (ca. ' + met + ')' : met + ' ' + m[3];
+        return met + ' ' + m[3];
       }
       return l;
     });

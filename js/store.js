@@ -97,12 +97,19 @@
       changed = true;
       return { ...r, mainIngredient: I.validMain(I.guessMain(r.ingredients || [], r.title)), updatedAt: now };
     });
+    // Tassen, oz, lb in g/ml; doppelte Angaben ("¼ Tasse / 50g") nur metrisch – bei allen Rezepten
+    if (I && I.convertUnits) data.recipes = data.recipes.map(r => {
+      const conv = I.convertUnits(r.ingredients || []).map(l => cleanIngredient(window.RecipeScale.normalizeIngredient(l)));
+      if (JSON.stringify(conv) === JSON.stringify(r.ingredients || [])) return r;
+      changed = true;
+      return { ...r, ingredients: conv, updatedAt: now };
+    });
     // Noch nicht geprüfte Importe: Schätzungen (Rezeptart, Zubereitung, Hauptzutat) mit den aktuellen Regeln neu berechnen
     if (I && I.guessMethod) data.recipes = data.recipes.map(r => {
       if (!r.review) return r;
       const title = I.tidyTitle ? I.tidyTitle(r.title) : r.title;
       const next = {
-        ingredients: I.convertUnits ? I.convertUnits(r.ingredients || []) : r.ingredients,
+        ingredients: r.ingredients,
         course: I.guessCourse(title, [], []) === 'Hauptgericht' ? (r.course || 'Hauptgericht') : I.guessCourse(title, [], []),
         method: I.guessMethod(r.steps || [], title),
         mainIngredient: I.validMain(I.guessMain(r.ingredients || [], title)) || r.mainIngredient
