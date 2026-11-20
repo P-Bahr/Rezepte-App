@@ -243,7 +243,7 @@
   }
 
   // Hauptzutat muss ein echtes Wort sein (keine Zahl, keine Zeit- oder Mengenangabe)
-  const NOT_MAIN = /^(minuten?|min|stunden?|std|sekunden|portionen?|personen|pers|stück|stk|gläser|zutaten|zubereitung|rezepte?|kcal|kj|bis|zu|ca|etwa|und|oder|mit|für|von|grad|gramm|liter|zeit|schritt|anleitung|hinweis|tipp|kinderrezepte?|familienessen|abendessen|mittagessen|ideen|eier|ei|eigelbe?|eiweiße?|salz|pfeffer|wasser|light|leicht|kleiner?e?|große?r?|mittelgroße?|frische?r?|natur|fein|grob|optional|tk|bio|vegan|veggie|reife?|weiche?|kalte?|warme?|gehackte?|gewürfelte?|geriebene?r?)$/i;
+  const NOT_MAIN = /^(minuten?|min|stunden?|std|sekunden|portionen?|personen|pers|stück|stk|gläser|zutaten|zubereitung|rezepte?|kcal|kj|bis|zu|ca|etwa|und|oder|mit|für|von|grad|gramm|liter|zeit|schritt|anleitung|hinweis|tipp|kinderrezepte?|familienessen|abendessen|mittagessen|ideen|eier|ei|eigelbe?|eiweiße?|salz|pfeffer|wasser|light|leicht|kleiner?e?|große?r?|mittelgroße?|frische?r?|natur|fein|grob|optional|tk|bio|vegan|veggie|reife?|weiche?|kalte?|warme?|gehackte?|gewürfelte?|geriebene?r?|limonade|mineralwasser|sprudel|sprudelwasser|cola|lebensmittelfarbe)$/i;
   function validMain(v) {
     const t = clean(v);
     return /^\p{L}[\p{L}\s'’-]{1,40}$/u.test(t) && !NOT_MAIN.test(t) ? t : '';
@@ -282,6 +282,12 @@
       .replace(/(\d)\s*(?:teelöffel|teaspoons?|tsps?\.?)(?=\s|$)/gi, '$1 TL').replace(/^teelöffel\s/i, 'TL ')
       .replace(/\b(\p{L}{3,})\s+\1\b/giu, '$1') // "Zucker Zucker"
       .replace(/allzweckmehl|all-purpose flour/gi, 'Mehl (Type 405)')
+      // Abkürzungen ausschreiben, die nicht jeder kennt ("1 Spr" -> "1 Spritzer")
+      .replace(/(\d|^)\s*Spr\.?(?=\s|$)/g, (m, d) => (d ? d + ' ' : '') + 'Spritzer')
+      .replace(/(\d)\s*Bd\.?(?=\s|$)/g, '$1 Bund')
+      .replace(/(\d)\s*Zw\.?(?=\s|$)/g, '$1 Zweig')
+      .replace(/\bgestr\.(?=\s|$)/g, 'gestrichen').replace(/\bgeh\.(?=\s|$)/g, 'gehäuft')
+      .replace(/(\d)\s*Tr\.?(?=\s|$)/g, '$1 Tropfen')
       .replace(/\s{2,}/g, ' ').trim();
   }
   function convertUnits(lines) {
@@ -339,7 +345,7 @@
     const noAmount = [], odd = [], seen = new Map(), dup = new Set();
     for (const l of ing) {
       const p = Sc.parseIngredient(Sc.normalizeIngredient(l));
-      if (!/\p{L}{2}/u.test(l) || l.length > 90 || /^[)\],;.]/.test(l)) odd.push(l);
+      if (!/\p{L}{2}/u.test(l) || l.length > 140 || /^[)\],;.]/.test(l)) odd.push(l);
       else if (!p.amount && !NO_AMOUNT_OK.test(l.trim())) noAmount.push(noun(l) || l);
       const n = (noun(p.name || l) || '').toLowerCase();
       if (n.length > 2) { if (seen.has(n)) dup.add(noun(p.name || l)); else seen.set(n, true); }
