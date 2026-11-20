@@ -124,7 +124,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
 
   // 6b. Bildschirmfotos (Texterkennung auf dem Gerät)
   await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
-  const pickShots = (kind) => p.evaluate(async kind => {
+  const pickShots = (kind, target) => p.evaluate(async ([kind, target]) => {
     const cv = document.createElement('canvas'); cv.width = 1170; cv.height = 2532;
     const x = cv.getContext('2d');
     const g = x.createLinearGradient(0, 0, 1170, 2532); g.addColorStop(0, '#b5651d'); g.addColorStop(0.5, '#3a6b35'); g.addColorStop(1, '#d9a441');
@@ -134,25 +134,67 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
     x.font = 'bold 64px Helvetica, Arial'; x.lineJoin = 'round';
     lines.forEach((l, i) => { const y = 500 + i * 95; x.lineWidth = 10; x.strokeStyle = '#000'; x.strokeText(l, 90, y); x.fillStyle = '#fff'; x.fillText(l, 90, y); });
     x.font = '44px Helvetica, Arial'; x.fillStyle = '#fff'; x.fillText('@kochmitlea', 60, 2250); x.fillText('12,3K   ♥   Folgen', 60, 2330);
-    const file = await new Promise(r => cv.toBlob(b => r(new File([b], 'shot.png', { type: 'image/png' })), 'image/png'));
-    const input = document.getElementById('importPhotos');
-    const dt = new DataTransfer(); dt.items.add(file); input.files = dt.files;
+    return await new Promise(r => cv.toBlob(b => r(new File([b], kind + '.png', { type: 'image/png' })), 'image/png'));
+  }, [kind, target]).then(() => null);
+  // Bild(er) zeichnen und in das Dateifeld legen
+  const pickShotsInto = (kinds, target) => p.evaluate(async ([kinds, target]) => {
+    const files = [];
+    for (const kind of kinds) {
+      const cv = document.createElement('canvas'); cv.width = 1170; cv.height = 2532;
+      const x = cv.getContext('2d');
+      const g = x.createLinearGradient(0, 0, 1170, 2532); g.addColorStop(0, '#b5651d'); g.addColorStop(0.5, '#3a6b35'); g.addColorStop(1, '#d9a441');
+      x.fillStyle = g; x.fillRect(0, 0, 1170, 2532);
+      for (let i = 0; i < 40; i++) { x.fillStyle = `hsl(${i * 37},60%,${30 + (i % 5) * 10}%)`; x.beginPath(); x.arc((i * 211) % 1170, (i * 397) % 2532, 60 + (i % 4) * 30, 0, 7); x.fill(); }
+      const lines = kind === 'rezept' ? ['Fluffige Pancakes', '200g Mehl', '2 Eier', '250 ml Milch', '1 EL Zucker', '1 TL Backpulver'] : ['Wochenende am See', 'so schön heute'];
+      x.font = 'bold 64px Helvetica, Arial'; x.lineJoin = 'round';
+      lines.forEach((l, i) => { const y = 500 + i * 95; x.lineWidth = 10; x.strokeStyle = '#000'; x.strokeText(l, 90, y); x.fillStyle = '#fff'; x.fillText(l, 90, y); });
+      x.font = '44px Helvetica, Arial'; x.fillStyle = '#fff'; x.fillText('@kochmitlea', 60, 2250); x.fillText('12,3K   ♥   Folgen', 60, 2330);
+      files.push(await new Promise(r => cv.toBlob(b => r(new File([b], kind + '.png', { type: 'image/png' })), 'image/png')));
+    }
+    const input = document.getElementById(target);
+    const dt = new DataTransfer(); files.forEach(f => dt.items.add(f)); input.files = dt.files;
     input.dispatchEvent(new Event('change', { bubbles: true }));
-  }, kind);
+  }, [kinds, target]);
   await p.click('#btnImport');
-  assert(await p.isVisible('label:has-text("Bildschirmfotos auswählen")'), 'Import-Fenster: Knopf „Bildschirmfotos auswählen“');
-  await pickShots('rezept');
+  assert(await p.isVisible('#importPaste') && await p.isVisible('#tilePhotos') && await p.isVisible('#tileBoard') && await p.isVisible('#tileApp') && await p.isVisible('#tileManual'), 'Import-Start: ein Feld mit „Einfügen“, darunter Kacheln für die anderen Wege');
+  await p.click('#tilePhotos');
+  assert(await p.isVisible('label:has-text("Fotos für ein Rezept auswählen")') && await p.isVisible('label:has-text("je Rezept eins")') && await p.isVisible('#importBack'), 'Bildschirmfotos: „Ein Rezept“ und „Viele Rezepte“, mit „Zurück“');
+  await p.click('#importBack');
+  assert(await p.isVisible('#tilePhotos') && (await p.textContent('#dlgTitle')) === 'Rezept importieren', '„Zurück“ führt zur Startseite');
+  await p.click('#tilePhotos');
+  await pickShotsInto(['rezept'], 'importPhotos');
   await p.waitForSelector('#importNotice', { timeout: 60000 });
   assert(await p.isVisible('#importNotice:has-text("Aus Bildschirmfoto erkannt")'), 'Foto: Hinweis „Aus Bildschirmfoto erkannt“ mit Bitte um Prüfung');
   assert(await p.inputValue('#fTitle') === 'Fluffige Pancakes', 'Foto: Name erkannt (' + await p.inputValue('#fTitle') + ')');
   const shotIng = await p.inputValue('#fIngredients');
   assert(shotIng === '200 g Mehl\n2 Eier\n250 ml Milch\n1 EL Zucker\n1 TL Backpulver', 'Foto: alle Zutaten erkannt, TikTok-Oberfläche ignoriert (' + shotIng.replace(/\n/g, ' | ') + ')');
   await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
-  await p.click('#btnImport');
-  await pickShots('kein');
+  await p.click('#btnImport'); await p.click('#tilePhotos');
+  await pickShotsInto(['kein'], 'importPhotos');
   await p.waitForSelector('.form-error:has-text("kein Rezept erkannt")', { timeout: 60000 });
   assert(await p.isVisible('dialog >> text=Selbst eintragen'), 'Foto ohne Rezept: verständliche Meldung und „Selbst eintragen“');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+
+  // Viele Bildschirmfotos: jedes Foto ein eigenes Rezept
+  await p.click('#btnImport'); await p.click('#tilePhotos');
+  await pickShotsInto(['rezept', 'kein'], 'importPhotosMany');
+  await p.waitForSelector('#boardGo');
+  assert((await p.textContent('.dlg-scroll')).includes('2 Bildschirmfotos ausgewählt'), 'Viele Fotos: Übersicht vor dem Import');
+  await p.click('#boardGo');
+  await p.waitForSelector('#boardResult b', { timeout: 120000 });
+  assert((await p.textContent('#boardResult')).includes('1 importiert, 0 schon vorhanden, 1 nicht geklappt') && await p.isVisible('.board-failed li:has-text("Wochenende am See")'), 'Viele Fotos: Rezept-Foto gespeichert, Urlaubsfoto bei „Nicht geklappt“');
+  const shotR = await p.evaluate(() => { const r = Store.recipes().find(x => (x.importBatch || '').startsWith('foto-')); return r && { t: r.title, n: r.ingredients.length, rev: r.review, h: window.RecipeImporter.reviewHints(r) }; });
+  assert(shotR && shotR.t === 'Fluffige Pancakes' && shotR.n === 5 && shotR.rev && shotR.h.some(x => /Bildschirmfoto/.test(x)), 'Viele Fotos: „Zu prüfen“ mit Hinweis „Vom Bildschirmfoto gelesen“: ' + JSON.stringify(shotR));
+  await p.click('#boardUndo'); await p.click('#boardUndoYes');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+
+  // „Einfügen“-Knopf: Zwischenablage übernehmen und gleich auswerten
+  await p.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin: new globalThis.URL(URL).origin });
+  await p.evaluate(() => navigator.clipboard.writeText('Pudding\nZutaten:\n500 ml Milch\n1 Pck. Puddingpulver\nZubereitung:\nAufkochen und rühren.'));
+  await p.click('#btnImport'); await p.click('#importPaste');
+  await p.waitForSelector('#fTitle');
+  assert(await p.inputValue('#fTitle') === 'Pudding' && (await p.inputValue('#fIngredients')).includes('500 ml Milch'), '„Einfügen“ holt den kopierten Rezepttext und wertet ihn aus');
+  await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
 
   // Rezept aus Schritt 6 erneut öffnen, damit es für Schritt 7 gespeichert werden kann
   await p.goto(URL + '?url=' + encodeURIComponent('https://www.tiktok.com/@koch/video/1'));
@@ -191,14 +233,14 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
 
   // Text einfügen (z. B. aus WhatsApp)
   await p.click('#btnImport');
-  await p.fill('#importText', 'Omas Linsensuppe 😋\nZutaten:\n250 g Linsen\n2 Karotten\n1 Zwiebel\nZubereitung:\nZuerst schneiden wir die Zwiebel klein.\nDann kochen wir alles 30 Minuten.\nhttps://www.whatsapp-test.example/x');
-  await p.click('#importTextGo');
+  await p.fill('#importUrl', 'Omas Linsensuppe 😋\nZutaten:\n250 g Linsen\n2 Karotten\n1 Zwiebel\nZubereitung:\nZuerst schneiden wir die Zwiebel klein.\nDann kochen wir alles 30 Minuten.\nhttps://www.whatsapp-test.example/x');
+  await p.click('#importGo');
   await p.waitForSelector('#fTitle');
   assert(await p.inputValue('#fTitle') === 'Omas Linsensuppe' && (await p.inputValue('#fIngredients')).split('\n').length === 3, 'Text einfügen: Name und 3 Zutaten');
   assert(await p.inputValue('#fSteps') === 'Zwiebel klein schneiden.\nAlles 30 Minuten kochen.' && await p.inputValue('#fSource') === 'https://www.whatsapp-test.example/x', 'Text einfügen: Schritte gekürzt, Link als Quelle');
   assert(await p.isVisible('#importNotice:has-text("Aus Text erkannt")'), 'Text einfügen: Hinweis „Aus Text erkannt“');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
-  await p.click('#btnImport'); await p.fill('#importText', 'Hallo, wie geht es dir?'); await p.click('#importTextGo');
+  await p.click('#btnImport'); await p.fill('#importUrl', 'Hallo, wie geht es dir? Wir sehen uns morgen beim Essen.'); await p.click('#importGo');
   assert(await p.isVisible('.form-error:has-text("kein Rezept erkannt")'), 'Text ohne Rezept: verständliche Meldung');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
 
@@ -215,7 +257,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
     zip.file('images/a1_0.jpg', require('fs').readFileSync('icons/icon-192.png'));
     const zpath = require('os').tmpdir() + '/rk-test-' + process.pid + '.zip';
     require('fs').writeFileSync(zpath, await zip.generateAsync({ type: 'nodebuffer' }));
-    await p.click('#btnImport');
+    await p.click('#btnImport'); await p.click('#tileApp');
     await p.setInputFiles('#importApp', zpath);
     await p.waitForSelector('#boardGo');
     assert((await p.textContent('.dlg-scroll')).includes('2 Rezepte gefunden, mit Fotos'), 'Recipe Keeper: Datei gelesen, 2 Rezepte mit Fotos');
@@ -234,7 +276,7 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   }
 
   // Pinterest-Pinnwand
-  await p.click('#btnImport');
+  await p.click('#btnImport'); await p.click('#tileBoard');
   await p.fill('#pinUser', '@oopusteblumeoo'); await p.fill('#pinBoard', 'Gibt es nicht'); await p.click('#pinLoad');
   await p.waitForSelector('.form-error:has-text("Pinnwand nicht gefunden")');
   assert(true, 'Pinnwand falsch geschrieben: verständliche Meldung');

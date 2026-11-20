@@ -92,5 +92,5 @@
 
   S.whenSignedIn().then(() => setTimeout(check, 800));
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') setTimeout(check, 300); });
-  window.RecipeInbox = { check };
+  window.RecipeInbox = { check, count: () => items.length, importAll };
 })();

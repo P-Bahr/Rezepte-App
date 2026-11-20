@@ -437,3 +437,27 @@ body:has(#inboxBanner:not(dialog #inboxBanner)) .to-top { bottom: calc(96px + en
 .bring-group { display: grid; gap: 4px; }
 .bring-head { margin: 6px 0 0; font-weight: 600; font-size: 17px; }
 .bring-group .hint { margin: 0; }
+
+/* Import: Startseite mit Kacheln, Unterseiten mit Zurück */
+.import-title { display: grid; gap: 2px; min-width: 0; }
+.import-back { justify-self: start; font-size: 16px; padding: 0; min-height: 32px; }
+#importUrl { min-height: 96px; }
+.import-more { margin: 10px 0 0; font-size: 17px; }
+.import-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+@media (min-width: 700px) { .import-tiles { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+.import-tile {
+  display: grid; gap: 4px; align-content: start; text-align: left;
+  min-height: 112px; padding: 14px; border-radius: var(--radius);
+  border: 1px solid var(--line); background: var(--surface); color: var(--fg); cursor: pointer; font: inherit;
+}
+.import-tile:active { transform: scale(0.98); }
+.import-tile-icon { font-size: 28px; line-height: 1; }
+.import-tile-name { font-weight: 600; font-size: 17px; }
+.import-tile-sub { font-size: 14px; color: var(--muted); }
+.import-choice { display: grid; gap: 8px; padding: 14px; border-radius: var(--radius); border: 1px solid var(--line); background: var(--surface); }
+.import-choice p { margin: 0; }
+.import-choice-name { font-weight: 600; font-size: 17px; }
+.import-choice .pick-btn { justify-self: start; }
+.import-steps, .import-tip ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
+.import-tip summary { cursor: pointer; color: var(--accent); font-weight: 600; min-height: var(--touch); display: flex; align-items: center; }
+.import-inbox { display: grid; gap: 10px; }

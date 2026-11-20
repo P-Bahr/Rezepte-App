@@ -756,23 +756,25 @@
   }
 
   // ---------- Import über Link ----------
-  function openImport(prefill, autoRun) {
+  // ---------- Import: Startseite (Link oder Text) + Kacheln für die anderen Wege ----------
+  function openImport(prefill, autoRun, startView) {
     const S = window.RecipeSync;
-    const input = h('input', { id: 'importUrl', type: 'url', inputmode: 'url', placeholder: 'https://…', autocomplete: 'off', autocapitalize: 'off', value: prefill || '' });
     const msg = h('div', { class: 'form-error', role: 'alert', hidden: true });
     const status = h('p', { class: 'hint', 'aria-live': 'polite', hidden: true });
-    const go = h('button', { type: 'submit', class: 'btn btn-primary' }, 'Importieren');
     const manual = h('button', { type: 'button', class: 'btn', hidden: true }, 'Selbst eintragen');
     const say = (el, t) => { el.textContent = t || ''; el.hidden = !t; };
+    const reset = () => { say(msg, ''); say(status, ''); manual.hidden = true; };
+    const scroll = h('div', { class: 'dlg-scroll' });
+    const title = h('h2', { id: 'dlgTitle', text: 'Rezept importieren' });
+    const back = h('button', { type: 'button', class: 'btn-link import-back', id: 'importBack', hidden: true, onclick: () => show('home') }, '‹ Zurück');
+    const header = h('div', { class: 'dlg-head' }, h('div', { class: 'import-title' }, back, title),
+      h('div', { class: 'dlg-head-actions' }, h('button', { type: 'button', class: 'icon-btn', 'aria-label': 'Schließen', onclick: closeDialog }, '×')));
 
-    async function run() {
-      say(msg, ''); manual.hidden = true;
-      // Link aus geteiltem Text herausziehen ("Schau mal: https://…")
-      const raw = input.value.trim();
-      const found = raw.match(/https?:\/\/[^\s<>"']+/i);
-      const url = found ? found[0].replace(/[).,;!?]+$/, '') : raw;
-      if (!/^https?:\/\//i.test(url)) { say(msg, 'Bitte einen Link einfügen, der mit https:// beginnt.'); input.focus(); return; }
-      input.value = url;
+    // ---- Link laden ----
+    const input = h('textarea', { id: 'importUrl', rows: 3, placeholder: 'Link (Webseite, TikTok, Pinterest, Facebook) oder Rezepttext hier einfügen …', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
+    input.value = prefill || '';
+    const go = h('button', { type: 'submit', class: 'btn btn-primary', id: 'importGo' }, 'Importieren');
+    async function runLink(url) {
       // Schon vorhanden?
       const same = Store.recipes().find(x => x.sourceUrl && x.sourceUrl.replace(/[?#].*$/, '').replace(/\/$/, '') === url.replace(/[?#].*$/, '').replace(/\/$/, ''));
       if (same) {
@@ -789,8 +791,8 @@
         const r = window.RecipeImporter.toDraft(res);
         if (!r || r.how === 'tiktok-empty' || r.how === 'pin-empty') {
           say(status, '');
-          say(msg, r && r.how === 'tiktok-empty' ? 'In der Beschreibung dieses TikTok-Videos steht kein Rezept. Mach ein Bildschirmfoto vom Rezept im Video und füge es als Foto hinzu.'
-            : r ? 'Dieser Pin führt zu keiner Rezeptseite und in seiner Beschreibung steht kein Rezept. Mach ein Bildschirmfoto vom Pin und füge es als Foto hinzu.'
+          say(msg, r && r.how === 'tiktok-empty' ? 'In der Beschreibung dieses TikTok-Videos steht kein Rezept. Mach ein Bildschirmfoto vom Rezept im Video und nimm „Bildschirmfotos“.'
+            : r ? 'Dieser Pin führt zu keiner Rezeptseite und in seiner Beschreibung steht kein Rezept. Mach ein Bildschirmfoto vom Pin und nimm „Bildschirmfotos“.'
             : 'Auf dieser Seite wurde kein Rezept gefunden.');
           manual.hidden = false;
           manual.onclick = () => openEdit(null, { title: (res && res.title) || '', sourceUrl: url, imageUrl: (res && res.image) || '' });
@@ -806,16 +808,43 @@
         go.disabled = false;
       }
     }
+    // Ein Feld für alles: Link (auch mit etwas Text drumherum) oder Rezepttext
+    function run() {
+      reset();
+      const text = input.value.trim();
+      if (!text) { say(msg, 'Bitte einen Link oder einen Rezepttext einfügen.'); input.focus(); return; }
+      const link = (text.match(/https?:\/\/[^\s<>"']+/i) || [''])[0].replace(/[).,;!?]+$/, '');
+      const rest = text.replace(link, ' ').replace(/\s+/g, ' ').trim();
+      if (link && rest.length < 80 && !/\n/.test(text.replace(link, ''))) { input.value = link; runLink(link); return; }
+      if (!link && text.length < 40 && !/\n/.test(text)) { say(msg, 'Bitte einen Link einfügen, der mit https:// beginnt – oder einen ganzen Rezepttext.'); input.focus(); return; }
+      const d = window.RecipeImporter.fromText(text.replace(link, ' '), { url: link });
+      if (!d.ingredients.length && !d.steps.length) {
+        say(msg, 'In diesem Text wurde kein Rezept erkannt. Stehen Zutaten (mit Mengen) oder Arbeitsschritte darin?');
+        manual.hidden = false;
+        manual.onclick = () => openEdit(null, { title: '', notes: text.slice(0, 3000), sourceUrl: link, fromText: true });
+        return;
+      }
+      if (d.title === 'Importiertes Rezept') d.title = '';
+      openEdit(null, { ...d, fromText: true });
+    }
+    const paste = h('button', { type: 'button', class: 'btn', id: 'importPaste' }, '📋 Einfügen');
+    paste.addEventListener('click', async () => {
+      reset();
+      try {
+        const t = await navigator.clipboard.readText();
+        if (!t) { say(msg, 'Die Zwischenablage ist leer. Erst den Link oder Text kopieren.'); return; }
+        input.value = t.trim();
+        run();
+      } catch (e) { say(msg, 'Einfügen ist hier nicht erlaubt. Bitte lange ins Feld tippen und „Einsetzen“ wählen.'); input.focus(); }
+    });
 
-    // ---- Aus Bildschirmfotos (Texterkennung auf dem Gerät) ----
+    // ---- Bildschirmfotos ----
     const photos = h('input', { type: 'file', id: 'importPhotos', accept: 'image/*', multiple: true, class: 'visually-hidden' });
-    const photoBtn = h('label', { for: 'importPhotos', class: 'btn pick-btn', role: 'button', tabindex: '0' }, 'Bildschirmfotos auswählen');
-    photoBtn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); photos.click(); } });
+    const photosMany = h('input', { type: 'file', id: 'importPhotosMany', accept: 'image/*', multiple: true, class: 'visually-hidden' });
     async function fromPhotos(files) {
       files = [...files].filter(f => /^image\//.test(f.type || 'image/'));
       if (!files.length) return;
-      say(msg, ''); manual.hidden = true; go.disabled = true; photoBtn.classList.add('busy');
-      say(status, 'Fotos werden gelesen …');
+      reset(); say(status, 'Fotos werden gelesen …');
       try {
         const text = await window.RecipeOCR.recognize(files, t => say(status, t));
         say(status, '');
@@ -831,31 +860,28 @@
       } catch (e) {
         say(status, '');
         say(msg, e.message || 'Die Fotos konnten nicht gelesen werden.');
-      } finally {
-        go.disabled = false; photoBtn.classList.remove('busy'); photos.value = '';
-      }
+      } finally { photos.value = ''; }
     }
     photos.addEventListener('change', () => fromPhotos(photos.files));
-
-    // ---- Aus eingefügtem Text (WhatsApp, E-Mail, Facebook-Beitrag …) ----
-    const textArea = h('textarea', { id: 'importText', rows: 6, placeholder: 'Rezepttext hier einfügen …', autocapitalize: 'sentences' });
-    const textBtn = h('button', { type: 'button', class: 'btn', id: 'importTextGo' }, 'Text übernehmen');
-    textBtn.addEventListener('click', () => {
-      say(msg, ''); manual.hidden = true;
-      const text = textArea.value.trim();
-      if (!text) { say(msg, 'Bitte zuerst einen Rezepttext einfügen: lange ins Feld tippen, dann „Einsetzen“.'); textArea.focus(); return; }
-      const link = (text.match(/https?:\/\/[^\s<>"']+/i) || [''])[0].replace(/[).,;!?]+$/, '');
-      // Nur ein Link eingefügt -> normaler Link-Import
-      if (link && text.replace(link, '').trim().length < 15) { input.value = link; textArea.value = ''; run(); return; }
-      const d = window.RecipeImporter.fromText(text.replace(link, ' '), { url: link });
-      if (!d.ingredients.length && !d.steps.length) {
-        say(msg, 'In diesem Text wurde kein Rezept erkannt. Stehen Zutaten (mit Mengen) oder Arbeitsschritte darin?');
-        manual.hidden = false;
-        manual.onclick = () => openEdit(null, { title: '', notes: text.slice(0, 3000), sourceUrl: link, fromText: true });
-        return;
-      }
-      if (d.title === 'Importiertes Rezept') d.title = '';
-      openEdit(null, { ...d, fromText: true });
+    // Viele Rezepte auf einmal: jedes Foto ein eigenes Rezept
+    photosMany.addEventListener('change', () => {
+      const files = [...photosMany.files].filter(f => /^image\//.test(f.type || 'image/'));
+      photosMany.value = '';
+      if (!files.length) return;
+      const pins = files.map((f, i) => ({
+        id: 'foto' + i, text: 'Foto ' + (i + 1),
+        makeDraft: async () => {
+          const d = window.RecipeImporter.fromText(await window.RecipeOCR.recognize([f]), { ocr: true });
+          if (!d.title || d.title === 'Importiertes Rezept') { d.title = 'Rezept vom Bildschirmfoto ' + (i + 1); d.titleMissing = true; }
+          d.importHow = 'photo';
+          return d;
+        }
+      }));
+      openBoardImport({ pins }, {
+        title: 'Bildschirmfotos importieren', word: 'Fotos', batchPrefix: 'foto-', workers: 1,
+        info: files.length + ' Bildschirmfotos ausgewählt – jedes wird ein eigenes Rezept.',
+        complete: d => !!(d && (d.ingredients.length >= 2 || d.steps.length >= 1))
+      });
     });
 
     // ---- Pinterest-Pinnwand (neueste 50 Pins) ----
@@ -863,9 +889,9 @@
     try { pinName = localStorage.getItem('rezepte.pinterestName') || ''; } catch (e) { /* egal */ }
     const pinUser = h('input', { id: 'pinUser', type: 'text', placeholder: 'z. B. oopusteblumeoo', value: pinName, autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false' });
     const pinBoard = h('input', { id: 'pinBoard', type: 'text', placeholder: 'z. B. Rezepte', autocomplete: 'off' });
-    const pinBtn = h('button', { type: 'button', class: 'btn', id: 'pinLoad' }, 'Pins laden');
+    const pinBtn = h('button', { type: 'button', class: 'btn btn-primary', id: 'pinLoad' }, 'Pins laden');
     pinBtn.addEventListener('click', async () => {
-      say(msg, ''); manual.hidden = true;
+      reset();
       const user = pinUser.value.trim().replace(/^@/, ''), board = pinBoard.value.trim();
       if (!user || !board) { say(msg, 'Bitte deinen Pinterest-Namen und den Namen der Pinnwand eintragen.'); (user ? pinBoard : pinUser).focus(); return; }
       if (!S || !S.enabled || !S.fetchPage) { say(msg, 'Der Import braucht den Online-Speicher.'); return; }
@@ -881,13 +907,11 @@
 
     // ---- Aus einer anderen App (Recipe Keeper) ----
     const appFile = h('input', { type: 'file', id: 'importApp', accept: '.zip,.html,.htm,application/zip,text/html', class: 'visually-hidden' });
-    const appBtn = h('label', { for: 'importApp', class: 'btn pick-btn', role: 'button', tabindex: '0' }, 'Export-Datei auswählen');
-    appBtn.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); appFile.click(); } });
     appFile.addEventListener('change', async () => {
       const f = appFile.files[0];
       appFile.value = '';
       if (!f) return;
-      say(msg, ''); manual.hidden = true; say(status, 'Datei wird gelesen …');
+      reset(); say(status, 'Datei wird gelesen …');
       try {
         const list = await window.RecipeKeeper.read(f);
         say(status, '');
@@ -901,39 +925,96 @@
       } catch (e) { say(status, ''); say(msg, e.message || 'Die Datei konnte nicht gelesen werden.'); }
     });
 
-    const form = h('form', { class: 'form', novalidate: true, onsubmit: e => { e.preventDefault(); run(); } },
-      h('div', { class: 'field' },
-        h('label', { for: 'importUrl', text: 'Link zum Rezept' }), input,
-        h('span', { class: 'hint', text: 'Von einer Rezeptseite (z. B. Chefkoch), TikTok, Pinterest oder Facebook. Lange tippen, dann „Einsetzen“.' })),
-      h('div', { class: 'pick-actions' }, go, manual),
-      h('div', { class: 'field import-photos' },
-        h('span', { class: 'label', text: 'Oder aus Bildschirmfotos' }),
-        h('span', { class: 'hint', text: 'Zum Beispiel aus einem TikTok-Video, in dem das Rezept eingeblendet ist. Mehrere Fotos gehen auch. Der Text wird direkt auf deinem Gerät erkannt, kostenlos.' }),
-        h('div', { class: 'pick-actions' }, photoBtn, photos)),
-      h('div', { class: 'field import-text' },
-        h('label', { for: 'importText', class: 'label', text: 'Oder Text einfügen' }),
-        h('span', { class: 'hint', text: 'Zum Beispiel aus WhatsApp, einer E-Mail oder einem Facebook-Beitrag: Text kopieren, hier lange tippen, dann „Einsetzen“.' }),
-        textArea,
-        h('div', { class: 'pick-actions' }, textBtn)),
-      h('div', { class: 'field import-app' },
-        h('span', { class: 'label', text: 'Oder aus einer anderen Rezept-App' }),
-        h('span', { class: 'hint', text: 'Recipe Keeper: Einstellungen → Exportieren, die Datei „In Dateien sichern“ und hier auswählen. Alle Rezepte kommen auf einmal, mit Fotos, und werden als „Zu prüfen“ markiert.' }),
-        h('div', { class: 'pick-actions' }, appBtn, appFile)),
-      h('div', { class: 'field import-board' },
-        h('span', { class: 'label', text: 'Oder ganze Pinterest-Pinnwand' }),
-        h('span', { class: 'hint', text: 'Holt die neuesten 50 Pins einer öffentlichen Pinnwand (mehr gibt Pinterest nicht heraus). Die Rezepte werden automatisch gespeichert und als „Zu prüfen“ markiert.' }),
-        h('label', { for: 'pinUser', class: 'pick-url-label', text: 'Dein Pinterest-Name (ohne @)' }), pinUser,
-        h('label', { for: 'pinBoard', class: 'pick-url-label', text: 'Name der Pinnwand' }), pinBoard,
-        h('div', { class: 'pick-actions' }, pinBtn)),
-      msg, status);
-    // Bild einfügen (lange tippen -> Einsetzen)
-    form.addEventListener('paste', e => {
-      const imgs = [...((e.clipboardData && e.clipboardData.files) || [])].filter(f => /^image\//.test(f.type));
-      if (imgs.length) { e.preventDefault(); fromPhotos(imgs); }
-    });
-    showDialog('import', h('div', { style: 'display:contents' },
-      head('Rezept importieren', closeDialog), h('div', { class: 'dlg-scroll' }, form)));
-    if (autoRun && prefill) run(); else setTimeout(() => input.focus(), 50);
+    // ---- Bausteine der Ansichten ----
+    const pickBtn = (forId, text, cls) => {
+      const l = h('label', { for: forId, class: 'btn pick-btn ' + (cls || ''), role: 'button', tabindex: '0' }, text);
+      l.addEventListener('keydown', e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); document.getElementById(forId).click(); } });
+      return l;
+    };
+    const tile = (id, icon, name, sub, onclick) => h('button', { type: 'button', class: 'import-tile', id, onclick },
+      h('span', { class: 'import-tile-icon', 'aria-hidden': 'true', text: icon }), h('span', { class: 'import-tile-name', text: name }), h('span', { class: 'import-tile-sub', text: sub }));
+    const step = (n, t) => h('li', { text: t });
+
+    function viewHome() {
+      const inbox = window.RecipeInbox && window.RecipeInbox.count ? window.RecipeInbox.count() : 0;
+      const form = h('form', { class: 'form', novalidate: true, onsubmit: e => { e.preventDefault(); run(); } },
+        inbox ? h('div', { class: 'notice import-inbox' },
+          h('p', null, h('b', { text: '📥 ' + (inbox === 1 ? '1 geteiltes Rezept' : inbox + ' geteilte Rezepte') }), ' warten im Eingangsfach.'),
+          h('button', { type: 'button', class: 'btn btn-primary', id: 'importInbox', onclick: () => window.RecipeInbox.importAll() }, inbox === 1 ? 'Jetzt importieren' : 'Alle importieren')) : null,
+        h('div', { class: 'field' },
+          h('label', { for: 'importUrl', text: 'Link oder Rezepttext' }), input,
+          h('span', { class: 'hint', text: 'Die App erkennt selbst, ob es ein Link oder ein Rezepttext ist (z. B. aus WhatsApp).' })),
+        h('div', { class: 'pick-actions' }, paste, go, manual),
+        msg, status,
+        h('h3', { class: 'import-more', text: 'Weitere Wege' }),
+        h('div', { class: 'import-tiles' },
+          tile('tilePhotos', '📷', 'Bildschirmfotos', 'Rezept aus Video oder Bild', () => show('photos')),
+          tile('tileBoard', '📌', 'Pinterest-Pinnwand', 'Viele Pins auf einmal', () => show('board')),
+          tile('tileApp', '📦', 'Aus anderer App', 'z. B. Recipe Keeper', () => show('app')),
+          tile('tileManual', '✍️', 'Selbst eintragen', 'Leeres Rezept', () => openEdit(null))));
+      form.addEventListener('paste', e => { // Bild einfügen -> Texterkennung
+        const imgs = [...((e.clipboardData && e.clipboardData.files) || [])].filter(f => /^image\//.test(f.type));
+        if (imgs.length) { e.preventDefault(); fromPhotos(imgs); }
+      });
+      return form;
+    }
+    function viewPhotos() {
+      return h('div', { class: 'form' },
+        h('p', { class: 'hint', text: 'Der Text wird direkt auf deinem Gerät erkannt, kostenlos. Am besten ein Bildschirmfoto machen, wenn Zutaten und Schritte gut lesbar im Bild stehen.' }),
+        h('div', { class: 'import-choice' },
+          h('p', { class: 'import-choice-name', text: 'Ein Rezept' }),
+          h('p', { class: 'hint', text: 'Ein oder mehrere Fotos, die zusammen ein Rezept ergeben (z. B. Zutaten und Zubereitung auf zwei Bildern).' }),
+          pickBtn('importPhotos', 'Fotos für ein Rezept auswählen', 'btn-primary'), photos),
+        h('div', { class: 'import-choice' },
+          h('p', { class: 'import-choice-name', text: 'Viele Rezepte auf einmal' }),
+          h('p', { class: 'hint', text: 'Jedes Foto wird ein eigenes Rezept – praktisch zum Zusammentragen. Die Rezepte werden gespeichert und als „Zu prüfen“ markiert.' }),
+          pickBtn('importPhotosMany', 'Fotos auswählen (je Rezept eins)'), photosMany),
+        msg, status, h('div', { class: 'pick-actions' }, manual));
+    }
+    function viewBoard() {
+      return h('div', { class: 'form' },
+        h('p', { class: 'hint', text: 'Holt die neuesten 50 Pins einer öffentlichen Pinnwand. Jeder Pin wird zur Rezeptseite verfolgt, gespeichert und als „Zu prüfen“ markiert.' }),
+        h('div', { class: 'field' }, h('label', { for: 'pinUser', text: 'Dein Pinterest-Name (ohne @)' }), pinUser,
+          h('span', { class: 'hint', text: 'Steht in Pinterest auf deinem Profil unter deinem Namen.' })),
+        h('div', { class: 'field' }, h('label', { for: 'pinBoard', text: 'Name der Pinnwand' }), pinBoard),
+        h('div', { class: 'pick-actions' }, pinBtn), msg, status,
+        h('details', { class: 'import-tip' }, h('summary', { text: 'Mehr als 50 Pins?' }),
+          h('ol', null,
+            step(1, 'In Pinterest eine neue Pinnwand anlegen, z. B. „Importiert“.'),
+            step(2, 'Die importierten Pins aus der großen Pinnwand dorthin verschieben (Pinnwand öffnen → Organisieren).'),
+            step(3, 'Hier noch einmal „Pins laden“ – jetzt kommen die nächsten 50. Doppelte werden übersprungen.'))));
+    }
+    function viewApp() {
+      return h('div', { class: 'form' },
+        h('div', { class: 'import-choice' },
+          h('p', { class: 'import-choice-name', text: 'Recipe Keeper' }),
+          h('ol', { class: 'import-steps' },
+            step(1, 'In Recipe Keeper: Einstellungen → Exportieren.'),
+            step(2, 'Die Datei mit „In Dateien sichern“ speichern.'),
+            step(3, 'Hier die Datei auswählen.')),
+          pickBtn('importApp', 'Export-Datei auswählen', 'btn-primary'), appFile),
+        h('p', { class: 'hint', text: 'Alle Rezepte kommen auf einmal, mit Fotos, und werden als „Zu prüfen“ markiert. Doppelte werden übersprungen.' }),
+        msg, status);
+    }
+    const VIEWS = {
+      home: ['Rezept importieren', viewHome],
+      photos: ['Bildschirmfotos', viewPhotos],
+      board: ['Pinterest-Pinnwand', viewBoard],
+      app: ['Aus anderer App', viewApp]
+    };
+    function show(name) {
+      reset();
+      const [t, make] = VIEWS[name] || VIEWS.home;
+      title.textContent = t;
+      back.hidden = name === 'home';
+      scroll.textContent = '';
+      scroll.append(make());
+      scroll.scrollTop = 0;
+      if (name === 'home' && !autoRun) setTimeout(() => { if (!input.value) input.focus(); }, 50);
+    }
+    showDialog('import', h('div', { style: 'display:contents' }, header, scroll));
+    show(startView || 'home');
+    if (autoRun && prefill) run();
   }
 
   // ---------- Pinnwand-Import: alle Pins nacheinander ----------
@@ -964,6 +1045,7 @@
       const queue = pins.slice();
       const one = async pin => {
         let d = pin.draft ? { ...pin.draft } : null; // schon fertig gelesen (z. B. aus Recipe Keeper)
+        if (!d && pin.makeDraft) { try { d = await pin.makeDraft(); } catch (e) { d = null; } } // z. B. Texterkennung je Foto
         if (!d && pin.link) {
           try { const r = window.RecipeImporter.toDraft(await S.fetchPage(pin.link)); d = r && r.draft; if (d) d.importHow = r.how; } catch (e) { d = null; }
         }
@@ -994,7 +1076,7 @@
           progress.textContent = done + ' von ' + pins.length + ' ' + word + ' … (' + saved.length + ' gespeichert)';
         }
       };
-      await Promise.all([worker(), worker(), worker()]);
+      await Promise.all(Array.from({ length: opts.workers || 3 }, worker));
       progress.textContent = '';
       showResult();
 
