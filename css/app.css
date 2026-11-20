@@ -517,16 +517,16 @@ dialog:focus { outline: none; }
 .dup-marks { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 4px; }
 .dup-marks li { display: flex; gap: 8px; align-items: baseline; padding: 4px 10px; border-radius: 10px; background: var(--chip); font-weight: 600; }
 .dup-marks .dup-amount { font-weight: 400; }
-/* Zeichen ＋ und ≠ im festen Kreis: gleich groß auf jedem Gerät (Gill Sans hat diese Zeichen nicht,
+/* Zeichen + und ≠ in fester Größe: gleich groß auf jedem Gerät (Gill Sans hat diese Zeichen nicht,
    die Ersatzschrift fiel auf dem iPhone sehr klein aus) */
 .dup-sign, .dup-key {
   flex: none; display: inline-flex; align-items: center; justify-content: center;
-  width: 34px; height: 34px; border-radius: 50%; background: var(--fg); color: var(--bg);
+  width: 34px; height: 34px; color: inherit;
   font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", Arial, sans-serif; font-size-adjust: none;
-  font-size: 24px; line-height: 1; font-weight: 800;
+  font-size: 30px; line-height: 1; font-weight: 800;
 }
 .dup-marks li { align-items: center; }
-.hint .dup-key { width: 28px; height: 28px; font-size: 20px; vertical-align: middle; margin-right: 4px; }
+.hint .dup-key { width: 26px; height: 26px; font-size: 26px; vertical-align: middle; }
 .dup-oven { font-size: 16px; font-weight: 600; }
 .dup-body { grid-column: 1 / -1; display: grid; gap: 6px; }
 .dup-body .btn { justify-self: start; }
