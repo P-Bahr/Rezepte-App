@@ -10,6 +10,7 @@
   --line: #e3e3e3;
   --accent: #0a0a0a;
   --accent-fg: #ffffff;
+  --link: #0a0a0a; --sel: #0a0a0a; --sel-fg: #ffffff;
   --chip: #f1f1f1;
   --chip-fg: #0a0a0a;
   --danger: #0a0a0a;
@@ -27,14 +28,14 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #000000; --surface: #121212; --fg: #ffffff; --muted: #9a9a9a; --line: #2a2a2a;
-    --accent: #ffffff; --accent-fg: #000000; --chip: #1c1c1c; --chip-fg: #ffffff; --danger: #ffffff;
+    --accent: #3a3a3a; --accent-fg: #ffffff; --link: #ffffff; --sel: #ffffff; --sel-fg: #000000; --chip: #1c1c1c; --chip-fg: #ffffff; --danger: #ffffff;
     --tile-ph: #1a1a1a; --ph-a: #2a2a2a; --ph-b: #111111; --ph-fg: #ffffff; --star: #ffffff; --shadow: none; --backdrop: rgba(0, 0, 0, .7);
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #000000; --surface: #121212; --fg: #ffffff; --muted: #9a9a9a; --line: #2a2a2a;
-  --accent: #ffffff; --accent-fg: #000000; --chip: #1c1c1c; --chip-fg: #ffffff; --danger: #ffffff;
+  --accent: #3a3a3a; --accent-fg: #ffffff; --link: #ffffff; --sel: #ffffff; --sel-fg: #000000; --chip: #1c1c1c; --chip-fg: #ffffff; --danger: #ffffff;
   --tile-ph: #1a1a1a; --ph-a: #2a2a2a; --ph-b: #111111; --ph-fg: #ffffff; --star: #ffffff; --shadow: none; --backdrop: rgba(0, 0, 0, .7);
   color-scheme: dark;
 }
@@ -58,7 +59,7 @@ body::before {
 }
 [hidden] { display: none !important; }
 button, input, select, textarea { font: inherit; color: inherit; }
-:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+:focus-visible { outline: 3px solid var(--link); outline-offset: 2px; }
 .visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 
 .app {
@@ -118,7 +119,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   display: inline-flex; align-items: center; gap: 6px;
 }
 .chip .n { font-size: 14px; opacity: .7; font-variant-numeric: tabular-nums; }
-.chip[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.chip[aria-pressed="true"] { background: var(--sel); color: var(--sel-fg); font-weight: 600; }
 
 .status { display: flex; align-items: center; gap: 12px; min-height: var(--touch); color: var(--muted); font-size: 15px; flex-wrap: wrap; }
 .filter-toggle { font-size: 16px; padding: 0 14px; }
@@ -147,7 +148,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
   min-height: var(--touch); padding: 0 10px; border: 0; border-radius: 10px; background: transparent;
   color: var(--muted); font-size: 14px; cursor: pointer;
 }
-.sync-status[data-kind="ok"]::before { content: "✓ "; color: var(--accent); font-weight: 700; }
+.sync-status[data-kind="ok"]::before { content: "✓ "; color: var(--link); font-weight: 700; }
 .sync-status[data-kind="error"] { color: var(--danger); }
 dialog.auth {
   width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; border-radius: 0; box-shadow: none; color: var(--fg);
@@ -196,7 +197,7 @@ dialog.auth::backdrop { background: var(--bg); }
 .btn-danger-solid { background: var(--danger); border-color: var(--danger); color: var(--bg); font-weight: 600; }
 .btn-link {
   min-height: var(--touch); border: 0; background: none; padding: 0 4px;
-  color: var(--accent); font-size: 15px; font-weight: 600; cursor: pointer;
+  color: var(--link); font-size: 15px; font-weight: 600; cursor: pointer;
 }
 .btn:disabled { opacity: .5; cursor: not-allowed; }
 
@@ -217,7 +218,7 @@ dialog.auth::backdrop { background: var(--bg); }
 .tile-img img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ph {
   position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
-  font-size: 44px; font-weight: 700; color: var(--accent); opacity: .55;
+  font-size: 44px; font-weight: 700; color: var(--link); opacity: .55;
 }
 .tile-img .ph { font-size: 72px; font-weight: 800; color: var(--ph-fg); opacity: .9; padding-bottom: 30%; }
 .tile-body {
@@ -282,13 +283,13 @@ dialog::backdrop { background: var(--backdrop); }
 .facts { display: flex; flex-wrap: wrap; gap: 8px 24px; color: var(--muted); font-size: 16px; }
 .facts b { color: var(--fg); font-weight: 600; }
 .facts > span { min-width: 0; max-width: 100%; overflow-wrap: anywhere; }
-.facts .source-link { color: var(--accent); overflow-wrap: anywhere; }
+.facts .source-link { color: var(--link); overflow-wrap: anywhere; }
 .detail h3 { margin: 0 0 8px; font-size: 19px; }
 .detail ul, .detail ol { margin: 0; padding-left: 1.4em; display: grid; gap: 6px; }
 .detail ol li { padding-left: 4px; }
 .notes { white-space: pre-wrap; }
 .gone-source { color: var(--muted); font-size: 15px; }
-.source a { color: var(--accent); overflow-wrap: anywhere; }
+.source a { color: var(--link); overflow-wrap: anywhere; }
 .confirm { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; justify-content: flex-end; width: 100%; }
 .confirm p { margin: 0; flex: 1 1 200px; }
 
@@ -316,7 +317,7 @@ dialog::backdrop { background: var(--backdrop); }
 .segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .seg { min-height: var(--touch); padding: 0 16px; border: 0; background: var(--surface); cursor: pointer; font-size: 16px; }
 .seg + .seg { border-left: 1px solid var(--line); }
-.seg[aria-pressed="true"] { background: var(--accent); color: var(--accent-fg); font-weight: 600; }
+.seg[aria-pressed="true"] { background: var(--sel); color: var(--sel-fg); font-weight: 600; }
 .size-info { min-height: var(--touch); display: flex; align-items: center; font-weight: 600; }
 .size-row { display: flex; align-items: center; gap: 8px; }
 .field .size-row input.num { width: 5.5em; flex: none; text-align: center; }
@@ -325,7 +326,7 @@ dialog::backdrop { background: var(--backdrop); }
 .term {
   font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0; cursor: help;
   text-decoration: underline dotted; text-decoration-thickness: 2px; text-underline-offset: 4px;
-  text-decoration-color: var(--accent); position: relative; display: inline;
+  text-decoration-color: var(--link); position: relative; display: inline;
 }
 /* Unsichtbar vergrößerte Tippfläche (mind. 44 pt hoch) */
 .term::after { content: ""; position: absolute; left: -4px; right: -4px; top: 50%; height: 44px; transform: translateY(-50%); }
@@ -341,7 +342,7 @@ dialog::backdrop { background: var(--backdrop); }
 /* Notizen mit Links */
 .related { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 12px; }
 .related-label { font-size: 15px; color: var(--muted); }
-.related .btn { color: var(--accent); font-weight: 600; }
+.related .btn { color: var(--link); font-weight: 600; }
 .related .chev { font-size: 22px; line-height: 1; margin-left: 4px; }
 
 /* Formular */
@@ -473,7 +474,7 @@ body:has(#inboxBanner:not(dialog #inboxBanner)) .to-top { bottom: calc(96px + en
 .import-choice-name { font-weight: 600; font-size: 17px; }
 .import-choice .pick-btn { justify-self: start; }
 .import-steps, .import-tip ol { margin: 0; padding-left: 22px; display: grid; gap: 4px; }
-.import-tip summary { cursor: pointer; color: var(--accent); font-weight: 600; min-height: var(--touch); display: flex; align-items: center; }
+.import-tip summary { cursor: pointer; color: var(--link); font-weight: 600; min-height: var(--touch); display: flex; align-items: center; }
 .import-inbox { display: grid; gap: 10px; }
 
 .review-minor { margin: 0; font-size: 14px; color: var(--muted); }
