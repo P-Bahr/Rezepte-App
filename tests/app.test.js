@@ -129,6 +129,27 @@ const OUT = process.argv[2] || '.';
   await p.click('#chipOnePot');
   await p.evaluate(ids => ids.forEach(id => Store.deleteRecipe(id)), op);
 
+  // "Passt dazu": Ergänzungen statt Verweise
+  {
+    const P = await p.evaluate(() => {
+      const S = window.RecipePairings.suggest;
+      return {
+        veg: S({ title: 'Cremige Kohlrabi-Karotten-Nudeln', course: 'Hauptgericht', ingredients: ['250 g Nudeln', '1 Kohlrabi', '2 Karotten', '200 ml Sahne'], steps: ['Kochen.'] }),
+        meat: S({ title: 'Rindergulasch', course: 'Hauptgericht', ingredients: ['1 kg Rindfleisch', '3 Zwiebeln', '2 EL Paprikapulver'], steps: ['Schmoren.'] }),
+        carbo: S({ title: 'Spaghetti Carbonara', course: 'Hauptgericht', ingredients: ['400 g Spaghetti', '150 g Pancetta', '3 Eier'], steps: ['Kochen.'] }),
+        soup: S({ title: 'Linsensuppe', course: 'Suppe', ingredients: ['250 g Linsen', '1 l Brühe'], steps: ['Kochen.'] })
+      };
+    });
+    assert(P.veg.includes('Schinkenwürfel') && P.veg.includes('angebratene Wiener'), 'Passt dazu: Vegetarisches Nudelgericht -> Schinkenwürfel, angebratene Wiener ' + P.veg);
+    assert(P.meat.includes('Spätzle') && !P.meat.some(x => /Schinken|Wiener/.test(x)), 'Passt dazu: Gulasch -> Beilage, kein Fleisch ' + P.meat);
+    assert(!P.carbo.some(x => /Schinken|Wiener|Hähnchen/.test(x)), 'Passt dazu: Carbonara hat schon Fleisch ' + P.carbo);
+    assert(P.soup[0] === 'frisches Brot', 'Passt dazu: Suppe -> Brot ' + P.soup);
+    const shown = await p.evaluate(() => { const r = Store.recipes().find(x => x.title === 'Rindergulasch'); location.hash = '#rezept-' + r.id; return true; });
+    await p.waitForTimeout(300);
+    const txt = await p.evaluate(() => (document.querySelector('#pairings') || {}).textContent || '');
+    assert(/Passt dazu:/.test(txt) && /Spätzle/.test(txt), 'Passt dazu steht im Rezept: ' + txt);
+    await p.evaluate(() => { location.hash = ''; document.getElementById('dlg').close(); });
+  }
   // Gleiches Gericht mehrfach gespeichert: Hinweis, Vergleich, Empfehlung
   {
     const ids = await p.evaluate(() => [
@@ -358,27 +379,27 @@ const OUT = process.argv[2] || '.';
   await p.click('.seg:has-text("Blech")');
   assert(!(await p.isVisible('[aria-label="Durchmesser: weniger"]')) && (await ing())[0] === '2,26 kg Magerquark', 'Springform Ø 26 → Blech: ' + (await ing())[0]);
   await p.click('.seg:has-text("Springform")');
-  // Passt dazu (nur noch der Knopf, kein Link im Text)
-  assert(await p.locator('dialog .notes a').count() === 0, 'Kein doppelter Link im Notiztext');
-  await p.click('.related .btn:has-text("Apfelkuchen")'); await p.waitForTimeout(200);
+  // Zu einem anderen Rezept springen und zurück
+  assert(await p.locator('dialog .notes a').count() === 0, 'Kein Link im Notiztext');
+  await p.evaluate(() => window.RecipeApp.openDetail(Store.recipes().find(r => /Apfelkuchen/.test(r.title)).id)); await p.waitForTimeout(200);
   assert(await p.isVisible('dialog[open] h2:has-text("Apfelkuchen vom Blech")'), 'Passt-dazu öffnet verlinktes Rezept');
   await p.goBack(); await p.waitForTimeout(200);
   assert(await p.isVisible('dialog[open] h2:has-text("Käsekuchen")'), 'Zurück führt zum vorherigen Rezept');
   assert((await ing()).includes('1 Zitrone'), 'Bio-Hinweis entfernt');
   while (!(await p.isDisabled('[aria-label="Durchmesser: mehr"]'))) await p.click('[aria-label="Durchmesser: mehr"]');
   assert((await vals())[0] === 'Ø 32 cm', 'Springform höchstens Ø 32 cm');
-  await p.click('.related .btn:has-text("Apfelkuchen")'); await p.waitForTimeout(200);
+  await p.evaluate(() => window.RecipeApp.openDetail(Store.recipes().find(r => /Apfelkuchen/.test(r.title)).id)); await p.waitForTimeout(200);
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(300);
   assert(await p.isVisible('dialog[open] h2:has-text("Käsekuchen")'), 'X im verlinkten Rezept führt zum ursprünglichen zurück');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(300);
   assert(!(await p.isVisible('dialog[open]')) && !p.url().includes('#rezept'), 'Danach schließt X ganz');
   assert(await p.inputValue('#q') === 'kasekuchen', 'Suche nach Link-Rundgang erhalten');
   await p.fill('#q', 'ofenkartoffeln'); await p.click('.tile'); await p.waitForTimeout(200);
-  const linked = await p.$$eval('dialog .related .btn', e => e.map(x => x.textContent));
-  assert(linked.join('|') === 'Lachs mit Honig-Senf-Kruste›|Hähnchenbrust in Zitronen-Sahne›', 'Passt dazu: ' + linked.join('|'));
+  const linked = await p.$$eval('#pairings .tag, #pairings .btn', e => e.map(x => x.textContent));
+  assert(linked.join('|') === 'Frikadellen|Schnitzel|Bratwurst', 'Passt dazu (Beilage -> was dazu): ' + linked.join('|'));
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
   await p.fill('#q', 'ofengemuse'); await p.click('.tile'); await p.waitForTimeout(200);
-  assert(await p.locator('dialog .related').count() === 0, 'Keine falschen Links (Ofengemüse)');
+  assert(await p.locator('dialog .related .btn').count() === 0, 'Passt dazu: keine falschen Verweise (Ofengemüse)');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
   // Favoriten
   const favChip = () => p.textContent('.facet:has-text("Sammlung") .chip >> nth=0');
@@ -571,7 +592,7 @@ const OUT = process.argv[2] || '.';
     await new Promise(r => setTimeout(r, 500));
   });
   await pp.fill('#q', 'kasekuchen'); await pp.locator('.tile').first().click(); await pp.waitForTimeout(300);
-  await pp.click('.related .btn'); await pp.waitForTimeout(300);
+  await pp.evaluate(() => window.RecipeApp.openDetail(Store.recipes().find(r => /Apfelkuchen/.test(r.title)).id)); await pp.waitForTimeout(300);
   assert(await pp.isVisible('dialog[open] h2:has-text("Apfelkuchen")'), 'Handy: verlinktes Rezept offen');
   await swipeRight();
   assert(await pp.isVisible('dialog[open] h2:has-text("Käsekuchen")'), 'Wischen vom Rand: zurück zum ursprünglichen Rezept');
@@ -584,7 +605,7 @@ const OUT = process.argv[2] || '.';
   const sp = await st.newPage(); sp.on('pageerror', e => errs.push(e.message));
   await sp.goto(URL); await sp.click('button:has-text("Beispielrezepte laden")');
   await sp.fill('#q', 'kasekuchen'); await sp.locator('.tile').first().click(); await sp.waitForTimeout(300);
-  await sp.click('.related .btn'); await sp.waitForTimeout(300);
+  await sp.evaluate(() => window.RecipeApp.openDetail(Store.recipes().find(r => /Apfelkuchen/.test(r.title)).id)); await sp.waitForTimeout(300);
   const track = await sp.evaluate(async () => {
     const dlg = document.querySelector('#dlg'); const seen = [];
     const fire = (type, x) => {

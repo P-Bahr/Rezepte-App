@@ -759,6 +759,7 @@
       r.ingredients.length ? ingredientsSection(r) : null,
       r.steps.length ? h('section', null, h('h3', { text: 'Zubereitung' }),
         h('ol', null, r.steps.map(s => h('li', null, withTerms(s, glossSeen))))) : null,
+      pairingsSection(r),
       r.notes ? notesSection(r) : null,
       !src && r.deadSourceUrl ? h('p', { class: 'source gone-source', text: (/tiktok\.com/i.test(r.deadSourceUrl) ? 'TikTok-Video' : 'Quelle (' + (() => { try { return new URL(r.deadSourceUrl).hostname.replace(/^www\./, ''); } catch (e) { return 'Internetseite'; } })() + ')') + ' nicht mehr verfügbar' }) : null
     );
@@ -793,11 +794,23 @@
 
   // ---------- Notizen, darunter passende eigene Rezepte ----------
   function notesSection(r) {
-    const ids = [...new Set(window.RecipeLinks.findLinks(r, Store.recipes()).map(l => l.id))].filter(id => Store.recipe(id));
-    return h('section', null, h('h3', { text: 'Notizen' }), h('p', { class: 'notes' }, withTerms(r.notes, glossSeen)),
-      ids.length ? h('div', { class: 'related' }, h('span', { class: 'related-label', text: 'Passt dazu:' }),
-        ids.map(id => h('button', { type: 'button', class: 'btn related-btn', onclick: () => openDetail(id) },
-          Store.recipe(id).title, h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' })))) : null);
+    return h('section', null, h('h3', { text: 'Notizen' }), h('p', { class: 'notes' }, withTerms(r.notes, glossSeen)));
+  }
+  // "Passt dazu": Ergänzungen (Beilage, Fleisch zu Vegetarischem …); eigenes passendes Rezept ist antippbar
+  function pairingsSection(r) {
+    const ideas = window.RecipePairings ? window.RecipePairings.suggest(r) : [];
+    if (!ideas.length) return null;
+    const norm = x => String(x).toLowerCase().replace(/[^a-zäöüß]/g, '');
+    const own = idea => {
+      const key = norm(idea.split(' ').pop());
+      return key.length >= 4 ? Store.recipes().find(x => x.id !== r.id && norm(x.title).includes(key)) : null;
+    };
+    return h('div', { class: 'related', id: 'pairings' }, h('span', { class: 'related-label', text: 'Passt dazu:' }),
+      ideas.map(idea => {
+        const o = own(idea);
+        return o ? h('button', { type: 'button', class: 'btn related-btn', onclick: () => openDetail(o.id) }, idea, h('span', { class: 'chev', 'aria-hidden': 'true', text: '›' }))
+          : h('span', { class: 'tag pairing', text: idea });
+      }));
   }
 
   // ---------- Zutaten mit Reglern ----------
@@ -1873,7 +1886,7 @@
   }
 
   window.RecipeToast = toast;
-  window.RecipeApp = { openImport, openEdit, openBoardImport };
+  window.RecipeApp = { openImport, openEdit, openBoardImport, openDetail };
 
   // Für automatische Tests
   window.__app = { state, render };
