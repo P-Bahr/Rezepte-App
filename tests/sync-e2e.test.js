@@ -114,6 +114,8 @@ const titles = p => p.$$eval('.tile-title', e => e.map(x => x.textContent));
   await A.waitForSelector('.auth', { state: 'detached' });
   assert(true, 'Gerät A: Konto angelegt und angemeldet');
   await A.click('button:has-text("Beispielrezepte laden")');
+  // Warten, bis die Rezepte wirklich hochgeladen sind (die Anzeige "Abgeglichen" kann noch vom ersten Abgleich stammen)
+  for (let i = 0; i < 100 && server.rows.recipes.size < 25; i++) await A.waitForTimeout(100);
   await synced(A);
   assert(server.rows.recipes.size === 25 && server.rows.collections.size === 5, 'Gerät A: 25 Rezepte und die 5 festen Sammlungen hochgeladen');
   assert((await A.textContent('#syncStatus')).startsWith('Abgeglichen'), 'Status zeigt „Abgeglichen“');

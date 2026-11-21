@@ -147,7 +147,10 @@
     ['Gebäck', /kuchen|torte|brot\b|brötchen|brezel|muffins?|plätzchen|kekse?|cookies?|brownies?|zopf|tarte|strudel|waffeln|schnecken|stollen|lebkuchen|makronen|taler\b|teilchen|krapfen|berliner|donuts?|croissants?|plunder|scones|cupcakes?|baguette|ciabatta|focaccia|knäckebrot/i]
   ];
   // Ausnahmen, die sonst falsch einsortiert würden
+  // Herzhaftes in Muffin-/Waffel-/Schneckenform ist kein Gebäck ("Mini Nudel Muffins", "Kartoffelwaffeln")
+  const SAVORY_BAKE = /(?:nudel|pasta|spaghetti|reis(?!waffel)|kartoffel|hack|thunfisch|schinken|speck|würstchen|brokkoli|zucchini|spinat|gemüse|lachs|hähnchen)[\p{L}-]*\s*(?:[\p{L}-]+\s+)?(?:muffins?|waffeln?|taler|schnecken|nester)|(?:muffins?|waffeln?)\s+(?:mit|aus)\s+(?:nudel|kartoffel|hack|gemüse|thunfisch|schinken|spinat)/iu;
   const DISH_FIX = [
+    [/pizza[\p{L}-]*\s*(?:schnecken|muffins?|taler)/iu, 'Snack'], [SAVORY_BAKE, 'Hauptgericht'],
     [/suppe$|suppe\b|brühe$|bouillon/i, 'Suppe'], [/obstsalat|fruchtsalat/i, 'Dessert'], [/pfannkuchen|eierkuchen|crêpes?|crepes?|palatschinken/i, 'Frühstück'],
     [/kaiserschmarrn/i, 'Dessert'], [/flammkuchen|zwiebelkuchen(?=.*speck)|quiche/i, null], [/french toast/i, 'Frühstück'],
     [/kartoffelsalat|nudelsalat|eiersalat|wurstsalat|thunfischsalat|reissalat|couscous-salat/i, 'Salat']
@@ -533,7 +536,11 @@
   function mainFor(d) {
     const byDish = dishMain(d);
     if (byDish) return byDish;
-    if (NO_MAIN_COURSES.test(d.course || '')) return validMain(mainLabel(mainFromTitle(d.ingredients || [], d.title, { noStaple: true, prefer: SWEET_FIRST }))) || '';
+    if (NO_MAIN_COURSES.test(d.course || '')) {
+      // "… mit Frischkäse-Topping / Zuckerguss / Schokoglasur": das Drumherum ist keine Hauptzutat
+      const t = String(d.title || '').replace(/\s+mit\s+[\p{L}-]*(?:topping|guss|glasur|frosting|creme|füllung|streuseln?)\b.*$/iu, '');
+      return validMain(mainLabel(mainFromTitle(d.ingredients || [], t, { noStaple: true, prefer: SWEET_FIRST }))) || '';
+    }
     return validMain(guessMain(d.ingredients || [], d.title));
   }
   // Häufige Tippfehler und alte Schreibweisen in Rezepten (nur ganze Wörter, auch in Zusammensetzungen am Wortende)
@@ -1140,5 +1147,5 @@
 
   // Schritte aus einer anderen App: Nummern weg, leere weg, Erzählstil straffen, pro Satz ein Schritt
   const cleanSteps = list => splitSteps(arr(list).map(x => clean(x).replace(/^\d{1,2}[.)]\s*/, '')).filter(Boolean).map(tidyStep));
-  window.RecipeImporter = { isClaimTitle, titleFromContent, tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { SAVORY_BAKE, isClaimTitle, titleFromContent, tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

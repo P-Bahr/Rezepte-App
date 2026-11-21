@@ -188,6 +188,14 @@
       changed = true;
       return { ...r, ...next, updatedAt: now };
     });
+    // Herzhafte Muffins/Waffeln (z. B. "Mini Nudel Muffins") waren früher "Gebäck"
+    if (I && I.SAVORY_BAKE) data.recipes = data.recipes.map(r => {
+      if (r.course !== 'Gebäck' || !I.SAVORY_BAKE.test(r.title || '')) return r;
+      changed = true;
+      const next = { ...r, course: 'Hauptgericht', updatedAt: now };
+      if (I.mainFor && !r.mainIngredient) next.mainIngredient = I.mainFor(next);
+      return next;
+    });
     // "One Pot"-Gerichte gehören in den Topf, nicht in die Pfanne (frühere Importe)
     data.recipes = data.recipes.map(r => {
       if (!/\bone[- ]?pot\b/i.test(r.title || '') || r.method !== 'Braten') return r;
