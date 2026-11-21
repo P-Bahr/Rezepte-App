@@ -586,16 +586,22 @@
   // "Barbecue, Fingerfood, Fleisch-Gerichte, Rezepte, Schwein, TOP-Beitrag": Kategorien einer Webseite
   const isTagList = l => { const parts = l.split(/\s*,\s*/); return parts.length >= 4 && parts.every(x => /^[\p{L}-]+(?:\s[\p{L}-]+)?$/u.test(x)) && !/[.!?]/.test(l) && parts.some(x => /rezept|gericht|beitrag|kategorie|fingerfood|vegetarisch|vegan|dessert|snack/i.test(x)); };
   // Lob-Sätze ohne Inhalt ("… sind das perfekte Fingerfood!", "… übertrifft alle Erwartungen")
-  const PRAISE_SENTENCE = /\b(?:perfekte[nmrs]?|köstlich\w*|paradebeispiel|übertrifft|erwartungen|ein traum|unwiderstehlich\w*|himmlisch\w*|genial\w*|geschwister|kreieren|verführerisch\w*|gaumenschmaus|geschmackserlebnis|wahre[nr]? genuss|ein muss)\b/i;
+  const PRAISE_SENTENCE = /\b(?:s+o+o+\s+lecker|super ?easy|sooo+|figurfreundlich|perfekte[nmrs]?|köstlich\w*|paradebeispiel|übertrifft|erwartungen|ein traum|unwiderstehlich\w*|himmlisch\w*|genial\w*|geschwister|kreieren|verführerisch\w*|gaumenschmaus|geschmackserlebnis|wahre[nr]? genuss|ein muss)\b/i;
   function cleanNotes(notes, title) {
     const t = String(title || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
     // "Autor:" und der Name in der nächsten Zeile
-    const raw = String(notes || '').split(/\n/);
+    let raw = String(notes || '').split(/\n/);
+    // Seitenfuß einer Webseite: ab hier nichts mehr übernehmen
+    const end = raw.findIndex(l => /^\s*(mit (?:familie|freunden).{0,30}teilen|(?:rezept )?teilen$|share$|über uns$|kürzliche (?:posts|beiträge)|ähnliche (?:beiträge|rezepte)|neueste (?:beiträge|rezepte)|\d+ kommentare|hinterlasse einen kommentar|schreibe einen kommentar|copyright|©|impressum|datenschutz|newsletter)/i.test(l));
+    if (end >= 0) raw = raw.slice(0, end);
+    // Werbeblock "Probieren Sie auch:" + die Zeile danach
+    raw = raw.filter((l, i) => !/^\s*(probieren sie auch|probier(?:e|t)? auch|das könnte (?:dich|sie|euch) auch interessieren|lesen sie auch)\b/i.test(l) && !/^\s*(probieren sie auch|probier(?:e|t)? auch|das könnte (?:dich|sie|euch) auch interessieren|lesen sie auch)\b/i.test(raw[i - 1] || ''));
     const keep = raw.filter((l, i) => !(/^\s*autor(?:in)?\s*:?\s*$/i.test(raw[i - 1] || '') && /^\s*\p{Lu}[\p{L}.-]+(?:\s+\p{Lu}[\p{L}.-]+){0,2}\s*$/u.test(l)));
     return keep.map(l => l.split(/(?<=[.!?])\s+/).filter(x => !(PRAISE_SENTENCE.test(x) && !/\d/.test(x))).join(' '))
       .map(l => stripSymbols(socialText(l)).replace(/#[\p{L}\p{N}_]+/gu, '').replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1'))
       .map(l => l.split(/(?<=[.!?])\s+/).filter(x => !isFluffLine(x)).join(' '))
       .map(l => tidyText(l))
+      .filter(l => !(/\p{Lu}{3}/u.test(l) && l === l.toUpperCase() && !/\d/.test(l)) && !(/:$/.test(l) && l.split(/\s+/).length <= 3 && !/^(für|fur|fuer|zum|zur|nährwert|tipp|haltbarkeit|aufbewahrung)/i.test(l)))
       .filter(l => /[\p{L}\p{N}]/u.test(l) && l.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '') !== t && !/^(zutaten|zubereitung|anleitung|so geht'?s|rezept|notizen?|tipps?|text|beschreibung|autor(?:in)?)\s*:?$/i.test(l) && !NOTE_JUNK.test(l) && !isTagList(l))
       .join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }
@@ -603,7 +609,7 @@
      Emojis, Schmuckschrift, unsichtbare Zeichen, Werbesätze, Hashtags, Tippfehler */
   function tidyRecipe(r) {
     const title = r.title ? capFirst(tidyText(stripSymbols(socialText(r.title))).replace(/[.!,;:]+$/, '')) : r.title;
-    const ingredients = (r.ingredients || []).map(l => tidyText(stripSymbols(foodEmoji(socialText(l))).replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1').replace(/#[\p{L}\p{N}_]+/gu, ''))).filter(l => /[\p{L}\p{N}]/u.test(l));
+    const ingredients = (r.ingredients || []).map(l => tidyText(stripSymbols(foodEmoji(socialText(l))).replace(/\s*\*+(?=\s|,|\)|$)/g, '').replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1').replace(/#[\p{L}\p{N}_]+/gu, ''))).filter(l => /[\p{L}\p{N}]/u.test(l));
     const steps = (r.steps || []).map(l => stripSymbols(socialText(l)).replace(/\s*https?:\/\/\S+/gi, '').replace(/#[\p{L}\p{N}_]+/gu, '').replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1'))
       .map(l => capFirst(tidyText(l.split(/(?<=[.!?])\s+/).filter(x => !isFluffLine(x)).join(' ')))).filter(l => /[\p{L}\p{N}]/u.test(l));
     return { title, ingredients, steps, notes: cleanNotes(r.notes, title) };
@@ -731,11 +737,13 @@
       .replace(/\s+in\s+\d+\s*(?:min\.?|minuten)$/iu, '')
       .replace(/\s+(?:der\s+welt|aller\s+zeiten|ever|überhaupt|für\s+jeden\s+(?:tag|anlass))$/iu, '')
       .replace(/[\s,.;:!]+$/, '').trim();
+    // GANZ IN GROSSBUCHSTABEN -> normale Schreibweise ("PLÄTZCHEN-TEIG" -> "Plätzchen-Teig")
+    if (/\p{Lu}{4}/u.test(t) && t === t.toUpperCase()) t = t.toLowerCase().replace(/(^|[\s-])(\p{L})/gu, (m, a, b) => a + b.toUpperCase());
     return t ? t.charAt(0).toUpperCase() + t.slice(1) : clean(raw);
   }
 
   // Sätze ohne Rezeptinhalt am Ende/Anfang von Schritten und Texten
-  const FLUFF_LINE = /^(guten appetit|viel spa(ß|ss)|lasst es euch|lass es dir|enjoy|bon app[ée]tit|und fertig|fertig ist|mahlzeit|have fun|happy (baking|cooking)|ich wünsche|wenn (du|ihr) (dieses|das) rezept|hast du (dieses|das) rezept|teile? (gerne )?(dein|ein) foto|markiere mich|folge mir|(und )?für mehr .{0,30}(folg|folge|folgt) mir|speicher(e|t)? (dir )?(das|dieses|den|die) (rezept|post|video|beitrag)|pin(ne)? (es|das rezept)|werbung|anzeige|affiliate|newsletter|link (?:ist )?in (?:der|meiner|unserer) bio|link in bio|(?:das )?rezept (?:steht |findest du |gibt'?s )?(?:unten|im kommentar|in den kommentaren|in der (?:caption|beschreibung|bio)|auf meinem blog)|rezept$|rezept(?:e)? unten$|rezept (?:speichern|merken|pinnen|sichern)|folg(?:e|t)? (?:mir|uns)|abonnier|lass(?:t)? (?:mir |uns )?(?:gerne |doch )?(?:ein(?:en)? )?(?:like|herz|abo|kommentar)|(?:teil|schick|sende)(?:e|t)? (?:das|es|dieses)(?: video| rezept)? (?:mit|an|deine)|markier(?:e|t)? |kommentier(?:e|t)?|speicher(?:e|t)? (?:dir|euch) |(?:unbezahlte |unbeauftragte )?werbung|mehr rezepte|skip to content|zum inhalt springen|menü$|navigation$|suche$|startseite$)/iu;
+  const FLUFF_LINE = /^(guten appetit|viel spa(ß|ss)|lasst es euch|lass es dir|enjoy|bon app[ée]tit|und fertig|fertig ist|mahlzeit|have fun|happy (baking|cooking)|ich wünsche|wenn (du|ihr) (dieses|das) rezept|hast du (dieses|das) rezept|teile? (gerne )?(dein|ein) foto|markiere mich|folge mir|(und )?für mehr .{0,30}(folg|folge|folgt) mir|speicher(e|t)? (dir )?(das|dieses|den|die) (rezept|post|video|beitrag)|pin(ne)? (es|das rezept)|werbung|anzeige|affiliate|newsletter|ein traum!?$|unbedingt (?:speichern|ausprobieren|nachmachen|nachbacken|testen)|wer soll .{0,30}mit dir|wer (?:macht|backt|kocht) .{0,20}mit\??$|lust auf mehr|mehr davon\??$|eure?\s+\p{Lu}[\p{L}-]+!?$|deine?\s+\p{Lu}[\p{L}-]+!?$|b+o+a+!*$|w+o+w+!*$|o+m+g+!*$|das beste:?$|sooo+ |link (?:ist )?in (?:der|meiner|unserer) bio|link in bio|(?:das )?rezept (?:steht |findest du |gibt'?s )?(?:unten|im kommentar|in den kommentaren|in der (?:caption|beschreibung|bio)|auf meinem blog)|rezept$|rezept(?:e)? unten$|rezept (?:speichern|merken|pinnen|sichern)|folg(?:e|t)? (?:mir|uns)|abonnier|lass(?:t)? (?:mir |uns )?(?:gerne |doch )?(?:ein(?:en)? )?(?:like|herz|abo|kommentar)|(?:teil|schick|sende)(?:e|t)? (?:das|es|dieses)(?: video| rezept)? (?:mit|an|deine)|markier(?:e|t)? |kommentier(?:e|t)?|speicher(?:e|t)? (?:dir|euch) |(?:unbezahlte |unbeauftragte )?werbung|mehr rezepte|skip to content|zum inhalt springen|menü$|navigation$|suche$|startseite$)/iu;
   const isFluffLine = l => FLUFF_LINE.test(String(l).replace(EMOJI_RE, '').trim()) || /^[\s\p{P}\p{S}]*$/u.test(String(l).replace(EMOJI_RE, ''));
   const cleanIngredientText = l => clean(l).replace(/\(?\*?\s*(affiliate[- ]?link|werbung|anzeige|\*)\s*\)?/giu, ' ').replace(/\s*\*+\s*/g, ' ').replace(/\s+/g, ' ').replace(/\s+([,.;])/g, '$1').trim();
 
@@ -933,12 +941,12 @@
     // Einzeiliger Text (TikTok): doppelte Leerzeichen sind ehemalige Zeilenumbrüche
     text = socialText(text);
     if (!/\n/.test(text)) text = text.replace(/ {2,}/g, '\n');
-    let lines = foodEmoji(text)
+    let lines = foodEmoji(text.replace(/^[ \t]*\*+[ \t]*(?=\p{L})/gmu, '§FN§ '))
       // Zahl-Emojis (1️⃣ ① ❶) und Aufzählungszeichen mitten im Text -> neue Zeile
       .replace(NUM_BULLET, '\n')
       // Pfeile und Striche als Aufzählung ("-> 200 g Mehl", "=> Teig kneten", "— 1 Ei")
       .replace(/(^|\s)(?:->|=>|>>|~>)\s*(?=[\p{Lu}\d½¼¾⅓])|(^|\s)[–—-]\s+(?=\d|[½¼¾⅓])/gmu, '\n')
-      .replace(/[’`´]/g, "'")
+      .replace(/[’‘`´ʼ′]/g, "'")
       // Emojis als Aufzählungszeichen ("🤎40 g Haferflocken 🤎150 ml Sojamilch") -> neue Zeile
       .replace(EMOJI_BULLET, '\n')
       .replace(EMOJI, ' ')
@@ -971,6 +979,14 @@
       if (skipAd) { skipAd--; continue; }
       if (/^(probieren sie auch|probier(?:e|t)? auch|das könnte (?:dich|sie|euch) auch interessieren|lesen sie auch|lies auch|auch lecker|weitere rezepte|mehr rezepte|ähnliche rezepte|passend dazu)\b.{0,40}:?$/i.test(l)) { skipAd = 1; continue; }
       if (/^(werbung|anzeige|\*?affiliate)\b/i.test(l)) continue;
+      // Fußnote ("* Z.B. Arla … gibt's bei Lidl") -> Notiz, keine Zutat; reine Einkaufstipps ganz weg
+      if (/^§FN§/.test(l)) { l = l.replace(/^§FN§\s*/, ''); if (!/gibt'?s\s+(?:z\.\s?b\.\s+)?(?:bei|im|in)\b|erhältlich (?:bei|im)|lidl|aldi|rewe|kaufland|edeka|norma|penny|netto|dm\b|rossmann|amazon/i.test(l)) other.push(l); continue; }
+      // Nährwerte ("Nährwerte für 1 Stück:", "34 kcal", "5 g Kohlenhydrate", "1 Punkt bei WW") gehören nicht ins Rezept
+      if (/^(?:nährwerte?|nährwertangaben|nährstoffe|makros|pro portion|pro stück|nutrition)\b/i.test(l)) { mode = 'nutri'; continue; }
+      if (/^\d+(?:[.,]\d+)?\s*(?:kcal|kalorien|kj)\b|^\d+(?:[.,]\d+)?\s*g\s+(?:kohlenhydrate|kh|eiweiß|protein|fett|ballaststoffe)|^\d+(?:[.,]\d+)?\s*(?:punkte?|smartpoints|sp)\b.*\b(?:ww|weight ?watchers)\b/iu.test(l)) continue;
+      if (mode === 'nutri' && !HEAD_STEP.test(l) && !HEAD_ING.test(l) && !/^(zutaten|zubereitung|so geht)/i.test(l)) continue;
+      // "(3 volle Bleche)" unter der Zutaten-Überschrift: Mengenhinweis, keine Zutat
+      if (/^\([^()]{2,60}\)$/.test(l)) { other.push(l.replace(/^\(|\)$/g, '')); continue; }
       // Zwischenüberschrift bei den Zutaten ("Für die Streusel:", auch mit Tippfehler "Fur die …") -> weiter Zutaten
       if (/^(für|fur|fuer|for|zum|zur)\s+(?:den|die|das|the)?\s*[\p{L} -]{2,30}:$/iu.test(l) && (mode === 'ing' || ingredients.length)) { mode = 'ing'; continue; }
       if (/^(topping|toppings|deko|dekoration|garnitur|teig|boden|füllung|creme|soße|sauce|dressing|glasur|streusel|marinade|für das topping|für die soße|für den teig)\s*:?$/i.test(l) && (mode === 'ing' || ingredients.length)) { mode = 'ing'; continue; }

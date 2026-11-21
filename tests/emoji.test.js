@@ -69,6 +69,15 @@ ok(I.socialText('𝘂̲𝗻̶𝘁̶𝗲̶𝗿̶') === 'unter', 'Unter-/Durchstre
 // Aus deinen echten Rezepten (Sicherung vom 21.11.)
 for (const [t, want] of [['Hackfleisch-Käse-Lauch Brötchen Teil 12', 'Hackfleisch-Käse-Lauch Brötchen'], ['Kartoffelwaffeln (Teil 3/5)', 'Kartoffelwaffeln']])
   ok(I.cleanTitle(t) === want, 'Serien-Zusatz aus dem Namen: ' + I.cleanTitle(t));
+// Echter Facebook-Beitrag (21.11.): Schmuckschrift, „So geht‘s“ mit gebogenem Apostroph, Nährwerte, Fußnote, viel Gerede
+{
+  const fb = imp(require('fs').readFileSync(__dirname + '/fixtures/fb-plaetzchen.txt', 'utf8'));
+  ok(fb.title === 'Plätzchen-Teig' && fb.servings === 120 && fb.servingsUnit === 'Stück', 'Facebook: Name normal geschrieben, 120 Stück: ' + fb.title + ' ' + fb.servings + ' ' + fb.servingsUnit);
+  eq(fb.ingredients, ['2 Eier (M)', '500 g Mehl', '200 g Zucker', '250 g Butter, weich, fettarm', '1 Pack Vanillezucker'], 'Facebook: Zutaten ohne Nährwerte, Fußnote und „(3 volle Bleche)“');
+  ok(fb.steps.length === 4 && /^Alle Zutaten/.test(fb.steps[0]) && /mürbe\.$/.test(fb.steps[3]), 'Facebook: „So geht‘s“ erkannt, 4 Schritte ohne „Ein Traum!“/„Unbedingt speichern“: ' + JSON.stringify(fb.steps));
+  ok(!/boo|lust auf mehr|NICHT KLEBT|eure ela|lidl/i.test(fb.notes), 'Facebook: Notizen ohne Gerede und Werbung: ' + JSON.stringify(fb.notes));
+  clean(fb, 'Facebook-Plätzchen');
+}
 // Gesundheits-Sprüche im Namen
 for (const [t, want] of [['Gesunder Darm Porridge', 'Porridge'], ['Overnight Oats für einen gesunden Darm', 'Overnight Oats'], ['Detox Smoothie', 'Smoothie'], ['Darmfreundliches Bananenbrot', 'Bananenbrot'], ['Schoko-Muffins', 'Schoko-Muffins']])
   ok(I.cleanTitle(t) === want, 'Gesundheits-Spruch aus dem Namen: ' + t + ' -> ' + I.cleanTitle(t));
