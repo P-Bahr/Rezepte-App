@@ -160,7 +160,7 @@
     [/pizza[- ]?toast|toast[- ]?pizza/i, 'Snack'],
     [/crossies|pralinen|konfekt|\p{L}*stangen$/iu, 'Gebäck'],
     [/(?:haferflocken|oats|müsli|porridge)[\p{L}-]*auflauf|baked oats/iu, 'Frühstück'], [/obstsalat|fruchtsalat/i, 'Dessert'], [/pfannkuchen|eierkuchen|crêpes?|crepes?|palatschinken/i, 'Frühstück'],
-    [/kaiserschmarrn/i, 'Dessert'], [/flammkuchen|zwiebelkuchen(?=.*speck)|quiche/i, null], [/french toast/i, 'Frühstück'],
+    [/kaiserschmarrn|milchnudeln/i, 'Frühstück'], [/flammkuchen|zwiebelkuchen(?=.*speck)|quiche/i, null], [/french toast/i, 'Frühstück'],
     [/kartoffelsalat|nudelsalat|eiersalat|wurstsalat|thunfischsalat|reissalat|couscous-salat/i, 'Salat']
   ];
   function dishCourse(title) {
@@ -334,7 +334,7 @@
     return first;
   }
 
-  const SPICE = /salz|pfeffer|paprikapulver|curry(?!wurst)|chilipulver|kurkuma|kreuzkümmel|kümmel|zimt|muskat|oregano|thymian|rosmarin|basilikum|majoran|chili|cayenne|knoblauchpulver|zwiebelpulver|lorbeer|nelke|piment|vanille|backpulver|natron|gewürz|ingwerpulver|koriander|hefe|zitronenschale|orangenschale|abrieb|puddingpulver|speisestärke/i;
+  const SPICE = /rosinen|sultaninen|korinthen|mandelblättchen|hagelzucker|zuckerstreusel|salz|pfeffer|paprikapulver|curry(?!wurst)|chilipulver|kurkuma|kreuzkümmel|kümmel|zimt|muskat|oregano|thymian|rosmarin|basilikum|majoran|chili|cayenne|knoblauchpulver|zwiebelpulver|lorbeer|nelke|piment|vanille|backpulver|natron|gewürz|ingwerpulver|koriander|hefe|zitronenschale|orangenschale|abrieb|puddingpulver|speisestärke/i;
   function guessMain(ingredients, title) {
     let best = mainFromTitle(ingredients, title) || null, bestScore = best ? Infinity : -1;
     ingredients.forEach((line, i) => {
@@ -365,7 +365,7 @@
   }
 
   // Hauptzutat muss ein echtes Wort sein (keine Zahl, keine Zeit- oder Mengenangabe)
-  const NOT_MAIN = /^(minuten?|min|stunden?|std|sekunden|portionen?|personen|pers|stück|stk|gläser|zutaten|zubereitung|rezepte?|kcal|kj|bis|zu|ca|etwa|und|oder|mit|für|von|grad|gramm|liter|zeit|schritt|anleitung|hinweis|tipp|kinderrezepte?|familienessen|abendessen|mittagessen|ideen|eier|ei|eigelbe?|eiweiße?|salz|pfeffer|wasser|light|leicht|kleiner?e?|große?r?|mittelgroße?|frische?r?|natur|fein|grob|optional|tk|bio|vegan|veggie|reife?|weiche?|kalte?|warme?|gehackte?|gewürfelte?|geriebene?r?|limonade|mineralwasser|sprudel|sprudelwasser|cola|lebensmittelfarbe)$/i;
+  const NOT_MAIN = /^(minuten?|min|stunden?|std|sekunden|portionen?|personen|pers|stück|stk|gläser|zutaten|zubereitung|rezepte?|kcal|kj|bis|zu|ca|etwa|und|oder|mit|für|von|grad|gramm|liter|zeit|schritt|anleitung|hinweis|tipp|kinderrezepte?|familienessen|abendessen|mittagessen|ideen|ei|eigelbe?|eiweiße?|salz|pfeffer|wasser|light|leicht|kleiner?e?|große?r?|mittelgroße?|frische?r?|natur|fein|grob|optional|tk|bio|vegan|veggie|reife?|weiche?|kalte?|warme?|gehackte?|gewürfelte?|geriebene?r?|limonade|mineralwasser|sprudel|sprudelwasser|cola|lebensmittelfarbe)$/i;
   function validMain(v) {
     const t = clean(v);
     return /^\p{L}[\p{L}\s'’-]{1,40}$/u.test(t) && !NOT_MAIN.test(t) ? t : '';
@@ -629,6 +629,10 @@
     if (d.course === 'Salat' && (d.method === 'Kochen' || d.method === 'Braten')) d.method = 'Kalt zubereitet';
     // Suppe wird gekocht, auch wenn vorher etwas angebraten wird
     if (d.course === 'Suppe' && d.method === 'Braten') d.method = 'Kochen';
+    // Getränke sind kalt – außer Heißgetränke
+    if (d.course === 'Getränk') d.method = /glühwein|punsch|kakao|heiße?|tee\b|chai|grog|latte/i.test(d.title || '') || /erhitz|köchel|wasserbad|aufkoch|zum kochen bringen/i.test((d.steps || []).join(' ')) ? 'Kochen' : 'Kalt zubereitet';
+    // Gebäck wird gebacken – außer ausdrücklich ohne Backen
+    if (d.course === 'Gebäck' && d.method === 'Kalt zubereitet' && !/ohne backen|no[- ]?bake|kühlschrank|kalt stellen/i.test((d.title || '') + ' ' + (d.steps || []).join(' '))) d.method = 'Backen';
     // Waffeleisen backt (auch wenn im Text "ausbacken" steht)
     if (/waffeleisen|waffeln?\b/i.test((d.title || '') + ' ' + (d.steps || []).join(' ')) && d.method === 'Braten') d.method = 'Backen';
     // "One Pot" heißt ein Topf – auch wenn im Text "oder tiefe Pfanne" steht

@@ -188,6 +188,26 @@
       changed = true;
       return { ...r, ...next, updatedAt: now };
     });
+    // Einmalig (21.11.): zwei kaputte Importe löschen, die neu eingefügt werden (auf Wunsch der Nutzerin);
+    // der Abgleich entfernt sie dann auch online
+    const BROKEN = ['b72d1ee1-7f3a-4434-ab5b-0d8c62f658ce', 'e1fd6353-cba6-4cc6-988e-198bb0342f3b'];
+    if (data.recipes.some(r => BROKEN.includes(r.id))) { data.recipes = data.recipes.filter(r => !BROKEN.includes(r.id)); changed = true; }
+    // Einmalig (21.11., mit Zustimmung): Rezeptart, Zubereitung und Hauptzutat aller Rezepte nach den aktuellen Regeln neu einordnen
+    const RECLASS = 'rezepte.neuEingeordnet';
+    let reclassDone = false;
+    try { reclassDone = localStorage.getItem(RECLASS) === '2026-11-21'; } catch (e) { reclassDone = true; }
+    if (I && I.withGuesses && !reclassDone) {
+      data.recipes = data.recipes.map(r => {
+        if (r.example) return r;
+        const d = { title: r.title, ingredients: (r.ingredients || []).slice(), steps: (r.steps || []).slice(), notes: r.notes || '' };
+        try { I.withGuesses(d, [], [d.notes]); } catch (e) { return r; }
+        const next = { course: d.course || r.course, method: d.method || r.method, mainIngredient: d.mainIngredient || '' };
+        if (next.course === r.course && next.method === r.method && next.mainIngredient === (r.mainIngredient || '')) return r;
+        changed = true;
+        return { ...r, ...next, updatedAt: now };
+      });
+      try { localStorage.setItem(RECLASS, '2026-11-21'); } catch (e) { /* egal */ }
+    }
     // Herzhafte Muffins/Waffeln (z. B. "Mini Nudel Muffins") waren früher "Gebäck"
     if (I && I.SAVORY_BAKE) data.recipes = data.recipes.map(r => {
       if (r.course !== 'Gebäck' || !I.SAVORY_BAKE.test(r.title || '')) return r;
