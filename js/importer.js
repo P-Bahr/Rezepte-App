@@ -135,7 +135,7 @@
   // Verzeichnis typischer Gerichte -> Rezeptart (geprüft wird zuerst das Hauptwort vor "mit/in/auf …", dann der ganze Name)
   const DISH_COURSE = [
     ['Hauptgericht', /gebratener reis|bratreis|nasi goreng|bami goreng|flammkuchen|pizza(?!brötchen)|lasagne|auflauf|gratin(?=.*(nudel|hähnchen|fisch|hack))|gulasch|rouladen?|braten\b|schnitzel|frikadell|bulette|klopse|hackbraten|burger|steak|curry|chili con carne|chili sin carne|risotto|paella|bowl(?!e)|spätzle|knödel(?=.*(spinat|käse|speck))|spinatknödel|kässpätzle|käsespätzle|geschnetzeltes|ragout|stroganoff|moussaka|ratatouille|pfanne\b|eintopf(?=.*(kartoffel|nudel))|pulled pork|spieße|puffer|kohlrouladen|bratwurst|würstchen|wraps?(?=.*bowl)/i],
-    ['Beilage', /^(?:\S+\s+)?(?:kartoffel)?püree|bratkartoffeln|salzkartoffeln|pellkartoffeln|kroketten|pommes|rösti|rotkohl|blaukraut|sauerkraut|rahmspinat|grillgemüse|semmelknödel|kartoffelknödel|serviettenknödel|klöße|kartoffelgratin|^reis\b|speckmantel|gemüsebeilage|^spätzle$/i],
+    ['Beilage', /^(?:\S+\s+)?(?:kartoffel)?püree|bratkartoffeln|salzkartoffeln|pellkartoffeln|kroketten|pommes|rösti|rotkohl|blaukraut|sauerkraut|rahmspinat|grillgemüse|semmelknödel|kartoffelknödel|serviettenknödel|klöße|kartoffelgratin|^reis(?:\s+mit\s+(?:erbsen|mais|petersilie|butter))?$|speckmantel|gemüsebeilage|^spätzle$/i],
     ['Vorspeise', /bruschetta|crostini|caprese|carpaccio|antipasti|vitello tonnato|tapas|gefüllte champignons|garnelen in knoblauch|gambas|aioli mit|vorspeise/i],
     ['Snack', /chips|nuggets|pizzabrötchen|belegte brote?|stulle|sandwich|wraps?\b|energy ?balls?|müsliriegel|fingerfood|häppchen|snack|popcorn|fruchtzwerg|nachos|toast(?!.*french)/i],
     ['Frühstück', /shakshuka|rührei|spiegelei|omelett|french toast|arme ritter|pancakes|porridge|chiapudding|chia-pudding|overnight oats|müsli|granola|frühstück/i],
@@ -151,7 +151,15 @@
   const SAVORY_BAKE = /(?:nudel|pasta|spaghetti|reis(?!waffel)|kartoffel|hack|thunfisch|schinken|speck|würstchen|brokkoli|zucchini|spinat|gemüse|lachs|hähnchen)[\p{L}-]*\s*(?:[\p{L}-]+\s+)?(?:muffins?|waffeln?|taler|schnecken|nester)|(?:muffins?|waffeln?)\s+(?:mit|aus)\s+(?:nudel|kartoffel|hack|gemüse|thunfisch|schinken|spinat)/iu;
   const DISH_FIX = [
     [/pizza[\p{L}-]*\s*(?:schnecken|muffins?|taler)/iu, 'Snack'], [SAVORY_BAKE, 'Hauptgericht'],
-    [/suppe$|suppe\b|brühe$|bouillon/i, 'Suppe'], [/obstsalat|fruchtsalat/i, 'Dessert'], [/pfannkuchen|eierkuchen|crêpes?|crepes?|palatschinken/i, 'Frühstück'],
+    [/suppe$|suppe\b|brühe$|bouillon/i, 'Suppe'],
+    [/(?:pudding|vanille|nuss|zimt|mohn)[\p{L}-]*\s*(?:schnecken|stangen|taschen|teilchen)|blätterteig-?\p{L}*(?:schnecken|stangen|taschen)/iu, 'Gebäck'],
+    [/kartoffel(?:plätzchen|taler|kroketten)/i, 'Beilage'],
+    [/^(?:[\p{L}]+-)*[\p{L}]*(?:karotten|möhren|erbsen|bohnen|rahm|butter|mischgemüse|kohlrabi|blumenkohl|brokkoli)[\p{L}-]*gemüse$|^rahmgemüse$|^mischgemüse$/iu, 'Beilage'],
+    [/(?:gemüse|kartoffel|zucchini|spinat|käse|schinken|herzhafte?)[\p{L}-]*\s*(?:pfannkuchen|crêpes?|schmarrn)|herzhafte?\s+(?:pfannkuchen|crêpes?)/iu, 'Hauptgericht'],
+    [/frucht(?:schnitte|riegel)|müsliriegel|proteinriegel|riegel$/i, 'Snack'],
+    [/pizza[- ]?toast|toast[- ]?pizza/i, 'Snack'],
+    [/crossies|pralinen|konfekt|\p{L}*stangen$/iu, 'Gebäck'],
+    [/(?:haferflocken|oats|müsli|porridge)[\p{L}-]*auflauf|baked oats/iu, 'Frühstück'], [/obstsalat|fruchtsalat/i, 'Dessert'], [/pfannkuchen|eierkuchen|crêpes?|crepes?|palatschinken/i, 'Frühstück'],
     [/kaiserschmarrn/i, 'Dessert'], [/flammkuchen|zwiebelkuchen(?=.*speck)|quiche/i, null], [/french toast/i, 'Frühstück'],
     [/kartoffelsalat|nudelsalat|eiersalat|wurstsalat|thunfischsalat|reissalat|couscous-salat/i, 'Salat']
   ];
@@ -175,7 +183,9 @@
     const hay = title + ' ' + arr(keywords).join(' ');
     const headOnly = String(title).split(/\s+(?:mit|in|an|auf|und|zu|im)\s+/i)[0];
     for (const [v, re] of COURSE_RULES) {
-      if (v === 'Sauce & Dip' || v === 'Salat' ? re.test(headOnly) : re.test(hay)) return v; // "Hähnchen in Soße" ist kein Dip
+      // Begleittext/Notizen zählen nur fürs Frühstück ("… schon zum Frühstück"); Getränk & Co. nur aus dem Namen
+      const where = v === 'Frühstück' ? hay : title;
+      if (v === 'Sauce & Dip' || v === 'Salat' ? re.test(headOnly) : re.test(where)) return v; // "Hähnchen in Soße" ist kein Dip
     }
     return courseFromContent(recipe) || 'Hauptgericht';
   }
@@ -245,7 +255,7 @@
   // Hauptwort einer Zutat: vor Komma/Klammer, letztes Wort ("300 g Bergkäse, gerieben" -> "Bergkäse")
   // Hauptwort einer Zutat: vor Komma/Klammer/"mit …", das letzte großgeschriebene Wort ("Mandelmus mit Zimt vermischt" -> Mandelmus)
   function noun(name) {
-    const words = String(name).split(/[,(]|\s(?:mit|und|oder|für|zum|zur|in|nach|vom|von|aus)\s/)[0].trim().split(/\s+/).filter(Boolean);
+    const words = String(name).replace(/\bType?\s*\d+\b/gi, '').split(/[,(]|\s(?:mit|und|oder|für|zum|zur|in|nach|vom|von|aus)\s/)[0].trim().split(/\s+/).filter(Boolean);
     const caps = words.filter(w => /^\p{Lu}/u.test(w));
     return (caps.length ? caps[caps.length - 1] : words[words.length - 1]) || '';
   }
@@ -494,18 +504,19 @@
   const DISH_MAIN = [
     [/chili con carne|hackbraten|frikadell|bulette|köttbullar|hackbällchen|burger|cevapcici/i, /hack|rind|patt(y|ies)/i, ''],
     [/hähnchen|hühnchen|huhn\b|hühner(?!ei)|chicken|nuggets|geflügel|pute/i, /hähnchen|hühnchen|huhn|hühner(?!ei)|chicken|pute|geflügel/i, ''],
+    [/bacon/i, /bacon/i, ''],
     [/bratwurst|currywurst|würstchen|wiener\b/i, /wurst|würst|wiener/i, ''],
     [/sushi|fisch(?!sauce)|lachs|thunfisch|garnele|shrimp|scampi|forelle|kabeljau|seelachs/i, /lachs|thunfisch|fisch(?!sauce)|garnele|shrimp|scampi|forelle|kabeljau|seelachs/i, ''],
-    [/rührei|spiegelei|omelett|shakshuka|quiche|eiersalat|eierlikör|frittata|tortilla de patatas|eggs benedict|^eier\b|soleier|strammer max/i, null, 'Eier'],
+    [/rührei|spiegelei|omelett|shakshuka|quiche|eiersalat|eierragout|eierfrikassee|senfeier|eierlikör|frittata|tortilla de patatas|eggs benedict|^eier\b|soleier|strammer max/i, null, 'Eier'],
     [/caprese/i, /mozzarella|burrata/i, 'Mozzarella'],
     [/spätzle/i, /spätzle/i, 'Spätzle'],
     [/semmelknödel|serviettenknödel|brezenknödel|kartoffelknödel|klöße|(?<!spinat|käse|speck|rote-bete-)knödel/i, /kartoffel|brötchen|semmel|brezel|knödel/i, 'Knödel'],
     [/pizza(?!brötchen)|flammkuchen/i, /teig|mehl/i, ''],
     [/pasta|spaghetti|nudel|penne|tagliatelle|fusilli|makkaroni|maccaroni|lasagne|tortellini|ravioli|mac and cheese|mac'n'cheese/i, /nudel|spaghetti|pasta|penne|tagliatelle|fusilli|makkaroni|maccaroni|lasagne|tortellini|ravioli|farfalle|rigatoni|linguine/i, 'Nudeln'],
-    [/overnight oats|porridge|haferbrei|müsli|granola|oatmeal/i, /hafer|flocken|müsli|granola/i, 'Haferflocken'],
+    [/overnight oats|porridge|haferbrei|müsli|granola|oatmeal|haferflocken[\p{L}-]*auflauf|baked oats/iu, /hafer|flocken|müsli|granola/i, 'Haferflocken'],
     [/erbsen(eintopf|suppe)|linsen|dal\b|chili sin carne|bohneneintopf|bohnensuppe|hummus|falafel|kichererbsen(?!.*curry)/i, /linse|bohne|kichererbse|erbse/i, 'Hülsenfrüchte'],
     [/obstsalat|fruchtsalat|grütze|kompott/i, /beere|kirsch|obst|apfel|äpfel|pflaume|zwetsch|frucht|früchte|orange|banane|trauben/i, 'Obst'],
-    [/ofengemüse|grillgemüse|gemüsepfanne|ratatouille|gemüsecurry|gemüsesuppe|gemüseeintopf|gemüsestrudel/i, null, 'Gemüse'],
+    [/ofengemüse|grillgemüse|gemüsepfanne|ratatouille|gemüsecurry|gemüsesuppe|gemüseeintopf|gemüsestrudel|^gemüse(?:schmarrn|pfannkuchen|puffer|taler|muffins|bratlinge|frikadellen)|-?gemüse$/i, null, 'Gemüse'],
     [/schoko|chocolat/i, /schoko|kuvertüre|kakao/i, 'Schokolade'],
     [/^reis\b|reispfanne|gebratener reis|nasi goreng|risotto|paella/i, /reis/i, 'Reis']
   ];
@@ -515,7 +526,7 @@
     // was nach "mit" steht, klärt danach die Zutatensuche im Namen
     const head = t.split(/\s+(?:mit|an|auf|in|und|im|vom|aus|nach)\s+/i)[0];
     // Mehrere Treffer: das hintere Wort ist das Gericht ("Lachs-Spinat-Pasta" -> Pasta)
-    const hits = DISH_MAIN.map(x => { const m = head.match(new RegExp(x[0].source, 'gi')); return m ? [x, head.toLowerCase().lastIndexOf(m[m.length - 1].toLowerCase())] : null; }).filter(Boolean).sort((a, b) => b[1] - a[1]).map(h => h[0]);
+    const hits = DISH_MAIN.map(x => { const m = head.match(new RegExp(x[0].source, x[0].flags.includes('g') ? x[0].flags : x[0].flags + 'g')); return m ? [x, head.toLowerCase().lastIndexOf(m[m.length - 1].toLowerCase())] : null; }).filter(Boolean).sort((a, b) => b[1] - a[1]).map(h => h[0]);
     for (const [re, ing, label] of hits) {
       if (ing) {
         let best = '', bestG = -1;
@@ -526,13 +537,13 @@
           const g = (isNaN(v) ? 0.5 : v) * (u === 'kg' || u === 'l' ? 1000 : u === 'g' || u === 'ml' ? 1 : u ? 300 : 100);
           if (g > bestG) { bestG = g; best = p.name; }
         }
-        if (best) return /mehl$/i.test(noun(best)) ? 'Teig' : (mainLabel(best) || label);
+        if (best) return /mehl/i.test(best) ? 'Teig' : (mainLabel(best) || label);
       }
       if (label) return label;
     }
     return '';
   }
-  const SWEET_FIRST = new RegExp('(apfel|äpfel|birne|banane|beere|erdbeer|himbeer|heidelbeer|blaubeer|kirsch|pflaume|zwetschg|aprikose|pfirsich|mango|ananas|rhabarber|orange|zitrone|kokos|schoko|kakao|nougat|karamell|marzipan|nuss|nüsse|mandel)', 'i');
+  const SWEET_FIRST = new RegExp('(hack|hähnchen|schinken|speck|bacon|salami|würstchen|lachs|thunfisch|apfel|äpfel|birne|banane|beere|erdbeer|himbeer|heidelbeer|blaubeer|kirsch|pflaume|zwetschg|aprikose|pfirsich|mango|ananas|rhabarber|orange|zitrone|kokos|schoko|kakao|nougat|karamell|marzipan|nuss|nüsse|mandel)', 'i');
   function mainFor(d) {
     const byDish = dishMain(d);
     if (byDish) return byDish;
@@ -570,13 +581,22 @@
   const tidyText = t => fixSpelling(String(t || '')).replace(/[ \t]{2,}/g, ' ').replace(/ +([,.;:!?])(?=\s|$)/g, '$1').replace(/,(?=\p{L})/gu, ', ').replace(/([.!?])\1{1,}/g, '$1').trim();
   const capFirst = t => t.replace(/^(\p{Ll})/u, c => c.toUpperCase());
   // Notizen: Werbung, Aufrufe, Hashtags, @Namen, Emojis und Wiederholung des Namens weg; echte Hinweise (Haltbarkeit, Tipps) bleiben
+  // Seiten-Müll in Notizen: Werbehinweise, Autor, Vorstellung, Einleitung, Kategorie-Listen
+  const NOTE_JUNK = /^\[?\s*(?:unbezahlte\s+|unbeauftragte\s+)?werbung\b|^\*?\s*(?:affiliate|anzeige)\b|^autor(?:in)?\s*:|^(?:ich bin|hallo,? ich bin|hi,? ich bin)\s+\p{Lu}|^tägliche .{0,40}\?$|^einführung in |^(?:text|beschreibung)\s*:|^mit deinem essen kannst du|^(?:veröffentlicht|aktualisiert|zuletzt aktualisiert)\s+(?:am|von)\b|^\d+\s+kommentare?\b|^(?:rezept )?drucken$|^pin(?:nen)?$|^jump to recipe|^zum rezept springen/iu;
+  // "Barbecue, Fingerfood, Fleisch-Gerichte, Rezepte, Schwein, TOP-Beitrag": Kategorien einer Webseite
+  const isTagList = l => { const parts = l.split(/\s*,\s*/); return parts.length >= 4 && parts.every(x => /^[\p{L}-]+(?:\s[\p{L}-]+)?$/u.test(x)) && !/[.!?]/.test(l) && parts.some(x => /rezept|gericht|beitrag|kategorie|fingerfood|vegetarisch|vegan|dessert|snack/i.test(x)); };
+  // Lob-Sätze ohne Inhalt ("… sind das perfekte Fingerfood!", "… übertrifft alle Erwartungen")
+  const PRAISE_SENTENCE = /\b(?:perfekte[nmrs]?|köstlich\w*|paradebeispiel|übertrifft|erwartungen|ein traum|unwiderstehlich\w*|himmlisch\w*|genial\w*|geschwister|kreieren|verführerisch\w*|gaumenschmaus|geschmackserlebnis|wahre[nr]? genuss|ein muss)\b/i;
   function cleanNotes(notes, title) {
     const t = String(title || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
-    return String(notes || '').split(/\n/)
+    // "Autor:" und der Name in der nächsten Zeile
+    const raw = String(notes || '').split(/\n/);
+    const keep = raw.filter((l, i) => !(/^\s*autor(?:in)?\s*:?\s*$/i.test(raw[i - 1] || '') && /^\s*\p{Lu}[\p{L}.-]+(?:\s+\p{Lu}[\p{L}.-]+){0,2}\s*$/u.test(l)));
+    return keep.map(l => l.split(/(?<=[.!?])\s+/).filter(x => !(PRAISE_SENTENCE.test(x) && !/\d/.test(x))).join(' '))
       .map(l => stripSymbols(socialText(l)).replace(/#[\p{L}\p{N}_]+/gu, '').replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1'))
       .map(l => l.split(/(?<=[.!?])\s+/).filter(x => !isFluffLine(x)).join(' '))
       .map(l => tidyText(l))
-      .filter(l => /[\p{L}\p{N}]/u.test(l) && l.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '') !== t && !/^(zutaten|zubereitung|anleitung|so geht'?s|rezept|notizen?|tipps?)\s*:?$/i.test(l))
+      .filter(l => /[\p{L}\p{N}]/u.test(l) && l.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '') !== t && !/^(zutaten|zubereitung|anleitung|so geht'?s|rezept|notizen?|tipps?|text|beschreibung|autor(?:in)?)\s*:?$/i.test(l) && !NOTE_JUNK.test(l) && !isTagList(l))
       .join('\n').replace(/\n{3,}/g, '\n\n').trim();
   }
   /* Aufräumen für jedes Rezept (neu importiert oder schon gespeichert):
@@ -584,10 +604,13 @@
   function tidyRecipe(r) {
     const title = r.title ? capFirst(tidyText(stripSymbols(socialText(r.title))).replace(/[.!,;:]+$/, '')) : r.title;
     const ingredients = (r.ingredients || []).map(l => tidyText(stripSymbols(foodEmoji(socialText(l))).replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1').replace(/#[\p{L}\p{N}_]+/gu, ''))).filter(l => /[\p{L}\p{N}]/u.test(l));
-    const steps = (r.steps || []).map(l => stripSymbols(socialText(l)).replace(/#[\p{L}\p{N}_]+/gu, '').replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1'))
+    const steps = (r.steps || []).map(l => stripSymbols(socialText(l)).replace(/\s*https?:\/\/\S+/gi, '').replace(/#[\p{L}\p{N}_]+/gu, '').replace(/(^|\s)@[\p{L}\p{N}_.]+/gu, '$1'))
       .map(l => capFirst(tidyText(l.split(/(?<=[.!?])\s+/).filter(x => !isFluffLine(x)).join(' ')))).filter(l => /[\p{L}\p{N}]/u.test(l));
     return { title, ingredients, steps, notes: cleanNotes(r.notes, title) };
   }
+  // Kleingebäck zählt man in Stück, nicht in Personen ("Vanillekipferl: 96 Personen")
+  const PIECES = /kipferl|plätzchen|kekse?\b|cookies?|taler\b|makronen|crossies|muffins?|cupcakes?|schnecken|stangen|brötchen|riegel|energy ?balls?|kugeln|pralinen|trüffel|waffeln?|nuggets/i;
+  const piecesUnit = r => (r.servingsUnit === 'Personen' && PIECES.test(r.title || '') && /^(Gebäck|Snack|Dessert|Frühstück)$/.test(r.course || '') ? 'Stück' : '');
   function withGuesses(d, category, keywords) {
     // Letzte Sicherung: keine Emojis, Werbesätze, Tippfehler in Name, Zutaten, Schritten und Notizen (egal woher)
     Object.assign(d, tidyRecipe(d));
@@ -599,12 +622,15 @@
     d.course = d.course || guessCourse(d.title, category, keywords, d);
     d.method = d.method || guessMethod(d.steps, d.title);
     d.mainIngredient = validMain(d.mainIngredient) || mainFor(d);
+    if (piecesUnit(d)) d.servingsUnit = 'Stück';
     // Name war nur ein Spruch: aus dem Inhalt benennen und zum Prüfen markieren
     if (claimTitle) { d.title = titleFromContent(d); d.titleReplaced = true; }
     // Salat mit nur gekochten/gebratenen Zutaten: wird kalt gegessen -> Sammlung "Kalt"
     if (d.course === 'Salat' && (d.method === 'Kochen' || d.method === 'Braten')) d.method = 'Kalt zubereitet';
     // Suppe wird gekocht, auch wenn vorher etwas angebraten wird
     if (d.course === 'Suppe' && d.method === 'Braten') d.method = 'Kochen';
+    // Waffeleisen backt (auch wenn im Text "ausbacken" steht)
+    if (/waffeleisen|waffeln?\b/i.test((d.title || '') + ' ' + (d.steps || []).join(' ')) && d.method === 'Braten') d.method = 'Backen';
     // "One Pot" heißt ein Topf – auch wenn im Text "oder tiefe Pfanne" steht
     if (/\bone[- ]?pot\b/i.test(d.title || '') && (d.method === 'Braten' || d.method === 'Kalt zubereitet')) d.method = 'Kochen';
     return d;
@@ -667,6 +693,8 @@
     t = t.replace(/\s+(?:ganz\s+)?(?:einfach\s+)?(?:selber|selbst)\s+(?:machen|gemacht|herstellen|backen|kochen|zubereiten)\s*$/iu, '')
       .replace(/\s+(?:einfach\s+|schnell\s+)?(?:zubereiten|zubereitet|machen|gemacht)\s*$/iu, '')
       .replace(/^(?:selbst|selber)\s*gemachte[rsn]?\s+(?=\p{L})/iu, '');
+    // Folgen einer Serie: "… Teil 12", "Folge 3", "(Teil 2/5)"
+    t = t.replace(/\s*[(–—|-]?\s*(?:teil|folge|episode|part|tag)\s*\d+(?:\s*\/\s*\d+)?\s*\)?\s*$/iu, '');
     // "15 Minuten Schlemmer One Pot", "5 Zutaten Fladenbrot", "3-Zutaten-Kuchen"
     t = t.replace(/^\d+[\s-]*(?:minuten|min\.?|zutaten)[\s-]+(?=\p{L})/iu, '');
     // "Kinder Nudelsalat" / "Baby Brei" (mit Leerzeichen, nicht "Kinder-Pizza")
@@ -1147,5 +1175,5 @@
 
   // Schritte aus einer anderen App: Nummern weg, leere weg, Erzählstil straffen, pro Satz ein Schritt
   const cleanSteps = list => splitSteps(arr(list).map(x => clean(x).replace(/^\d{1,2}[.)]\s*/, '')).filter(Boolean).map(tidyStep));
-  window.RecipeImporter = { SAVORY_BAKE, isClaimTitle, titleFromContent, tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { piecesUnit, SAVORY_BAKE, isClaimTitle, titleFromContent, tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

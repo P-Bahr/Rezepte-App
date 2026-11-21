@@ -196,6 +196,12 @@
       if (I.mainFor && !r.mainIngredient) next.mainIngredient = I.mainFor(next);
       return next;
     });
+    // Kleingebäck in Stück statt Personen
+    if (I && I.piecesUnit) data.recipes = data.recipes.map(r => {
+      if (!I.piecesUnit(r)) return r;
+      changed = true;
+      return { ...r, servingsUnit: 'Stück', updatedAt: now };
+    });
     // "One Pot"-Gerichte gehören in den Topf, nicht in die Pfanne (frühere Importe)
     data.recipes = data.recipes.map(r => {
       if (!/\bone[- ]?pot\b/i.test(r.title || '') || r.method !== 'Braten') return r;

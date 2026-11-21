@@ -66,6 +66,9 @@ clean(d, 'Aufrufe');
 ok(I.cleanTitle('Thermomix® Brot™ 🍞') === 'Thermomix Brot', '® ™ im Namen weg: ' + I.cleanTitle('Thermomix® Brot™ 🍞'));
 ok(I.socialText('𝘂̲𝗻̶𝘁̶𝗲̶𝗿̶') === 'unter', 'Unter-/Durchstreichen per Zeichen weg: ' + I.socialText('𝘂̲𝗻̶𝘁̶𝗲̶𝗿̶'));
 
+// Aus deinen echten Rezepten (Sicherung vom 21.11.)
+for (const [t, want] of [['Hackfleisch-Käse-Lauch Brötchen Teil 12', 'Hackfleisch-Käse-Lauch Brötchen'], ['Kartoffelwaffeln (Teil 3/5)', 'Kartoffelwaffeln']])
+  ok(I.cleanTitle(t) === want, 'Serien-Zusatz aus dem Namen: ' + I.cleanTitle(t));
 // Gesundheits-Sprüche im Namen
 for (const [t, want] of [['Gesunder Darm Porridge', 'Porridge'], ['Overnight Oats für einen gesunden Darm', 'Overnight Oats'], ['Detox Smoothie', 'Smoothie'], ['Darmfreundliches Bananenbrot', 'Bananenbrot'], ['Schoko-Muffins', 'Schoko-Muffins']])
   ok(I.cleanTitle(t) === want, 'Gesundheits-Spruch aus dem Namen: ' + t + ' -> ' + I.cleanTitle(t));
