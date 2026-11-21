@@ -449,6 +449,7 @@
     const minor = [];
     hints.minor = minor;
     const ing = r.ingredients || [], st = r.steps || [];
+    if (info.titleReplaced) hints.push('Der Name war nur ein Werbespruch und wurde ersetzt – passt der neue Name?');
     if (info.titleMissing || /^Rezept vom Bildschirmfoto \d+$/.test(r.title || '')) hints.push('Kein Name erkannt – bitte einen Namen eintragen.');
     if (info.how === 'photo') hints.push('Vom Bildschirmfoto gelesen – vor allem die Mengen prüfen, die Texterkennung kann sich bei Zahlen vertun.');
     if (info.how === 'text') hints.push('Die Seite hatte keine Rezeptangaben – alles wurde aus dem Seitentext gelesen. Auf fehlende oder überzählige Zutaten und Schritte achten.');
@@ -583,6 +584,7 @@
   function withGuesses(d, category, keywords) {
     // Letzte Sicherung: keine Emojis, Werbesätze, Tippfehler in Name, Zutaten, Schritten und Notizen (egal woher)
     Object.assign(d, tidyRecipe(d));
+    const claimTitle = isClaimTitle(d.title);
     const before = JSON.stringify(d.ingredients || []);
     d.ingredients = convertUnits(d.ingredients || []);
     if (JSON.stringify(d.ingredients) !== before) d.unitsConverted = true;
@@ -590,6 +592,8 @@
     d.course = d.course || guessCourse(d.title, category, keywords, d);
     d.method = d.method || guessMethod(d.steps, d.title);
     d.mainIngredient = validMain(d.mainIngredient) || mainFor(d);
+    // Name war nur ein Spruch: aus dem Inhalt benennen und zum Prüfen markieren
+    if (claimTitle) { d.title = titleFromContent(d); d.titleReplaced = true; }
     // Salat mit nur gekochten/gebratenen Zutaten: wird kalt gegessen -> Sammlung "Kalt"
     if (d.course === 'Salat' && (d.method === 'Kochen' || d.method === 'Braten')) d.method = 'Kalt zubereitet';
     // Suppe wird gekocht, auch wenn vorher etwas angebraten wird
@@ -621,7 +625,30 @@
      "Super leckere schnelle Pfannkuchen in 10 Minuten" -> "Pfannkuchen"
      "Spaghetti Carbonara Rezept" -> "Spaghetti Carbonara" */
   // Nur Zusätze ohne Inhalt entfernen ("nach Omas bestem Rezept", "für Kinder und Familie") – auch für gespeicherte Rezepte
+  // Gesundheits-Versprechen gehören nicht in den Namen ("Gesunder Darm Porridge" -> "Porridge")
+  const CLAIM_PART = /\s*[–—-]?\s*\(?\b(?:für\s+(?:einen\s+|deinen\s+|eine\s+|deine\s+|die\s+)?(?:gesunde[nr]?\s+)?(?:darm|darmflora|darmgesundheit|verdauung|immunsystem|stoffwechsel|figur|haut)|gesunde[rsn]?\s+darm|darm[- ]?(?:freundlich|gesund|booster|liebe)\w*|detox|fatburner|fett[- ]?killer|immun[- ]?booster|zum\s+abnehmen|abnehm[- ]?\w*|schlank[- ]?macher)\b\)?/giu;
+  // Ganzer Name ist nur ein Spruch ("So wird dein Darm gesund", "Dein Bauch wird es lieben")
+  function isClaimTitle(t) {
+    t = String(t || '').trim();
+    return /^(so|damit|wie|warum|wieso|weshalb|dieses?|das|mein|dein|deine|euer|unser|wenn|hilft|endlich)\b/i.test(t)
+      && /(gesund|darm|abnehm|schlank|fit\b|immun|verdauung|haut|glücklich|lieben|satt|energie|power|boost|bauch|figur)/i.test(t);
+  }
+  // Name aus dem Inhalt, wenn der ursprüngliche nur ein Spruch war
+  const CONTENT_DISH = [[/overnight oats/i, 'Overnight Oats'], [/porridge|haferbrei/i, 'Porridge'], [/chia-?pudding/i, 'Chiapudding'], [/smoothie/i, 'Smoothie'], [/granola/i, 'Granola'], [/müsli/i, 'Müsli'], [/energy ?balls?/i, 'Energy Balls'], [/bowl\b/i, 'Bowl'], [/curry\b/i, 'Curry'], [/risotto/i, 'Risotto'], [/eintopf/i, 'Eintopf'], [/suppe\b/i, 'Suppe'], [/auflauf/i, 'Auflauf'], [/muffins?\b/i, 'Muffins'], [/waffeln?\b/i, 'Waffeln'], [/pancakes?\b/i, 'Pancakes']];
+  const COURSE_WORD = { 'Frühstück': 'Frühstück', 'Dessert': 'Dessert', 'Snack': 'Snack', 'Hauptgericht': 'Gericht', 'Beilage': 'Beilage', 'Suppe': 'Suppe', 'Salat': 'Salat', 'Getränk': 'Drink', 'Gebäck': 'Gebäck', 'Sauce & Dip': 'Dip', 'Vorspeise': 'Vorspeise' };
+  function titleFromContent(r) {
+    const text = [r.notes || '', (r.steps || []).join(' ')].join(' ');
+    for (const [re, name] of CONTENT_DISH) if (re.test(text)) return name;
+    const ing = (r.ingredients || []).join(' ');
+    if (/haferflocken|oats/i.test(ing) && /über nacht|im kühlschrank/i.test(text)) return 'Overnight Oats';
+    if (/haferflocken|oats/i.test(ing) && /koch|köchel|aufkoch|erhitz/i.test(text)) return 'Porridge';
+    const main = validMain(r.mainIngredient || '') || '';
+    const word = COURSE_WORD[r.course] || 'Rezept';
+    return main ? main + '-' + word : word;
+  }
   function tidyTitle(t) {
+    // Gesundheits-Versprechen raus, aber nur wenn danach noch ein Name übrig bleibt
+    { const stripped = String(t || '').replace(CLAIM_PART, ' ').replace(/\s{2,}/g, ' ').replace(/^[\s,–—:-]+|[\s,–—:-]+$/g, '').trim(); if (/\p{L}{3,}/u.test(stripped) && !isClaimTitle(t)) t = stripped.charAt(0).toUpperCase() + stripped.slice(1); }
     // "nach Omas bestem Rezept", "wie bei Oma", "nach Mamas Art" … gehören nicht in den Namen
     t = String(t || '').replace(/\s+(?:nach|wie bei|von|à la|a la)\s+(?:(?:meiner|unserer|der)\s+)?(?:omas?|mamas?|großmutters?|großmama|uromas?|muttis?|opas?|papas?)(?:\s+(?:bestem|bestes|bester|beste|liebstem|altem|klassischem|original|geheimem|bewährtem|einfachem|leckerem|leckerstem|traditionellem))?(?:\s+(?:rezept|art|stil|style))?\s*$/iu, '');
     // Zielgruppe gehört nicht in den Namen: "für Kinder und Familie", "für die ganze Familie", "kindgerecht"
@@ -1111,5 +1138,5 @@
 
   // Schritte aus einer anderen App: Nummern weg, leere weg, Erzählstil straffen, pro Satz ein Schritt
   const cleanSteps = list => splitSteps(arr(list).map(x => clean(x).replace(/^\d{1,2}[.)]\s*/, '')).filter(Boolean).map(tidyStep));
-  window.RecipeImporter = { tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { isClaimTitle, titleFromContent, tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

@@ -170,7 +170,7 @@ const OUT = process.argv[2] || '.';
     await p.evaluate(id => {
       const KEY = 'rezepte.daten.v1', d = JSON.parse(localStorage.getItem(KEY));
       const r = d.recipes.find(x => x.id === id);
-      r.title = '🍄 Pilzpfanne ✨'; r.ingredients = ['200 g Champions 🍄', '1 Zwiebel']; r.steps = ['Pilze 🔥 braten.', 'Folgt mir für mehr Rezepte 💕', 'Guten Appetit!'];
+      r.title = '🍄 Pilzpfanne ✨'; d.recipes.push({ ...r, id: 'spruch-1', title: 'So wird dein Darm gesund', ingredients: ['60 g Haferflocken', '300 ml Milch'], steps: ['Haferflocken in der Milch aufkochen.'], notes: '' }); r.ingredients = ['200 g Champions 🍄', '1 Zwiebel']; r.steps = ['Pilze 🔥 braten.', 'Folgt mir für mehr Rezepte 💕', 'Guten Appetit!'];
       r.notes = 'Pilzpfanne\nIm Kühlschrank 3 Tage haltbar. 👍\n#pilze #rezept @koch.mama\nLink in Bio';
       localStorage.setItem(KEY, JSON.stringify(d));
     }, id);
@@ -179,7 +179,9 @@ const OUT = process.argv[2] || '.';
     assert(r.title === 'Pilzpfanne' && JSON.stringify(r.ingredients) === JSON.stringify(['200 g Champignons', '1 Zwiebel']) && JSON.stringify(r.steps) === JSON.stringify(['Pilze braten.']),
       'Aufräumen: Emojis, Tippfehler und Werbesätze aus gespeichertem Rezept entfernt ' + JSON.stringify([r.title, r.ingredients, r.steps]));
     assert(r.notes === 'Im Kühlschrank 3 Tage haltbar.', 'Aufräumen: Notizen ohne Name, Hashtags, „Link in Bio“ – Haltbarkeit bleibt: ' + JSON.stringify(r.notes));
-    await p.evaluate(id => Store.deleteRecipe(id), id);
+    const sp = await p.evaluate(() => Store.recipe('spruch-1'));
+    assert(sp && sp.title === 'Porridge', 'Gespeichertes Rezept mit Spruch als Name wird umbenannt: ' + (sp && sp.title));
+    await p.evaluate(id => { Store.deleteRecipe(id); Store.deleteRecipe('spruch-1'); }, id);
   }
   // Original aufbewahren: ungeprüfte Importe werden mit neuen Regeln neu eingelesen, eigene Änderungen bleiben
   {

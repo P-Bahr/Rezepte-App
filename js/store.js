@@ -191,6 +191,11 @@
     // Namen ohne "für Kinder und Familie", "nach Omas bestem Rezept" …
     if (I && I.tidyTitle) data.recipes = data.recipes.map(r => {
       if (fresh(r)) return r;
+      // Name nur ein Spruch ("So wird dein Darm gesund"): aus dem Inhalt benennen
+      if (I.isClaimTitle && I.isClaimTitle(r.title)) {
+        changed = true;
+        return { ...r, title: I.titleFromContent(r), importInfo: { ...(r.importInfo || {}), titleReplaced: true }, updatedAt: now };
+      }
       const t = I.tidyTitle(r.title);
       if (!t || t === r.title) return r;
       changed = true;
@@ -253,8 +258,8 @@
         review: input.review !== undefined ? !!input.review : !!(existing && existing.review),
         importBatch: existing ? clean(existing.importBatch) : clean(input.importBatch), // für "Import rückgängig"
         // Was beim Import nur geschätzt war (für die Prüf-Hinweise)
-        importInfo: existing ? (existing.importInfo || null) : (input.importHow || input.servingsGuessed || input.courseGuessed || input.unitsConverted || input.titleMissing
-          ? { how: clean(input.importHow), servingsGuessed: !!input.servingsGuessed, courseGuessed: !!input.courseGuessed, unitsConverted: !!input.unitsConverted, titleMissing: !!input.titleMissing } : null),
+        importInfo: existing ? (existing.importInfo || null) : (input.importHow || input.servingsGuessed || input.courseGuessed || input.unitsConverted || input.titleMissing || input.titleReplaced
+          ? { how: clean(input.importHow), servingsGuessed: !!input.servingsGuessed, courseGuessed: !!input.courseGuessed, unitsConverted: !!input.unitsConverted, titleMissing: !!input.titleMissing, titleReplaced: !!input.titleReplaced } : null),
         // Original des Imports und was die App damals daraus gemacht hat (für Neu-Einlesen und Lernen aus Korrekturen)
         importSource: existing ? (existing.importSource || null) : (input.importSource || null),
         importResult: existing ? (existing.importResult || null) : (input.importSource ? snap(input.importDraft || input) : null),
