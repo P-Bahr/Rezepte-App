@@ -129,6 +129,14 @@ const OUT = process.argv[2] || '.';
   await p.click('#chipOnePot');
   await p.evaluate(ids => ids.forEach(id => Store.deleteRecipe(id)), op);
 
+  // Blech-Rezepte starten bei 1 Blech (Mengen umgerechnet)
+  {
+    const id = await p.evaluate(() => Store.saveRecipe({ title: 'Test-Plätzchen', servings: 3, servingsUnit: 'Blech', ingredients: ['600 g Mehl', '3 Eier'], steps: ['Backen.'] }).id);
+    await p.evaluate(id => { location.hash = '#rezept-' + id; }, id); await p.waitForTimeout(300);
+    const shown = await p.evaluate(() => [document.querySelector('.stepper-value') && document.querySelector('.stepper-value').textContent, [...document.querySelectorAll('.ingredients li, .ing-list li, dialog li')].slice(0, 2).map(x => x.textContent)]);
+    assert(/1 Blech/.test(shown[0]) && /200 g Mehl/.test(shown[1].join('|')), 'Blech-Rezept startet bei 1 Blech, Mengen umgerechnet: ' + JSON.stringify(shown));
+    await p.evaluate(id => { location.hash = ''; document.getElementById('dlg').close(); Store.deleteRecipe(id); }, id);
+  }
   // "Passt dazu": Ergänzungen statt Verweise
   {
     const P = await p.evaluate(() => {

@@ -968,6 +968,7 @@
     const ingredients = [], st = [], other = [];
     let mode = '';
     let servingsFound = 0;
+    let bleche = 0;
     let skipAd = 0;
     // Gibt es eine Überschrift "Zutaten", ist alles davor Einleitung ("12 Minuten backen, 335 kcal …")
     const hasIngHead = lines.some(l => HEAD_ING.test(l) || /^(zutaten|ingredients?)\b/i.test(l));
@@ -985,6 +986,8 @@
       if (/^(?:nährwerte?|nährwertangaben|nährstoffe|makros|pro portion|pro stück|nutrition)\b/i.test(l)) { mode = 'nutri'; continue; }
       if (/^\d+(?:[.,]\d+)?\s*(?:kcal|kalorien|kj)\b|^\d+(?:[.,]\d+)?\s*g\s+(?:kohlenhydrate|kh|eiweiß|protein|fett|ballaststoffe)|^\d+(?:[.,]\d+)?\s*(?:punkte?|smartpoints|sp)\b.*\b(?:ww|weight ?watchers)\b/iu.test(l)) continue;
       if (mode === 'nutri' && !HEAD_STEP.test(l) && !HEAD_ING.test(l) && !/^(zutaten|zubereitung|so geht)/i.test(l)) continue;
+      // "3 volle Bleche", "ergibt 2 Bleche": Menge in Blechen (wird in der Ansicht auf 1 Blech umgerechnet)
+      { const b = l.match(/\b(\d{1,2})\s*(?:volle\s+|ganze\s+|große\s+)?(?:back)?bleche?\b/i); if (b && !/^\d+\s*(?:g|ml|el|tl)\b/i.test(l)) bleche = parseInt(b[1], 10); }
       // "(3 volle Bleche)" unter der Zutaten-Überschrift: Mengenhinweis, keine Zutat
       if (/^\([^()]{2,60}\)$/.test(l)) { other.push(l.replace(/^\(|\)$/g, '')); continue; }
       // Zwischenüberschrift bei den Zutaten ("Für die Streusel:", auch mit Tippfehler "Fur die …") -> weiter Zutaten
@@ -1084,6 +1087,8 @@
       d.servingsUnit = /stück|stk|plätzchen|muffins/i.test(servingsFound.unit) ? 'Stück' : /gläser/i.test(servingsFound.unit) ? 'Gläser' : /blech/i.test(servingsFound.unit) ? 'Blech' : 'Personen';
     } else if (sv) d.servings = parseInt(sv[1], 10);
     else d.servingsGuessed = true;
+    // Mehrere Bleche angegeben: Menge in Blechen (die Ansicht zeigt dann 1 Blech)
+    if (bleche > 1) { d.servings = bleche; d.servingsUnit = 'Blech'; d.servingsGuessed = false; }
     return withGuesses(d, [], [d.notes || '']); // Begleittext ("… zum Frühstück") hilft beim Raten der Rezeptart
   }
 

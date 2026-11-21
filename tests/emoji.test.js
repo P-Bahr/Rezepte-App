@@ -72,7 +72,7 @@ for (const [t, want] of [['Hackfleisch-Käse-Lauch Brötchen Teil 12', 'Hackflei
 // Echter Facebook-Beitrag (21.11.): Schmuckschrift, „So geht‘s“ mit gebogenem Apostroph, Nährwerte, Fußnote, viel Gerede
 {
   const fb = imp(require('fs').readFileSync(__dirname + '/fixtures/fb-plaetzchen.txt', 'utf8'));
-  ok(fb.title === 'Plätzchen-Teig' && fb.servings === 120 && fb.servingsUnit === 'Stück', 'Facebook: Name normal geschrieben, 120 Stück: ' + fb.title + ' ' + fb.servings + ' ' + fb.servingsUnit);
+  ok(fb.title === 'Plätzchen-Teig' && fb.servings === 3 && fb.servingsUnit === 'Blech', 'Facebook: Name normal geschrieben, 3 Bleche: ' + fb.title + ' ' + fb.servings + ' ' + fb.servingsUnit);
   eq(fb.ingredients, ['2 Eier (M)', '500 g Mehl', '200 g Zucker', '250 g Butter, weich, fettarm', '1 Pack Vanillezucker'], 'Facebook: Zutaten ohne Nährwerte, Fußnote und „(3 volle Bleche)“');
   ok(fb.steps.length === 4 && /^Alle Zutaten/.test(fb.steps[0]) && /mürbe\.$/.test(fb.steps[3]), 'Facebook: „So geht‘s“ erkannt, 4 Schritte ohne „Ein Traum!“/„Unbedingt speichern“: ' + JSON.stringify(fb.steps));
   ok(!/boo|lust auf mehr|NICHT KLEBT|eure ela|lidl/i.test(fb.notes), 'Facebook: Notizen ohne Gerede und Werbung: ' + JSON.stringify(fb.notes));

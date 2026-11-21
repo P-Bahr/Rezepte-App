@@ -860,8 +860,8 @@
         blechInfo.textContent = 'Blech ' + F.formatSize('Blech', blech);
       };
     } else if (base) {
-      // Personen starten immer bei 4, Stück/Kastenform bei ihrer eigenen Menge
-      let target = unit === 'Personen' ? 4 : base;
+      // Personen starten immer bei 4, Blech-Rezepte bei 1 Blech, Stück/Kastenform bei ihrer eigenen Menge
+      let target = unit === 'Personen' ? 4 : unit === 'Blech' ? 1 : base;
       const count = stepper('Menge', () => { target = Math.max(1, Math.ceil(target - 1e-9) - 1); update(); },
         () => { target = Math.floor(target + 1e-9) + 1; update(); });
       controls.append(count.el);
