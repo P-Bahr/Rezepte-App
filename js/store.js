@@ -188,6 +188,12 @@
       changed = true;
       return { ...r, ...next, updatedAt: now };
     });
+    // "One Pot"-Gerichte gehören in den Topf, nicht in die Pfanne (frühere Importe)
+    data.recipes = data.recipes.map(r => {
+      if (!/\bone[- ]?pot\b/i.test(r.title || '') || r.method !== 'Braten') return r;
+      changed = true;
+      return { ...r, method: 'Kochen', updatedAt: now };
+    });
     // Namen ohne "für Kinder und Familie", "nach Omas bestem Rezept" …
     if (I && I.tidyTitle) data.recipes = data.recipes.map(r => {
       if (fresh(r)) return r;

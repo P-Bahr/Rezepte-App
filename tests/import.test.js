@@ -34,6 +34,8 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(d.course === 'Hauptgericht' && d.method === 'Kochen', 'Kategorien: ' + d.course + ' / ' + d.method);
   ok(d.mainIngredient === 'Spätzle', 'Hauptzutat: Käsespätzle -> Spätzle (Gericht aus dem Namen): ' + d.mainIngredient);
   ok(d.notes === '' && d.imageUrl === 'https://img.example/kaese-gross.jpg', 'Bild übernommen, Werbebeschreibung nicht in den Notizen');
+  { const op = I.fromText('One Pot Reisnudeln mit Gemüse\nZutaten:\n200 g Reisnudeln\n300 g TK-Gemüse\n500 ml Gemüsebrühe\nZubereitung:\nGemüse in einer tiefen Pfanne anbraten.\nBrühe und Nudeln zugeben und alles in der Pfanne garen.');
+    ok(op.method === 'Kochen', 'One Pot ist immer Topf (Kochen), auch wenn „Pfanne“ im Text steht: ' + op.method); }
   // Original aufbewahren: nur das Rezept aus der Seite (nicht die ganze Seite), daraus genau dasselbe Rezept
   ok(d.importSource && d.importSource.kind === 'res' && !d.importSource.res.text && d.importSource.res.jsonld.length === 1 && JSON.stringify(d.importSource).length < 6000, 'Original gemerkt, klein (' + JSON.stringify(d.importSource || {}).length + ' Zeichen)');
   { const again = I.rebuild(d.importSource); ok(again && JSON.stringify([again.title, again.ingredients, again.steps, again.course, again.method, again.mainIngredient, again.servings]) === JSON.stringify([d.title, d.ingredients, d.steps, d.course, d.method, d.mainIngredient, d.servings]), 'Aus dem Original entsteht genau dasselbe Rezept'); }

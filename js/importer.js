@@ -598,6 +598,8 @@
     if (d.course === 'Salat' && (d.method === 'Kochen' || d.method === 'Braten')) d.method = 'Kalt zubereitet';
     // Suppe wird gekocht, auch wenn vorher etwas angebraten wird
     if (d.course === 'Suppe' && d.method === 'Braten') d.method = 'Kochen';
+    // "One Pot" heißt ein Topf – auch wenn im Text "oder tiefe Pfanne" steht
+    if (/\bone[- ]?pot\b/i.test(d.title || '') && (d.method === 'Braten' || d.method === 'Kalt zubereitet')) d.method = 'Kochen';
     return d;
   }
 
