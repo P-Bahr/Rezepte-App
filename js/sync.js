@@ -450,10 +450,10 @@
   // Klappt es wegen des Schlüssels oder Guthabens nicht, merkt sich die App das für die Einstellungen.
   const AI_PROBLEM = 'rezepte.kiProblem';
   Sync.aiProblem = () => { try { return JSON.parse(localStorage.getItem(AI_PROBLEM) || 'null'); } catch (e) { return null; } };
-  Sync.aiParse = async text => {
+  Sync.aiParse = async (text, examples) => {
     if (!session || !navigator.onLine || !String(text || '').trim()) return null;
     try {
-      const { data, error } = await client.functions.invoke('import', { body: { ai: { text: String(text).slice(0, 20000) } } });
+      const { data, error } = await client.functions.invoke('import', { body: { ai: { text: String(text).slice(0, 20000), examples: Array.isArray(examples) && examples.length ? examples.slice(0, 5) : undefined } } });
       let body = data;
       if (error) { try { body = await error.context.json(); } catch (_) { body = null; } }
       const reason = body && body.problem;

@@ -1231,6 +1231,29 @@
       (r.steps || []).length ? 'Zubereitung:\n' + r.steps.map((x, i) => (i + 1) + '. ' + x).join('\n') : '',
       r.notes ? 'Notizen:\n' + r.notes : ''].filter(Boolean).join('\n\n');
   }
+  // ---------- Aus Korrekturen lernen ----------
+  // Rezepte, bei denen die Nutzerin den KI-Vorschlag geändert oder abgelehnt hat, gehen als Beispiele mit:
+  // "So hat die KI es gemacht – so wollte ich es". Am liebsten aus derselben Quelle (TikTok, Foto …), die neuesten zuerst.
+  const LEARN_FIELDS = ['title', 'ingredients', 'steps', 'notes'];
+  const sigOf = x => String([].concat(x == null ? [] : x).join('|')).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+  const shortList = (x, n) => [].concat(x || []).slice(0, n).map(y => String(y).slice(0, 300));
+  function pick(r) { return { title: String(r.title || '').slice(0, 120), ingredients: shortList(r.ingredients, 30), steps: shortList(r.steps, 15), notes: String(r.notes || '').slice(0, 500) }; }
+  function aiExamples(recipes, how, max) {
+    const out = [];
+    for (const r of recipes || []) {
+      let before = null;
+      if (r.aiResult && (r.aiOutcome === 'bearbeitet' || r.aiOutcome === 'alt')) before = { ...pick(r), ...r.aiResult };
+      else if (r.importSource && r.importSource.kind === 'ai' && r.importResult && !r.review) before = r.importResult;
+      if (!before) continue;
+      const changed = LEARN_FIELDS.filter(k => before[k] !== undefined && sigOf(before[k]) !== sigOf(r[k]));
+      if (!changed.length) continue;
+      const src = r.importSource && r.importSource.kind === 'ai' ? r.importSource.text : '';
+      out.push({ how: (r.importInfo && r.importInfo.how) || (r.importSource && r.importSource.hint && r.importSource.hint.ocr ? 'photo' : ''), at: r.updatedAt || '',
+        text: String(src || '').slice(0, 1500), ki: pick(before), richtig: pick(r) });
+    }
+    out.sort((a, b) => (b.how === how) - (a.how === how) || String(b.at).localeCompare(String(a.at)));
+    return out.slice(0, max || 5).map(({ text, ki, richtig }) => ({ text, ki, richtig }));
+  }
   // KI-Ergebnis brauchbar? Sonst bleibt es bei den Regeln.
   const aiUsable = ai => !!(ai && ai.isRecipe && Array.isArray(ai.ingredients) && (ai.ingredients.length >= 1 || (ai.steps || []).length >= 1));
   function fromAi(ai, text, hint) {
@@ -1322,5 +1345,5 @@
 
   // Schritte aus einer anderen App: Nummern weg, leere weg, Erzählstil straffen, pro Satz ein Schritt
   const cleanSteps = list => splitSteps(arr(list).map(x => clean(x).replace(/^\d{1,2}[.)]\s*/, '')).filter(Boolean).map(tidyStep));
-  window.RecipeImporter = { recipeAsText, fromAi, aiUsable, aiUnsure, piecesUnit, SAVORY_BAKE, isClaimTitle, titleFromContent, tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { aiExamples, recipeAsText, fromAi, aiUsable, aiUnsure, piecesUnit, SAVORY_BAKE, isClaimTitle, titleFromContent, tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

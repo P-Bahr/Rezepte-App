@@ -109,5 +109,20 @@ ok(d.title === 'Overnight Oats' && d.titleReplaced && I.reviewHints({ ...d, impo
   const e = I.fromAi({ isRecipe: true, title: 'Rührei 🍳', servings: null, servingsUnit: null, ingredients: ['3 Eier', '1 EL Butter'], steps: ['1. Eier verquirlen.'], notes: [] }, '3 Eier 1 EL Butter Eier verquirlen', {});
   ok(e.title === 'Rührei' && e.steps[0] === 'Eier verquirlen.' && e.servings === 4 && e.servingsGuessed, 'KI: Emoji und Nummer weg, ohne Angabe 4 Personen');
 }
+// ---------- Aus Korrekturen lernen ----------
+{
+  const ai = { title: 'Nudeln', ingredients: ['250 g Nudeln'], steps: ['Kochen.'], notes: '' };
+  const rs = [
+    { title: 'Omas Nudeln', ingredients: ['250 g Nudeln'], steps: ['Kochen.'], notes: '', aiResult: { title: 'Nudeln' }, aiOutcome: 'bearbeitet', updatedAt: '2026-01-02', importInfo: { how: 'photo' } },
+    { title: 'Kuchen', ingredients: ['1 Ei'], steps: ['Backen.'], notes: '', aiResult: { title: 'Kuchen' }, aiOutcome: 'passt', updatedAt: '2026-01-03' },
+    { title: 'Suppe', ingredients: ['1 l Brühe'], steps: ['Kochen.'], notes: 'Hält 2 Tage.', importSource: { kind: 'ai', text: 'Suppe 1l brühe kochen hält 2 tage', ai }, importResult: { ...ai, title: 'Suppe', ingredients: ['1 l Brühe'], notes: '' }, importInfo: { how: 'tiktok' }, updatedAt: '2026-01-01', review: false },
+    { title: 'Brot', ingredients: ['1 kg Mehl'], steps: ['Backen.'], notes: '', importSource: { kind: 'ai', text: 'x', ai }, importResult: { title: 'Brot', ingredients: ['1 kg Mehl'], steps: ['Backen.'], notes: '' }, updatedAt: '2026-01-05' }
+  ];
+  const ex = I.aiExamples(rs, 'tiktok', 5);
+  ok(ex.length === 2, 'Lernen: nur geänderte KI-Vorschläge werden Beispiele (' + ex.length + ')');
+  ok(ex[0].richtig.notes === 'Hält 2 Tage.' && ex[0].text.includes('brühe'), 'Lernen: gleiche Quelle (TikTok) zuerst, mit Originaltext');
+  ok(ex[1].ki.title === 'Nudeln' && ex[1].richtig.title === 'Omas Nudeln', 'Lernen: Beispiel zeigt „ki“ und „richtig“');
+  ok(I.aiExamples(rs.concat(Array(9).fill(rs[0])), '', 5).length === 5, 'Lernen: höchstens 5 Beispiele');
+}
 console.log(fail ? fail + ' Fehler' : 'Emoji-Prüfung ok');
 process.exit(fail ? 1 : 0);

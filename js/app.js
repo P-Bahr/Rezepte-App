@@ -976,10 +976,12 @@
   // ---------- Import über Link ----------
   // ---------- Import: Startseite (Link oder Text) + Kacheln für die anderen Wege ----------
   // Rezepttext lesen: zuerst die KI (wie Recipe Keeper), klappt das nicht, die eigenen Regeln
+  // Frühere Korrekturen als Beispiele mitschicken, damit die KI sich nach dir richtet
+  const learned = how => window.RecipeImporter.aiExamples(Store.recipes(), how, 5);
   async function readRecipeText(text, hint) {
     const I = window.RecipeImporter, Y = window.RecipeSync;
     if (Y && Y.enabled && Y.aiParse) {
-      const d = I.fromAi(await Y.aiParse(text), text, hint);
+      const d = I.fromAi(await Y.aiParse(text, learned(hint && hint.ocr ? 'photo' : '')), text, hint);
       if (d) return d;
     }
     return I.fromText(text, hint);
@@ -995,7 +997,7 @@
     else if (res.kind === 'page' && r && r.how === 'pin') { text = res.pinText; hint = { image: res.pinImage || res.image, url: res.url }; }
     else if (res.kind === 'page' && (!r || r.how === 'text')) { text = [res.title, res.text].filter(Boolean).join('\n'); hint = { image: res.image, url: res.url }; how = 'text'; }
     if (!String(text || '').trim()) return r;
-    const d = I.fromAi(await Y.aiParse(text), text, hint);
+    const d = I.fromAi(await Y.aiParse(text, learned(how)), text, hint);
     return d ? { draft: d, how } : r;
   }
   function openImport(prefill, autoRun, startView) {
@@ -1866,7 +1868,7 @@
     }
     async function one(r, stats) {
       const text = I.recipeAsText(r);
-      const ai = await Y.aiParse(text);
+      const ai = await Y.aiParse(text, learned((r.importInfo && r.importInfo.how) || ''));
       if (!ai) { stats.failed++; return; }
       const d = I.fromAi(ai, text, {});
       const cur = Store.recipe(r.id);

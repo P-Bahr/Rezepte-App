@@ -19,7 +19,7 @@ const BOARD = JSON.stringify({ status: 'success', data: { board: { name: 'Rezept
 const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutaten:\n250g Spaghetti\n200 g Tomaten\nZubereitung:\n1. Alles aufkochen.\n2. 10 Minuten köcheln.', 'https://www.tiktok.com/@koch/video/2': 'Heute was leckeres gemacht 😍 250g nudeln 1 dose Tomaten 1TI salz alles in topf und 15min kochen #onepot #lecker' };
 // Nachgebaute KI: 'off' = nicht erreichbar, 'on' = liest den Text, 'key' = Schlüssel abgelaufen
 let aiMode = 'off';
-const aiCalls = [];
+const aiCalls = [], aiBodies = [];
 const AI_ANSWER = { isRecipe: true, title: 'One-Pot-Nudeln', servings: null, servingsUnit: null, ingredients: ['250 g Nudeln', '1 Dose Tomaten', '1 TL Salz', '100 g Parmesan'], steps: ['Alles in einen Topf geben und 15 Minuten kochen.'], notes: [] };
 
 (async () => {
@@ -37,7 +37,7 @@ const AI_ANSWER = { isRecipe: true, title: 'One-Pot-Nudeln', servings: null, ser
       return { status: 200, body: { results } };
     }
     if (body.ai) {
-      aiCalls.push(body.ai.text);
+      aiCalls.push(body.ai.text); aiBodies.push(body.ai);
       if (aiMode === 'on') return { status: 200, body: { ai: /nudeln/i.test(body.ai.text) ? AI_ANSWER : { isRecipe: false, title: '', servings: null, servingsUnit: null, ingredients: [], steps: [], notes: [] } } };
       return { status: 502, body: { error: 'KI nicht erreichbar.', problem: aiMode === 'key' ? 'key' : undefined } };
     }
@@ -389,6 +389,12 @@ const AI_ANSWER = { isRecipe: true, title: 'One-Pot-Nudeln', servings: null, ser
   await p.click('#btnCollections');
   assert(await p.isVisible('#aiStats:has-text("1 alte Fassung zurück, 0 noch zu prüfen")'), 'Rückmeldung zählt „alte Fassung zurück“');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  // Aus Korrekturen lernen: die abgelehnte Fassung geht beim nächsten Import als Beispiel mit
+  await p.click('#btnImport'); await p.fill('#importUrl', 'https://www.tiktok.com/@koch/video/2');
+  await p.click('dialog button[type=submit]'); await p.waitForSelector('#importNotice');
+  const ex = aiBodies[aiBodies.length - 1].examples || [];
+  assert(ex.length === 1 && ex[0].ki.title === 'One-Pot-Nudeln' && ex[0].richtig.title === 'Nudeln mit Tomaten', 'Korrektur geht als Beispiel an die KI („ki“ → „richtig“)');
+  await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
   await p.evaluate(() => { Store.deleteRecipe('old1'); Store.deleteRecipe('old2'); });
   aiMode = 'off';
 
