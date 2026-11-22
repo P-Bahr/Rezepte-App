@@ -1854,6 +1854,12 @@
       const open = Store.recipes().filter(r => !r.aiV);
       box.append(h('span', { class: 'label', text: 'Alle Rezepte mit der KI verbessern' }));
       if (msg) box.append(h('p', { class: 'hint', id: 'aiRereadMsg', text: msg }));
+      // Rückmeldung: wie die Vorschläge der KI angekommen sind
+      const done = Store.recipes().filter(r => r.aiResult);
+      if (done.length) {
+        const n = k => done.filter(r => (r.aiOutcome || 'offen') === k).length;
+        box.append(h('p', { class: 'hint', id: 'aiStats', text: 'Von der KI verbessert: ' + done.length + ' – davon ' + n('passt') + ' „Passt“, ' + n('bearbeitet') + ' nachgebessert, ' + n('alt') + ' alte Fassung zurück, ' + n('offen') + ' noch zu prüfen.' }));
+      }
       if (!open.length) { if (!msg) box.append(h('p', { class: 'hint', text: 'Alle Rezepte sind von der KI gelesen.' })); return; }
       box.append(h('p', { class: 'hint', text: 'Die KI liest ' + open.length + ' gespeicherte Rezepte einmal neu (ca. 1 Cent pro Rezept). Geänderte Rezepte kommen unter „Zu prüfen“; dort kannst du die alte Fassung zurückholen. Nur auf einem Gerät starten und die App dabei offen lassen.' }));
       if (!aiRunning) box.append(h('div', { class: 'pick-actions' }, h('button', { type: 'button', class: 'btn btn-primary', id: 'btnAiReread', onclick: run }, 'Jetzt starten (' + open.length + ')')));

@@ -299,6 +299,9 @@
         importBatch: existing ? clean(existing.importBatch) : clean(input.importBatch), // für "Import rückgängig"
         // Einmal von der KI gelesen (neue Rezepte gelten als gelesen); die alte Fassung gibt es nur bis zum Bearbeiten
         aiV: existing ? (existing.aiV || 0) : 1,
+        // Was die KI beim Durchlauf vorgeschlagen hat und wie entschieden wurde (passt / alt / bearbeitet) – zum Nachbessern der KI
+        aiResult: existing ? (existing.aiResult || undefined) : undefined,
+        aiOutcome: existing ? existing.aiOutcome : undefined,
         // Was beim Import nur geschätzt war (für die Prüf-Hinweise)
         importInfo: existing ? (existing.importInfo || null) : (input.importHow || input.servingsGuessed || input.courseGuessed || input.unitsConverted || input.titleMissing || input.titleReplaced || input.aiRead
           ? { how: clean(input.importHow), servingsGuessed: !!input.servingsGuessed, courseGuessed: !!input.courseGuessed, unitsConverted: !!input.unitsConverted, titleMissing: !!input.titleMissing, titleReplaced: !!input.titleReplaced, aiRead: !!input.aiRead, aiUnsure: Array.isArray(input.aiUnsure) ? input.aiUnsure.slice(0, 8).map(clean) : undefined } : null),
@@ -309,6 +312,12 @@
         createdAt: existing ? existing.createdAt : now,
         updatedAt: now
       };
+      // KI-Vorschlag selbst geändert? Sonst gilt Speichern wie „Passt“
+      if (recipe.aiResult && recipe.aiOutcome !== 'alt') {
+        const sig = x => String([].concat(x || []).join('|')).toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+        const changed = ['title', 'ingredients', 'steps', 'notes'].some(k => recipe.aiResult[k] !== undefined && sig(recipe.aiResult[k]) !== sig(recipe[k]));
+        recipe.aiOutcome = changed ? 'bearbeitet' : (recipe.aiOutcome || 'passt');
+      }
       // Sammlung automatisch aus der Zubereitung (fehlt sie, wird sie aus den Schritten geschätzt)
       const auto = window.RecipeCollections.forRecipe(recipe);
       recipe.collectionId = auto.id;
@@ -346,7 +355,7 @@
     setReviewed(id) {
       if (!this.recipe(id)) return;
       const before = data.recipes;
-      data.recipes = before.map(x => { if (x.id !== id) return x; const n = { ...x, review: false, updatedAt: new Date().toISOString() }; delete n.aiBefore; return n; });
+      data.recipes = before.map(x => { if (x.id !== id) return x; const n = { ...x, review: false, updatedAt: new Date().toISOString() }; if (n.aiResult && !n.aiOutcome) n.aiOutcome = 'passt'; delete n.aiBefore; return n; });
       try { save(); } catch (e) { data.recipes = before; throw e; }
     },
 
@@ -358,7 +367,7 @@
         if (!fields) return { ...x, aiV: 1, updatedAt: now };
         const old = {};
         for (const k of Object.keys(fields)) if (k !== 'importInfo') old[k] = x[k];
-        const n = { ...x, ...fields, aiV: 1, review: true, aiBefore: x.aiBefore || old, updatedAt: now };
+        const n = { ...x, ...fields, aiV: 1, review: true, aiBefore: x.aiBefore || old, aiResult: { ...fields, importInfo: undefined }, aiOutcome: undefined, updatedAt: now };
         if (fields.ingredients) n.ingredients = cleanList(fields.ingredients).map(l => cleanIngredient(window.RecipeScale.normalizeIngredient(l))).filter(Boolean);
         return n;
       });
@@ -369,7 +378,7 @@
       const r = this.recipe(id);
       if (!r || !r.aiBefore) return;
       const before = data.recipes;
-      data.recipes = before.map(x => { if (x.id !== id) return x; const n = { ...x, ...x.aiBefore, review: false, updatedAt: new Date().toISOString() }; delete n.aiBefore; return n; });
+      data.recipes = before.map(x => { if (x.id !== id) return x; const n = { ...x, ...x.aiBefore, review: false, aiOutcome: 'alt', updatedAt: new Date().toISOString() }; delete n.aiBefore; return n; });
       try { save(); } catch (e) { data.recipes = before; throw e; }
     },
     // "Import rückgängig": alle Rezepte eines Sammel-Imports löschen
