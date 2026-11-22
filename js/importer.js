@@ -256,7 +256,8 @@
   // Hauptwort einer Zutat: vor Komma/Klammer/"mit …", das letzte großgeschriebene Wort ("Mandelmus mit Zimt vermischt" -> Mandelmus)
   function noun(name) {
     const words = String(name).replace(/\bType?\s*\d+\b/gi, '').split(/[,(]|\s(?:mit|und|oder|für|zum|zur|in|nach|vom|von|aus)\s/)[0].trim().split(/\s+/).filter(Boolean);
-    const caps = words.filter(w => /^\p{Lu}/u.test(w));
+    // Großgeschriebene Eigenschaftswörter am Ende ("Milch Zimmerwarm", "Butter Weich") sind kein Hauptwort
+    const caps = words.filter(w => /^\p{Lu}/u.test(w) && !/^(zimmerwarm|lauwarm|warm|kalt|weich|flüssig|geschmolzen|gehackt|gerieben|frisch|reif|gekocht|tiefgekühlt|optional)$/i.test(w));
     return (caps.length ? caps[caps.length - 1] : words[words.length - 1]) || '';
   }
   const isStaple = name => { const n = noun(name).toLowerCase(); return !n || STAPLE_END.test(n) || STAPLE_WORD.test(n); };
@@ -401,9 +402,11 @@
   function tidyLine(l) {
     return String(l)
       .replace(/(\d)\s*(?:esslöffel|eßlöffel|tablespoons?|tbsps?\.?)(?=\s|$)/gi, '$1 EL').replace(/^(?:esslöffel|eßlöffel)\s/i, 'EL ')
-      .replace(/(\d)\s*(?:teelöffel|teaspoons?|tsps?\.?)(?=\s|$)/gi, '$1 TL').replace(/^teelöffel\s/i, 'TL ')
+      .replace(/(\d)\s*(?:teelöffel|teaspoons?|tsps?\.?)(?=\s|$)/gi, '$1 TL').replace(/(\d)\s*TI(?=\s+\p{Lu})/gu, '$1 TL').replace(/^teelöffel\s/i, 'TL ')
       .replace(/\b(\p{L}{3,})\s+\1\b/giu, '$1') // "Zucker Zucker"
       .replace(/allzweckmehl|all-purpose flour/gi, 'Mehl (Type 405)')
+      // Eigene Anmerkung hinten dran ("50 g Zucker hab die Hälfte genommen") in Klammern
+      .replace(/^(.{3,60}?)\s+((?:hab|habe|ich hab|ich habe|ich nehme|nehme)\s.{3,50})$/iu, (m, a, b) => /\(/.test(a) ? m : a + ' (' + b + ')')
       // Abkürzungen ausschreiben, die nicht jeder kennt ("1 Spr" -> "1 Spritzer")
       .replace(/(\d|^)\s*Spr\.?(?=\s|$)/g, (m, d) => (d ? d + ' ' : '') + 'Spritzer')
       .replace(/(\d)\s*Bd\.?(?=\s|$)/g, '$1 Bund')
@@ -578,7 +581,7 @@
     return out;
   }
   // Schreibweise glätten: doppelte Leerzeichen, Leerzeichen vor Satzzeichen, fehlendes nach Komma, Satzanfang groß
-  const tidyText = t => fixSpelling(String(t || '')).replace(/[ \t]{2,}/g, ' ').replace(/ +([,.;:!?])(?=\s|$)/g, '$1').replace(/,(?=\p{L})/gu, ', ').replace(/([.!?])\1{1,}/g, '$1').trim();
+  const tidyText = t => fixSpelling(String(t || '')).replace(/(\p{Ll})\.(\p{Lu}\p{Ll})/gu, '$1. $2').replace(/[ \t]{2,}/g, ' ').replace(/ +([,.;:!?])(?=\s|$)/g, '$1').replace(/,(?=\p{L})/gu, ', ').replace(/([.!?])\1{1,}/g, '$1').trim();
   const capFirst = t => t.replace(/^(\p{Ll})/u, c => c.toUpperCase());
   // Notizen: Werbung, Aufrufe, Hashtags, @Namen, Emojis und Wiederholung des Namens weg; echte Hinweise (Haltbarkeit, Tipps) bleiben
   // Seiten-Müll in Notizen: Werbehinweise, Autor, Vorstellung, Einleitung, Kategorie-Listen
@@ -936,11 +939,43 @@
     d.importSource = { kind: 'text', text: String(text || '').slice(0, SRC_MAX), hint: h };
     return d;
   }
+  // Fortlaufend nummerierte Schritte mitten im Fließtext ("… 1 Ei 1. Zucker … 2.in die Schüssel … 3. den Teig …")
+  // -> jeder Schritt in eine eigene Zeile. Nur wenn mindestens 1., 2. und 3. der Reihe nach vorkommen.
+  function splitNumberedSteps(text) {
+    const pos = [];
+    let from = 0;
+    for (let k = 1; k <= 30; k++) {
+      const re = new RegExp('(^|[\\s.!?)\\]:])' + k + '[.)]\\s?(?=\\p{L})', 'gu');
+      re.lastIndex = from;
+      const m = re.exec(text);
+      if (!m) break;
+      const at = m.index + m[1].length;
+      pos.push([at, m[0].length - m[1].length, k]);
+      from = at + 2;
+    }
+    if (pos.length < 3) return text;
+    let out = '', last = 0;
+    for (const [at, len, k] of pos) { out += text.slice(last, at) + '\n' + k + '. '; last = at + len; }
+    return out + text.slice(last);
+  }
+  // Name aus dem Text, wenn die erste Zeile nur ein Erzählsatz ist ("Meine Jungs haben mich immer angefleht …")
+  const DISH_NOUN = /\b\p{Lu}[\p{Ll}ä-ü]*?(?:brötchen|weckerl|semmeln|kuchen|brot|muffins|schnecken|waffeln|kekse|plätzchen|suppe|salat|auflauf|eintopf|nudeln|bowl|curry|pizza|taler|zopf|knödel|puffer|lasagne|pfannkuchen|porridge|granola|riegel|bällchen|frikadellen)\b/gu;
+  const isStorySentence = t => String(t).split(/\s+/).length > 7 || /\b(ich|mich|mir|meine?[nrms]?|wir|uns|unsere?)\b/i.test(t);
+  function dishFromText(txt) {
+    const found = (String(txt).match(DISH_NOUN) || []).filter(w => w.length >= 5);
+    if (!found.length) return '';
+    // Zusammengesetzte, genauere Namen bevorzugen ("Milchbrötchen" vor "Weckerl"), bei Gleichstand der häufigste
+    const count = w => found.filter(x => x === w).length;
+    return [...new Set(found)].sort((a, b) => (b.length > 8) - (a.length > 8) || count(b) - count(a) || b.length - a.length)[0];
+  }
   function fromTextInner(text, hint) {
     hint = hint || {};
     // Einzeiliger Text (TikTok): doppelte Leerzeichen sind ehemalige Zeilenumbrüche
     text = socialText(text);
     if (!/\n/.test(text)) text = text.replace(/ {2,}/g, '\n');
+    // "Und das brauchst du für ca 18 stk:" / "Was ihr braucht:" -> Zutaten-Überschrift
+    text = text.replace(/\s*\b(?:und\s+)?(?:das|was)\s+(?:brauchst du|ihr braucht|du brauchst|benötigst du|man braucht)((?:\s+für\s+[^:\n.]{1,25})?)\s*:/giu, '\nZutaten$1:\n');
+    text = splitNumberedSteps(text);
     let lines = foodEmoji(text.replace(/^[ \t]*\*+[ \t]*(?=\p{L})/gmu, '§FN§ '))
       // Zahl-Emojis (1️⃣ ① ❶) und Aufzählungszeichen mitten im Text -> neue Zeile
       .replace(NUM_BULLET, '\n')
@@ -1023,6 +1058,14 @@
       const sv = l.match(/^(?:für\s+)?(\d{1,3})\s*(portionen|personen|pers\.?|servings?)\.?$/i);
       if (sv) { servingsFound = { n: parseInt(sv[1], 10), unit: 'Personen' }; continue; }
 
+      // "500 g Mehl 50 g Zucker 1/2 Würfel Germ 1 TI Salz" (alles in einer Zeile) -> einzelne Zutaten
+      if ((mode === 'ing' || !st.length) && !/[.!?]\s/.test(l)) {
+        const parts = l.split(/\s+(?=(?:\d+(?:[.,]\d+)?|\d+\/\d+|[½¼¾⅓⅔])\s*(?:g|kg|ml|l|cl|el|tl|ti|würfel|pck\.?|päckchen|packung|prise|stk\.?|stück|becher|dose|bund|zehen?|scheiben?)?\.?\s+\p{Lu})/u);
+        if (parts.length >= 3 && parts.every(x => /^(?:\d|[½¼¾⅓⅔])/.test(x) || x === parts[0])) {
+          if (mode !== 'ing' && !/^(?:\d|[½¼¾⅓⅔])/.test(parts[0])) other.push(parts.shift());
+          mode = 'ing'; parts.forEach(x => ingredients.push(Sc.normalizeIngredient(x))); continue;
+        }
+      }
       if (hint.ocr) l = l.replace(/^(etwa|ca\.?|circa)\s+(?=\d)/i, '');
       l = l.replace(/\s*\((?:ich|wir)\b[^)]*\)/gi, '').trim();
       if (hasIngHead && mode === '' ) { other.push(l); continue; }
@@ -1067,6 +1110,11 @@
     }
     if (!title) { const k = other.findIndex(o => !isFluffLine(o)); title = (k >= 0 ? other.splice(k, 1)[0] : '').replace(/[:!]+$/, '').slice(0, 80); }
     title = cleanTitle(title);
+    let titleFromStory = false;
+    if (!hint.title && title && isStorySentence(title)) {
+      const dish = dishFromText([text].join(' '));
+      if (dish) { title = dish; titleFromStory = true; }
+    }
     const sameAsTitle = x => title && String(x).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '') === String(title).toLowerCase().replace(/[^\p{L}\p{N}]/gu, '');
     for (let i = other.length - 1; i >= 0; i--) {
       if (isFluffLine(other[i]) || sameAsTitle(other[i]) || sameAsTitle(cleanTitle(other[i]))) { other.splice(i, 1); continue; }
@@ -1076,7 +1124,7 @@
     }
     for (let i = st.length - 1; i >= 0; i--) if (isFluffLine(st[i])) st.splice(i, 1);
     const d = {
-      title: title || 'Importiertes Rezept', ingredients, steps: splitSteps(st.map(tidyStep)).filter(x => /\p{L}{2}/u.test(x)).filter(x => x && !/^(anrichten|servieren)?[.!]*$/i.test(x) || /^(anrichten|servieren)/i.test(x)),
+      title: title || 'Importiertes Rezept', titleReplaced: titleFromStory || undefined, ingredients, steps: splitSteps(st.map(tidyStep)).filter(x => /\p{L}{2}/u.test(x)).filter(x => x && !/^(anrichten|servieren)?[.!]*$/i.test(x) || /^(anrichten|servieren)/i.test(x)),
       notes: hint.ocr ? '' : cutNotes(other.join('\n'), 3000), // bei Fotos ist der Rest meist Begleittext
       servings: 4, servingsUnit: 'Personen', formSize: '',
       imageUrl: hint.image || '', sourceUrl: hint.url || ''

@@ -78,6 +78,16 @@ for (const [t, want] of [['Hackfleisch-Käse-Lauch Brötchen Teil 12', 'Hackflei
   ok(!/boo|lust auf mehr|NICHT KLEBT|eure ela|lidl/i.test(fb.notes), 'Facebook: Notizen ohne Gerede und Werbung: ' + JSON.stringify(fb.notes));
   clean(fb, 'Facebook-Plätzchen');
 }
+// Echtes TikTok (22.11.): alles in einer Zeile, „Und das brauchst du für ca 18 stk:“, Schritte „1. … 2.in … 3. den …“, Erzählsatz statt Name
+{
+  const tt = imp(require('fs').readFileSync(__dirname + '/fixtures/tiktok-milchbroetchen.txt', 'utf8'));
+  ok(tt.title === 'Milchbrötchen' && tt.titleReplaced, 'TikTok: Name aus dem Text statt Erzählsatz: ' + tt.title);
+  ok(tt.servings === 18 && tt.servingsUnit === 'Stück', 'TikTok: 18 Stück aus „für ca 18 stk“: ' + tt.servings + ' ' + tt.servingsUnit);
+  ok(tt.ingredients.length === 7 && tt.ingredients[0] === '500 g Mehl' && tt.ingredients[3] === '1 TL Salz' && tt.ingredients[6] === '1 Ei', 'TikTok: 7 Zutaten aus einer Zeile, „TI“ -> TL: ' + JSON.stringify(tt.ingredients));
+  ok(tt.steps.length >= 6 && /^Zucker mit/.test(tt.steps[0]) && /Milchbrötchen sofort mit Butter/.test(tt.steps[tt.steps.length - 1]), 'TikTok: nummerierte Schritte auch ohne Leerzeichen/Großbuchstaben: ' + tt.steps.length);
+  ok(tt.mainIngredient === '' && tt.course === 'Gebäck', 'TikTok: Gebäck ohne „Zimmerwarm“ als Hauptzutat: ' + tt.mainIngredient);
+  clean(tt, 'TikTok-Milchbrötchen');
+}
 // Gesundheits-Sprüche im Namen
 for (const [t, want] of [['Gesunder Darm Porridge', 'Porridge'], ['Overnight Oats für einen gesunden Darm', 'Overnight Oats'], ['Detox Smoothie', 'Smoothie'], ['Darmfreundliches Bananenbrot', 'Bananenbrot'], ['Schoko-Muffins', 'Schoko-Muffins']])
   ok(I.cleanTitle(t) === want, 'Gesundheits-Spruch aus dem Namen: ' + t + ' -> ' + I.cleanTitle(t));
