@@ -36,6 +36,14 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(d.notes === '' && d.imageUrl === 'https://img.example/kaese-gross.jpg', 'Bild übernommen, Werbebeschreibung nicht in den Notizen');
   { const op = I.fromText('One Pot Reisnudeln mit Gemüse\nZutaten:\n200 g Reisnudeln\n300 g TK-Gemüse\n500 ml Gemüsebrühe\nZubereitung:\nGemüse in einer tiefen Pfanne anbraten.\nBrühe und Nudeln zugeben und alles in der Pfanne garen.');
     ok(op.method === 'Kochen', 'One Pot ist immer Topf (Kochen), auch wenn „Pfanne“ im Text steht: ' + op.method); }
+  // Seite mit Zutaten in den Rezeptangaben, aber Zubereitung nur im Seitentext (wie viele Facebook-Rezeptseiten)
+  {
+    const html = '<html><head><title>Schneewölkchen</title><script type="application/ld+json">{"@type":"Recipe","name":"Schneewölkchen in 10 Minuten","recipeIngredient":["250 g Butter","100 g Puderzucker","1 Pck. Vanillezucker","200 g Speisestärke","100 g Mehl"]}</script></head><body>'
+      + '<h1>Schneewölkchen in 10 Minuten</h1><p>Diese Plätzchen zergehen auf der Zunge!</p><h2>Zutaten</h2><ul><li>250 g Butter</li><li>100 g Puderzucker</li><li>1 Pck. Vanillezucker</li><li>200 g Speisestärke</li><li>100 g Mehl</li></ul>'
+      + '<h2>Zubereitung</h2><p>Die weiche Butter mit Puderzucker und Vanillezucker cremig rühren.</p><p>Speisestärke und Mehl unterkneten.</p><p>Kleine Kugeln formen, mit einer Gabel leicht andrücken und bei 160 °C etwa 10 Minuten backen.</p><p>Teilen</p><h3>Über uns</h3></body></html>';
+    const sd = I.toDraft({ kind: 'page', ...fn.extract(html, 'https://kochenmituns.com/schneewoelkchen-in-10-minuten/') }).draft;
+    ok(sd.ingredients.length === 5 && sd.steps.length === 3 && /^Die weiche Butter/.test(sd.steps[0]) && sd.method === 'Backen', 'Seite ohne Schritte in den Rezeptangaben: Zubereitung aus dem Seitentext ergänzt: ' + JSON.stringify(sd.steps));
+  }
   // Original aufbewahren: nur das Rezept aus der Seite (nicht die ganze Seite), daraus genau dasselbe Rezept
   ok(d.importSource && d.importSource.kind === 'res' && !d.importSource.res.text && d.importSource.res.jsonld.length === 1 && JSON.stringify(d.importSource).length < 6000, 'Original gemerkt, klein (' + JSON.stringify(d.importSource || {}).length + ' Zeichen)');
   { const again = I.rebuild(d.importSource); ok(again && JSON.stringify([again.title, again.ingredients, again.steps, again.course, again.method, again.mainIngredient, again.servings]) === JSON.stringify([d.title, d.ingredients, d.steps, d.course, d.method, d.mainIngredient, d.servings]), 'Aus dem Original entsteht genau dasselbe Rezept'); }

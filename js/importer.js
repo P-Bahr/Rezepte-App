@@ -1178,6 +1178,12 @@
     if (!res) return null;
     if (res.kind === 'page') {
       const d = fromPage(res);
+      // Rezeptangaben unvollständig (z. B. Zutaten ohne Schritte): den Rest aus dem sichtbaren Seitentext ergänzen
+      if (d && (!d.ingredients.length || !d.steps.length) && res.text) {
+        const t = fromText(res.text, { title: d.title, image: res.image, url: res.url });
+        if (!d.steps.length && t.steps.length) { d.steps = t.steps; d.method = guessMethod(d.steps, d.title); d.stepsFromText = true; }
+        if (!d.ingredients.length && t.ingredients.length) { d.ingredients = t.ingredients; d.mainIngredient = mainFor(d); }
+      }
       if (d && (d.ingredients.length || d.steps.length)) return { draft: d, how: 'page' };
       // Keine Rezeptangaben: mit dem sichtbaren Text versuchen
       const t = fromText(res.text || '', { title: res.title, image: res.image, url: res.url });
