@@ -396,6 +396,43 @@ export function bringPage(param) {
     + ing.map(x => '<li>' + esc(x) + '</li>').join('') + '</ul></body></html>';
 }
 
+// ---------- KI: Rezepttext sauber auslesen (wie Recipe Keeper) ----------
+// Der Schlüssel liegt nur als Secret ANTHROPIC_API_KEY in Supabase, nie in der App oder im Code.
+// Nur für einen vorübergehenden Test-Aufruf (wird hier nie gesetzt, nur in einer Test-Kopie):
+const TEST_TOKEN = '';
+export const AI_SYSTEM = `Du bekommst den Text eines Rezept-Beitrags (TikTok, Facebook, Instagram, Webseite oder Text von einem Bildschirmfoto). Lies daraus das Rezept aus.
+
+- title: Name des Gerichts, kurz (meist 1–5 Wörter), in normaler deutscher Schreibweise. Ohne Emojis, Hashtags, Werbung, Lob („super lecker“, „das Beste“), Zielgruppe („für Kinder“), Gesundheitsversprechen, Serien-Zusatz („Teil 3“). Steht kein Name da, nimm das Gericht, um das es im Text geht.
+- ingredients: jede Zutat ein Eintrag in der Form „Menge Einheit Zutat, Zusatz“ (z. B. „250 ml Milch, zimmerwarm“). Mengen, Einheiten und Zutaten genau wie im Text – nichts erfinden, nichts weglassen, nichts umrechnen. Einheiten als g, kg, ml, l, EL, TL, Pck., Prise. Offensichtliche Tippfehler korrigieren (z. B. „TI“ → „TL“). Eigene Anmerkungen der Autorin in Klammern. Keine Nährwerte, Kalorien, Punkte, Einkaufstipps oder Markenwerbung. Zwischenüberschriften wie „Für den Teig“ sind keine Zutaten.
+- steps: die Arbeitsschritte in der richtigen Reihenfolge, je Schritt ein Eintrag, ohne Nummern, in sauberem Deutsch (Grammatik und Rechtschreibung korrigieren). Zeiten, Temperaturen und Mengen unverändert übernehmen. Ein Tipp, der zu einem Schritt gehört, darf in diesem Schritt bleiben.
+- notes: nur nützliche Hinweise (Haltbarkeit, Aufbewahrung, Varianten, Tipps). Keine Werbung, kein Gerede („Lust auf mehr?“, „Unbedingt speichern!“), keine Geschichten über Familie oder Anlass, keine Nährwerte. Sonst leer.
+- servings und servingsUnit: aus Angaben wie „für 4 Personen“, „18 Stück“, „3 Bleche“, „1 Springform“. Fehlt eine Angabe: null.
+- isRecipe: false, wenn im Text kein Rezept steht (dann die Listen leer lassen).
+
+Erfinde nichts, was nicht im Text steht.`;
+export async function aiRecipe(text, model, apiKey) {
+  const { default: Anthropic } = await import('npm:@anthropic-ai/sdk@1.7.0');
+  const { zodOutputFormat } = await import('npm:@anthropic-ai/sdk@1.7.0/helpers/zod');
+  const { z } = await import('npm:zod@4.6.7');
+  const Recipe = z.object({
+    isRecipe: z.boolean(),
+    title: z.string(),
+    servings: z.number().nullable(),
+    servingsUnit: z.enum(['Personen', 'Stück', 'Blech', 'Springform', 'Kastenform', 'Gläser']).nullable(),
+    ingredients: z.array(z.string()),
+    steps: z.array(z.string()),
+    notes: z.array(z.string())
+  });
+  const client = new Anthropic({ apiKey, timeout: 60000, maxRetries: 1 });
+  const r = await client.messages.parse({
+    model, max_tokens: 8000, system: AI_SYSTEM,
+    output_config: { format: zodOutputFormat(Recipe), effort: 'low' },
+    messages: [{ role: 'user', content: String(text || '').slice(0, 20000) }]
+  });
+  if (r.stop_reason !== 'end_turn' || !r.parsed_output) return null;
+  return { ...r.parsed_output, model, usage: { input: r.usage.input_tokens, output: r.usage.output_tokens } };
+}
+
 export async function handle(req) {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS });
   if (req.method === 'GET') {
@@ -406,9 +443,19 @@ export async function handle(req) {
   const json = (body, status) => new Response(JSON.stringify(body), { status: status || 200, headers: { ...CORS, 'Content-Type': 'application/json; charset=utf-8' } });
   if (req.method !== 'POST') return json({ error: 'Nur POST.' }, 405);
   const projectUrl = typeof Deno !== 'undefined' ? Deno.env.get('SUPABASE_URL') : '';
-  if (!(await signedIn(req, projectUrl))) return json({ error: 'Bitte in der App neu anmelden.' }, 401);
+  const testing = !!TEST_TOKEN && req.headers.get('x-test-token') === TEST_TOKEN;
+  if (!testing && !(await signedIn(req, projectUrl))) return json({ error: 'Bitte in der App neu anmelden.' }, 401);
   let body;
   try { body = await req.json(); } catch (_) { return json({ error: 'Ungültige Anfrage.' }, 400); }
+  // KI: Rezepttext auslesen
+  if (body && body.ai) {
+    const key = typeof Deno !== 'undefined' ? Deno.env.get('ANTHROPIC_API_KEY') : '';
+    if (!key) return json({ error: 'Kein KI-Schlüssel eingerichtet.' }, 503);
+    const model = (testing && body.ai.model) || (typeof Deno !== 'undefined' && Deno.env.get('AI_MODEL')) || 'claude-haiku-5-5';
+    try { return json({ ai: await aiRecipe(body.ai.text, model, key) }); }
+    catch (e) { return json({ error: 'KI nicht erreichbar.', detail: String(e && e.status || e && e.message || e).slice(0, 200) }, 502); }
+  }
+  if (testing) return json({ error: 'Test-Zugang nur für die KI.' }, 403);
   if (body && Array.isArray(body.check)) return json({ results: await checkMany(body.check) });
   if (body && body.pinterestBoard) {
     try {
