@@ -470,6 +470,7 @@
     if (info.how === 'photo') hints.push('Vom Bildschirmfoto gelesen – vor allem die Mengen prüfen, die Texterkennung kann sich bei Zahlen vertun.');
     if (info.how === 'text') hints.push('Die Seite hatte keine Rezeptangaben – alles wurde aus dem Seitentext gelesen. Auf fehlende oder überzählige Zutaten und Schritte achten.');
     if (info.aiUnsure && info.aiUnsure.length) hints.push('Steht so nicht im Originaltext – bitte prüfen: ' + info.aiUnsure.join(', ') + '.');
+    if (r.aiBefore) hints.push('Von der KI neu gelesen – passt die neue Fassung? Sonst „Alte Fassung“ antippen.');
     if (info.aiRead) { /* von der KI gelesen: kein allgemeiner Hinweis nötig */ }
     else if (/^(pin|tiktok|social)$/.test(info.how || '')) hints.push('Aus einer Beitragsbeschreibung gelesen – prüfen, ob alle Zutaten und Schritte dabei sind.');
     if (ing.length < 3) hints.push(ing.length ? 'Nur ' + ing.length + ' Zutat' + (ing.length > 1 ? 'en' : '') + ' – fehlt etwas?' : 'Keine Zutaten gefunden.');
@@ -1218,6 +1219,18 @@
     if (unsure.length) d.aiUnsure = unsure.slice(0, 8);
     return d;
   }
+  // Gespeichertes Rezept als Text (für das Neu-Lesen durch die KI, wenn kein Original gemerkt ist)
+  function recipeAsText(r) {
+    const src = r.importSource;
+    if (src && src.kind === 'text' && src.text) return src.text;
+    if (src && src.kind === 'ai' && src.text) return src.text;
+    if (src && src.kind === 'res' && src.res && src.res.text && src.res.kind !== 'page') return src.res.text;
+    const unit = r.servingsUnit === 'Personen' ? 'Personen' : r.servingsUnit || 'Personen';
+    return [r.title, r.servings ? 'Für ' + r.servings + ' ' + unit : '',
+      (r.ingredients || []).length ? 'Zutaten:\n' + r.ingredients.join('\n') : '',
+      (r.steps || []).length ? 'Zubereitung:\n' + r.steps.map((x, i) => (i + 1) + '. ' + x).join('\n') : '',
+      r.notes ? 'Notizen:\n' + r.notes : ''].filter(Boolean).join('\n\n');
+  }
   // KI-Ergebnis brauchbar? Sonst bleibt es bei den Regeln.
   const aiUsable = ai => !!(ai && ai.isRecipe && Array.isArray(ai.ingredients) && (ai.ingredients.length >= 1 || (ai.steps || []).length >= 1));
   function fromAi(ai, text, hint) {
@@ -1309,5 +1322,5 @@
 
   // Schritte aus einer anderen App: Nummern weg, leere weg, Erzählstil straffen, pro Satz ein Schritt
   const cleanSteps = list => splitSteps(arr(list).map(x => clean(x).replace(/^\d{1,2}[.)]\s*/, '')).filter(Boolean).map(tidyStep));
-  window.RecipeImporter = { fromAi, aiUsable, aiUnsure, piecesUnit, SAVORY_BAKE, isClaimTitle, titleFromContent, tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { recipeAsText, fromAi, aiUsable, aiUnsure, piecesUnit, SAVORY_BAKE, isClaimTitle, titleFromContent, tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

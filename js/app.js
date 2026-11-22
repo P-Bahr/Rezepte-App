@@ -728,7 +728,10 @@
         hints.length ? '' : ' Nur kurz drüberschauen und unten auf „Passt ✓“ tippen.'),
       hints.length ? h('ul', { class: 'review-hints' }, hints.map(x => h('li', { text: x }))) : null,
       hints.length ? h('p', { class: 'hint', text: 'Passt alles? Unten auf „Passt ✓“ tippen, sonst „Bearbeiten“.' }) : null,
-      (hints.minor || []).length ? h('p', { class: 'review-minor', text: hints.minor.join(' ') }) : null) : null;
+      (hints.minor || []).length ? h('p', { class: 'review-minor', text: hints.minor.join(' ') }) : null,
+      r.aiBefore ? h('div', { class: 'pick-actions' }, h('button', { type: 'button', class: 'btn', id: 'btnAiUndo', onclick: () => {
+        try { Store.aiUndo(r.id); toast('Alte Fassung zurückgeholt'); openDetail(r.id); } catch (e) { toast(e.message); }
+      } }, 'Alte Fassung')) : null) : null;
     function markReviewed() {
         // Nächstes ungeprüftes Rezept (in der Reihenfolge der Übersicht) direkt öffnen
         const order = [...document.querySelectorAll('#grid .tile[data-id]')].map(t => t.dataset.id);
@@ -1838,9 +1841,77 @@
       : 'Der KI-Schlüssel ist abgelaufen oder ungültig. Rezepte werden solange mit den eingebauten Regeln gelesen. Neuen Schlüssel erstellen: console.anthropic.com öffnen → API Keys → Create Key, dann in Supabase unter Edge Functions → Secrets bei ANTHROPIC_API_KEY eintragen.';
     return h('div', { class: 'notice', id: 'aiProblem' }, h('p', null, h('b', { text: 'KI-Import geht gerade nicht. ' }), text));
   }
+  // Einmal alle gespeicherten Rezepte von der KI neu lesen lassen (auf einem Gerät starten)
+  let aiRunning = false;
+  function aiRereadBox() {
+    const Y = window.RecipeSync, I = window.RecipeImporter;
+    if (!Y || !Y.enabled || !Y.aiParse || !Y.email()) return null;
+    const box = h('div', { class: 'field examples', id: 'aiReread' });
+    const sig = x => String(x || '').toLowerCase().replace(/[^\p{L}\p{N}]+/gu, '');
+    const same = (a, b) => sig([].concat(a || []).join('|')) === sig([].concat(b || []).join('|'));
+    function draw(msg) {
+      box.textContent = '';
+      const open = Store.recipes().filter(r => !r.aiV);
+      box.append(h('span', { class: 'label', text: 'Alle Rezepte mit der KI verbessern' }));
+      if (msg) box.append(h('p', { class: 'hint', id: 'aiRereadMsg', text: msg }));
+      if (!open.length) { if (!msg) box.append(h('p', { class: 'hint', text: 'Alle Rezepte sind von der KI gelesen.' })); return; }
+      box.append(h('p', { class: 'hint', text: 'Die KI liest ' + open.length + ' gespeicherte Rezepte einmal neu (ca. 1 Cent pro Rezept). Geänderte Rezepte kommen unter „Zu prüfen“; dort kannst du die alte Fassung zurückholen. Nur auf einem Gerät starten und die App dabei offen lassen.' }));
+      if (!aiRunning) box.append(h('div', { class: 'pick-actions' }, h('button', { type: 'button', class: 'btn btn-primary', id: 'btnAiReread', onclick: run }, 'Jetzt starten (' + open.length + ')')));
+    }
+    async function one(r, stats) {
+      const text = I.recipeAsText(r);
+      const ai = await Y.aiParse(text);
+      if (!ai) { stats.failed++; return; }
+      const d = I.fromAi(ai, text, {});
+      const cur = Store.recipe(r.id);
+      if (!cur || cur.aiV) return;
+      if (!d) { Store.applyAi(r.id, null); return; }
+      const thin = (cur.ingredients || []).length < 2 || !(cur.steps || []).length; // Rezept steckte z. B. in den Notizen
+      const f = {};
+      if (d.title && d.title !== 'Importiertes Rezept' && !same(d.title, cur.title)) f.title = d.title;
+      if (d.ingredients.length && !same(d.ingredients, cur.ingredients)) f.ingredients = d.ingredients;
+      if (d.steps.length && !same(d.steps, cur.steps)) f.steps = d.steps;
+      if (thin) {
+        if (!same(d.notes, cur.notes)) f.notes = d.notes;
+        for (const k of ['course', 'method', 'mainIngredient']) if (!cur[k] && d[k]) f[k] = d[k];
+      }
+      if (!Object.keys(f).length) { Store.applyAi(r.id, null); return; }
+      f.importInfo = { ...(cur.importInfo || {}), aiRead: true, aiUnsure: d.aiUnsure || undefined };
+      Store.applyAi(r.id, f);
+      stats.changed++;
+    }
+    async function run() {
+      if (aiRunning) return;
+      aiRunning = true;
+      const list = Store.recipes().filter(r => !r.aiV);
+      const stats = { done: 0, changed: 0, failed: 0 };
+      draw('Läuft … 0 von ' + list.length);
+      const queue = list.slice();
+      const worker = async () => {
+        while (queue.length) {
+          if (Y.aiProblem()) { queue.length = 0; break; }
+          const r = queue.shift();
+          try { await one(r, stats); } catch (e) { stats.failed++; }
+          stats.done++;
+          const m = box.querySelector('#aiRereadMsg');
+          if (m) m.textContent = 'Läuft … ' + stats.done + ' von ' + list.length;
+        }
+      };
+      await Promise.all([worker(), worker(), worker()]);
+      aiRunning = false;
+      const p = Y.aiProblem();
+      const msg = p ? 'Angehalten: die KI geht gerade nicht (siehe Hinweis oben). Später einfach noch einmal starten – es geht da weiter, wo es aufgehört hat.'
+        : 'Fertig: ' + stats.changed + ' Rezept' + (stats.changed === 1 ? '' : 'e') + ' verbessert – stehen unter „Zu prüfen“.' + (stats.failed ? ' ' + stats.failed + ' gingen nicht – einfach noch einmal starten.' : '');
+      draw(msg);
+      toast(p ? 'KI-Durchlauf angehalten' : 'KI-Durchlauf fertig: ' + stats.changed + ' verbessert');
+    }
+    draw(aiRunning ? 'Läuft gerade …' : '');
+    return box;
+  }
   function openSettings() {
     const content = h('div', { class: 'form' },
       aiProblemBox(),
+      aiRereadBox(),
       h('p', { class: 'hint', text: 'Die Sammlungen Ofen, Pfanne, Topf, Grill und Kalt ergeben sich automatisch aus der Zubereitung.' }),
       examplesBox(),
       linksBox(),

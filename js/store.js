@@ -297,6 +297,8 @@
         // Automatisch importiert und noch nicht angesehen ("Zu prüfen"); Speichern im Formular gilt als geprüft
         review: input.review !== undefined ? !!input.review : !!(existing && existing.review),
         importBatch: existing ? clean(existing.importBatch) : clean(input.importBatch), // für "Import rückgängig"
+        // Einmal von der KI gelesen (neue Rezepte gelten als gelesen); die alte Fassung gibt es nur bis zum Bearbeiten
+        aiV: existing ? (existing.aiV || 0) : 1,
         // Was beim Import nur geschätzt war (für die Prüf-Hinweise)
         importInfo: existing ? (existing.importInfo || null) : (input.importHow || input.servingsGuessed || input.courseGuessed || input.unitsConverted || input.titleMissing || input.titleReplaced || input.aiRead
           ? { how: clean(input.importHow), servingsGuessed: !!input.servingsGuessed, courseGuessed: !!input.courseGuessed, unitsConverted: !!input.unitsConverted, titleMissing: !!input.titleMissing, titleReplaced: !!input.titleReplaced, aiRead: !!input.aiRead, aiUnsure: Array.isArray(input.aiUnsure) ? input.aiUnsure.slice(0, 8).map(clean) : undefined } : null),
@@ -344,10 +346,32 @@
     setReviewed(id) {
       if (!this.recipe(id)) return;
       const before = data.recipes;
-      data.recipes = before.map(x => (x.id === id ? { ...x, review: false, updatedAt: new Date().toISOString() } : x));
+      data.recipes = before.map(x => { if (x.id !== id) return x; const n = { ...x, review: false, updatedAt: new Date().toISOString() }; delete n.aiBefore; return n; });
       try { save(); } catch (e) { data.recipes = before; throw e; }
     },
 
+    // KI-Durchlauf: neue Fassung übernehmen (alte merken, zum Prüfen markieren) oder nur als gelesen markieren
+    applyAi(id, fields) {
+      const now = new Date().toISOString(), before = data.recipes;
+      data.recipes = before.map(x => {
+        if (x.id !== id) return x;
+        if (!fields) return { ...x, aiV: 1, updatedAt: now };
+        const old = {};
+        for (const k of Object.keys(fields)) if (k !== 'importInfo') old[k] = x[k];
+        const n = { ...x, ...fields, aiV: 1, review: true, aiBefore: x.aiBefore || old, updatedAt: now };
+        if (fields.ingredients) n.ingredients = cleanList(fields.ingredients).map(l => cleanIngredient(window.RecipeScale.normalizeIngredient(l))).filter(Boolean);
+        return n;
+      });
+      try { save(); } catch (e) { data.recipes = before; throw e; }
+    },
+    // Alte Fassung (vor der KI) zurückholen
+    aiUndo(id) {
+      const r = this.recipe(id);
+      if (!r || !r.aiBefore) return;
+      const before = data.recipes;
+      data.recipes = before.map(x => { if (x.id !== id) return x; const n = { ...x, ...x.aiBefore, review: false, updatedAt: new Date().toISOString() }; delete n.aiBefore; return n; });
+      try { save(); } catch (e) { data.recipes = before; throw e; }
+    },
     // "Import rückgängig": alle Rezepte eines Sammel-Imports löschen
     deleteBatch(batch) {
       if (!batch) return 0;

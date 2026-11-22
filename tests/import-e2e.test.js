@@ -359,6 +359,33 @@ const AI_ANSWER = { isRecipe: true, title: 'One-Pot-Nudeln', servings: null, ser
   await p.click('#btnCollections');
   assert(!(await p.isVisible('#aiProblem')), 'Geht die KI wieder: Hinweis verschwindet');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  // Alle gespeicherten Rezepte einmal von der KI neu lesen lassen
+  await p.evaluate(() => {
+    const d = JSON.parse(localStorage.getItem('rezepte.daten.v1'));
+    const base = d.recipes[0];
+    d.recipes.forEach(r => { r.aiV = 1; });
+    const mk = (id, title, ingredients, steps) => { const r = { ...base, id, title, ingredients, steps, notes: '', review: false, importSource: null, importResult: null, importInfo: null, sourceUrl: '' }; delete r.aiV; return r; };
+    d.recipes.push(mk('old1', 'Nudeln mit Tomaten', ['250g nudeln', '1 dose Tomaten', '1 TL Salz'], ['alles in topf und 15min kochen']), mk('old2', 'Deko-Idee', ['1 Kerze'], ['anzünden']));
+    localStorage.setItem('rezepte.daten.v1', JSON.stringify(d));
+  });
+  await p.reload(); await p.waitForTimeout(1500);
+  await p.click('#btnCollections');
+  assert(await p.isVisible('#btnAiReread:has-text("Jetzt starten (2)")'), 'Einstellungen: „Alle Rezepte mit der KI verbessern“ zählt die ungelesenen');
+  await p.click('#btnAiReread');
+  await p.waitForSelector('#aiRereadMsg:has-text("Fertig")', { timeout: 10000 });
+  assert(await p.isVisible('#aiRereadMsg:has-text("1 Rezept verbessert")'), 'Durchlauf: Ergebnis „1 Rezept verbessert“');
+  const o1 = await p.evaluate(() => Store.recipe('old1')), o2 = await p.evaluate(() => Store.recipe('old2'));
+  assert(o1.title === 'One-Pot-Nudeln' && o1.review && o1.aiV === 1 && o1.aiBefore.title === 'Nudeln mit Tomaten' && o1.ingredients.includes('100 g Parmesan'), 'Verbessertes Rezept: neue Fassung, alte gemerkt, „Zu prüfen“');
+  assert(o2.title === 'Deko-Idee' && o2.aiV === 1 && !o2.review && !o2.aiBefore, 'KI findet kein Rezept: bleibt wie es ist, nur als gelesen markiert');
+  assert(await p.isVisible('#aiReread:has-text("Alle Rezepte sind von der KI gelesen")') || await p.isVisible('#aiRereadMsg'), 'Danach nichts mehr offen');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  await p.evaluate(() => window.RecipeApp.openDetail('old1')); await p.waitForSelector('#btnAiUndo');
+  assert(await p.isVisible('#reviewNotice li:has-text("Von der KI neu gelesen")') && await p.isVisible('#reviewNotice li:has-text("Parmesan")'), 'Im Rezept: Hinweis „Von der KI neu gelesen“ und erfundene Zutat');
+  await p.click('#btnAiUndo'); await p.waitForTimeout(300);
+  const back = await p.evaluate(() => Store.recipe('old1'));
+  assert(back.title === 'Nudeln mit Tomaten' && back.ingredients.join('|') === '250 g nudeln|1 dose Tomaten|1 TL Salz' && !back.review && !back.aiBefore && back.aiV === 1, '„Alte Fassung“ holt das Rezept wie vorher zurück ' + back.ingredients.join('|'));
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  await p.evaluate(() => { Store.deleteRecipe('old1'); Store.deleteRecipe('old2'); });
   aiMode = 'off';
 
   // Kopfzeile auf dem Handy: keine seitliche Verschiebung
