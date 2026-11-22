@@ -450,10 +450,15 @@ export async function handle(req) {
   // KI: Rezepttext auslesen
   if (body && body.ai) {
     const key = typeof Deno !== 'undefined' ? Deno.env.get('ANTHROPIC_API_KEY') : '';
-    if (!key) return json({ error: 'Kein KI-Schlüssel eingerichtet.' }, 503);
-    const model = (testing && body.ai.model) || (typeof Deno !== 'undefined' && Deno.env.get('AI_MODEL')) || 'claude-haiku-5-5';
+    if (!key) return json({ error: 'Kein KI-Schlüssel eingerichtet.', problem: 'nokey' }, 503);
+    const model = (testing && body.ai.model) || (typeof Deno !== 'undefined' && Deno.env.get('AI_MODEL')) || 'claude-opus-5-5';
     try { return json({ ai: await aiRecipe(body.ai.text, model, key) }); }
-    catch (e) { return json({ error: 'KI nicht erreichbar.', detail: String(e && e.status || e && e.message || e).slice(0, 200) }, 502); }
+    catch (e) {
+      const status = e && e.status, text = String(e && e.message || e);
+      // Schlüssel abgelaufen/gelöscht oder Guthaben leer: der App sagen, damit sie es in den Einstellungen anzeigt
+      const problem = status === 401 || status === 403 ? 'key' : /credit balance|billing|spend limit|usage limit/i.test(text) ? 'credit' : '';
+      return json({ error: 'KI nicht erreichbar.', problem: problem || undefined, detail: String(status || text).slice(0, 200) }, 502);
+    }
   }
   if (testing) return json({ error: 'Test-Zugang nur für die KI.' }, 403);
   if (body && Array.isArray(body.check)) return json({ results: await checkMany(body.check) });

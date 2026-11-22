@@ -469,6 +469,8 @@
     if (info.titleMissing || /^Rezept vom Bildschirmfoto \d+$/.test(r.title || '')) hints.push('Kein Name erkannt – bitte einen Namen eintragen.');
     if (info.how === 'photo') hints.push('Vom Bildschirmfoto gelesen – vor allem die Mengen prüfen, die Texterkennung kann sich bei Zahlen vertun.');
     if (info.how === 'text') hints.push('Die Seite hatte keine Rezeptangaben – alles wurde aus dem Seitentext gelesen. Auf fehlende oder überzählige Zutaten und Schritte achten.');
+    if (info.aiUnsure && info.aiUnsure.length) hints.push('Steht so nicht im Originaltext – bitte prüfen: ' + info.aiUnsure.join(', ') + '.');
+    if (info.aiRead) { /* von der KI gelesen: kein allgemeiner Hinweis nötig */ }
     else if (/^(pin|tiktok|social)$/.test(info.how || '')) hints.push('Aus einer Beitragsbeschreibung gelesen – prüfen, ob alle Zutaten und Schritte dabei sind.');
     if (ing.length < 3) hints.push(ing.length ? 'Nur ' + ing.length + ' Zutat' + (ing.length > 1 ? 'en' : '') + ' – fehlt etwas?' : 'Keine Zutaten gefunden.');
     const noAmount = [], odd = [], seen = new Map(), dup = new Set();
@@ -1171,8 +1173,61 @@
     if (!src) return null;
     if (src.kind === 'res') { const r = toDraftInner(src.res); return r && r.draft; }
     if (src.kind === 'text') return fromTextInner(src.text, src.hint);
+    if (src.kind === 'ai') return fromAiInner(src.ai, src.text, src.hint);
     if (src.kind === 'rk') return window.RecipeKeeper ? window.RecipeKeeper.toDraft(src.raw) : undefined; // undefined = noch nicht geladen
     return null;
+  }
+  // ---------- KI-Ergebnis -> Entwurf ----------
+  // Die KI liefert Name, Zutaten, Schritte, Notizen, Portionen. Danach laufen die gewohnten Regeln
+  // (Rezeptart, Zubereitung, Hauptzutat, Aufräumen, Umrechnen). Jede Zutat wird mit dem Originaltext
+  // abgeglichen: steht sie dort nicht, kommt ein Prüf-Hinweis (die KI soll nichts erfinden).
+  const AI_UNITS = { 'Personen': 1, 'Stück': 1, 'Blech': 1, 'Springform': 1, 'Kastenform': 1, 'Gläser': 1 };
+  const flat = x => String(x || '').toLowerCase().normalize('NFKD').replace(/[\u0300-\u036f]/g, '').replace(/ß/g, 'ss').replace(/[^a-z0-9]+/g, ' ');
+  function aiUnsure(ingredients, text) {
+    const src = ' ' + flat(socialText(text)) + ' ';
+    const out = [];
+    for (const l of ingredients) {
+      const p = Sc.parseIngredient(l);
+      const words = flat((p.name || l).replace(/\([^)]*\)/g, ' ').split(',')[0]).split(' ').filter(w => w.length >= 3 && !/^(und|oder|mit|von|der|die|das|ein|eine|etwas|frisch|frische|frischer|gehackt|gerieben|klein|grosse?|kleine?|weich|weiche|kalt|kalte|warm|warme|zimmerwarm|optional)$/.test(w));
+      if (!words.length) continue;
+      // Wortanfang genügt (Mehrzahl, Endungen, "Ei" / "Eier"): mindestens ein Wort muss im Text stehen
+      const found = words.some(w => src.includes(' ' + w.slice(0, Math.max(3, Math.min(w.length - 1, 6)))) || src.includes(w.slice(0, Math.max(4, w.length - 2))));
+      if (!found) out.push(noun(p.name || l) || l);
+    }
+    return out;
+  }
+  function fromAiInner(ai, text, hint) {
+    hint = hint || {};
+    const list = x => (Array.isArray(x) ? x : []).map(y => clean(String(y || ''))).filter(Boolean);
+    const ingredients = list(ai.ingredients).map(l => Sc.normalizeIngredient(l));
+    const d = {
+      title: cleanTitle(clean(ai.title || '')) || 'Importiertes Rezept',
+      ingredients,
+      steps: list(ai.steps).map(x => x.replace(/^\d{1,2}[.)]\s*/, '')),
+      notes: cutNotes(list(ai.notes).join('\n'), 3000),
+      servings: 4, servingsUnit: 'Personen', formSize: '',
+      imageUrl: hint.image || '', sourceUrl: hint.url || ''
+    };
+    const n = Number(ai.servings);
+    if (n > 0 && n < 1000) { d.servings = Math.round(n * 100) / 100; d.servingsUnit = AI_UNITS[ai.servingsUnit] ? ai.servingsUnit : 'Personen'; }
+    else d.servingsGuessed = true;
+    if (d.servingsUnit === 'Springform') { const dia = String(text || '').match(/(?:Ø|ø|Durchmesser)\s*(\d{2})|(\d{2})\s*(?:cm)?\s*(?:Ø|ø|er\b)|(\d{2})\s*cm/); d.formSize = 'Ø ' + (dia ? (dia[1] || dia[2] || dia[3]) : 26) + ' cm'; }
+    withGuesses(d, [], [d.notes || '']);
+    d.aiRead = true;
+    const unsure = aiUnsure(d.ingredients, text);
+    if (unsure.length) d.aiUnsure = unsure.slice(0, 8);
+    return d;
+  }
+  // KI-Ergebnis brauchbar? Sonst bleibt es bei den Regeln.
+  const aiUsable = ai => !!(ai && ai.isRecipe && Array.isArray(ai.ingredients) && (ai.ingredients.length >= 1 || (ai.steps || []).length >= 1));
+  function fromAi(ai, text, hint) {
+    if (!aiUsable(ai)) return null;
+    const d = fromAiInner(ai, text, hint);
+    const h = {};
+    for (const k of ['image', 'url', 'ocr']) if (hint && hint[k]) h[k] = hint[k];
+    const keep = { isRecipe: true, title: ai.title, servings: ai.servings, servingsUnit: ai.servingsUnit, ingredients: ai.ingredients, steps: ai.steps, notes: ai.notes };
+    d.importSource = { kind: 'ai', ai: keep, text: String(text || '').slice(0, SRC_MAX), hint: h };
+    return d;
   }
   function toDraftInner(res) {
     if (!res) return null;
@@ -1254,5 +1309,5 @@
 
   // Schritte aus einer anderen App: Nummern weg, leere weg, Erzählstil straffen, pro Satz ein Schritt
   const cleanSteps = list => splitSteps(arr(list).map(x => clean(x).replace(/^\d{1,2}[.)]\s*/, '')).filter(Boolean).map(tidyStep));
-  window.RecipeImporter = { piecesUnit, SAVORY_BAKE, isClaimTitle, titleFromContent, tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
+  window.RecipeImporter = { fromAi, aiUsable, aiUnsure, piecesUnit, SAVORY_BAKE, isClaimTitle, titleFromContent, tidyRecipe, fixSpelling, rebuild, socialText, stripSymbols, isSubheading, mainFor, cleanSteps, withGuesses, reviewHints, convertUnits, tidyTitle, validMain, boardSlug, boardFromWidget, loadBoard, cleanLink, findRecipe, steps, servingsFrom, fromPage, fromText, toDraft, guessCourse, guessMethod, guessMain, clean, cleanTitle, isFluffLine };
 })();

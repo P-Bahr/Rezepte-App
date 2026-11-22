@@ -93,5 +93,21 @@ for (const [t, want] of [['Gesunder Darm Porridge', 'Porridge'], ['Overnight Oat
   ok(I.cleanTitle(t) === want, 'Gesundheits-Spruch aus dem Namen: ' + t + ' -> ' + I.cleanTitle(t));
 d = imp('So wird dein Darm gesund\nZutaten:\n50 g Haferflocken\n1 EL Leinsamen\n200 ml Kefir\nZubereitung:\nAlles verrühren und über Nacht quellen lassen.');
 ok(d.title === 'Overnight Oats' && d.titleReplaced && I.reviewHints({ ...d, importInfo: d }).some(x => /Werbespruch/.test(x)), 'Name nur ein Spruch -> aus dem Inhalt benannt und zum Prüfen markiert: ' + d.title);
+// ---------- KI-Ergebnis -> Entwurf ----------
+{
+  const src = 'Blechkuchen für 2 Bleche 🍰 500 g mehl, 250 g Butter, 4 Eier, 300 g Zucker. Alles verrühren, aufs Blech, 25 min bei 180 Grad backen. Hält 3 Tage in der Dose. Folgt mir!';
+  const ai = { isRecipe: true, title: 'Blechkuchen', servings: 2, servingsUnit: 'Blech', ingredients: ['500 g Mehl', '250 g Butter', '4 Eier', '300 g Zucker'], steps: ['Alles verrühren.', 'Auf das Blech streichen und 25 Minuten bei 180 °C backen.'], notes: ['Hält 3 Tage in der Dose.'] };
+  const k = I.fromAi(ai, src, { url: 'https://x', image: 'i.jpg' });
+  ok(k.title === 'Blechkuchen' && k.servings === 2 && k.servingsUnit === 'Blech', 'KI: Name und 2 Bleche übernommen');
+  ok(k.course === 'Gebäck' && k.method === 'Backen' && k.aiRead && !k.aiUnsure, 'KI: danach Rezeptart/Zubereitung nach den eigenen Regeln, nichts zu prüfen (' + k.course + '/' + k.method + ')');
+  ok(k.sourceUrl === 'https://x' && k.imageUrl === 'i.jpg' && k.importSource.kind === 'ai', 'KI: Quelle, Bild und Original gemerkt');
+  ok(JSON.stringify(I.rebuild(k.importSource).ingredients) === JSON.stringify(k.ingredients), 'KI-Rezept lässt sich aus dem Gemerkten neu einlesen (ohne neue KI-Abfrage)');
+  const made = I.fromAi({ ...ai, ingredients: ai.ingredients.concat(['1 Pck. Vanillezucker', '2 Prisen Salz']) }, src, {});
+  ok(JSON.stringify(made.aiUnsure) === JSON.stringify(['Vanillezucker', 'Salz']), 'KI: Zutaten, die nicht im Text stehen, werden markiert ' + JSON.stringify(made.aiUnsure));
+  ok(I.reviewHints({ ...made, importInfo: made }).some(x => /nicht im Originaltext.*Vanillezucker/.test(x)), 'KI: Prüf-Hinweis nennt die Zutat');
+  ok(I.fromAi({ isRecipe: false, title: '', ingredients: [], steps: [], notes: [] }, 'Hallo', {}) === null && I.fromAi(null, 'x', {}) === null, 'KI findet kein Rezept: null (die Regeln übernehmen)');
+  const e = I.fromAi({ isRecipe: true, title: 'Rührei 🍳', servings: null, servingsUnit: null, ingredients: ['3 Eier', '1 EL Butter'], steps: ['1. Eier verquirlen.'], notes: [] }, '3 Eier 1 EL Butter Eier verquirlen', {});
+  ok(e.title === 'Rührei' && e.steps[0] === 'Eier verquirlen.' && e.servings === 4 && e.servingsGuessed, 'KI: Emoji und Nummer weg, ohne Angabe 4 Personen');
+}
 console.log(fail ? fail + ' Fehler' : 'Emoji-Prüfung ok');
 process.exit(fail ? 1 : 0);

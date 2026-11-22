@@ -972,6 +972,29 @@
 
   // ---------- Import über Link ----------
   // ---------- Import: Startseite (Link oder Text) + Kacheln für die anderen Wege ----------
+  // Rezepttext lesen: zuerst die KI (wie Recipe Keeper), klappt das nicht, die eigenen Regeln
+  async function readRecipeText(text, hint) {
+    const I = window.RecipeImporter, Y = window.RecipeSync;
+    if (Y && Y.enabled && Y.aiParse) {
+      const d = I.fromAi(await Y.aiParse(text), text, hint);
+      if (d) return d;
+    }
+    return I.fromText(text, hint);
+  }
+  // Ergebnis vom Server: Beitragstexte (TikTok, Facebook, Pinterest) und Seiten ohne Rezeptangaben liest die KI
+  async function readFetched(res) {
+    const I = window.RecipeImporter, Y = window.RecipeSync;
+    const r = I.toDraft(res);
+    if (!res || !Y || !Y.enabled || !Y.aiParse) return r;
+    let text = '', hint = {}, how = r && r.how;
+    if (res.kind === 'tiktok' || res.kind === 'social') { text = res.text; hint = { image: res.image, url: res.url }; how = 'tiktok'; }
+    else if (res.kind === 'pin') { text = res.text; hint = { image: res.image, url: res.link || res.url }; how = 'pin'; }
+    else if (res.kind === 'page' && r && r.how === 'pin') { text = res.pinText; hint = { image: res.pinImage || res.image, url: res.url }; }
+    else if (res.kind === 'page' && (!r || r.how === 'text')) { text = [res.title, res.text].filter(Boolean).join('\n'); hint = { image: res.image, url: res.url }; how = 'text'; }
+    if (!String(text || '').trim()) return r;
+    const d = I.fromAi(await Y.aiParse(text), text, hint);
+    return d ? { draft: d, how } : r;
+  }
   function openImport(prefill, autoRun, startView) {
     const S = window.RecipeSync;
     const msg = h('div', { class: 'form-error', role: 'alert', hidden: true });
@@ -1003,7 +1026,8 @@
       go.disabled = true; say(status, 'Rezept wird geladen …');
       try {
         const res = await S.fetchPage(url);
-        const r = window.RecipeImporter.toDraft(res);
+        say(status, 'Rezept wird gelesen …');
+        const r = await readFetched(res);
         if (!r || r.how === 'tiktok-empty' || r.how === 'pin-empty') {
           say(status, '');
           say(msg, r && r.how === 'tiktok-empty' ? 'In der Beschreibung dieses TikTok-Videos steht kein Rezept. Mach ein Bildschirmfoto vom Rezept im Video und nimm „Bildschirmfotos“.'
@@ -1024,7 +1048,7 @@
       }
     }
     // Ein Feld für alles: Link (auch mit etwas Text drumherum) oder Rezepttext
-    function run() {
+    async function run() {
       reset();
       const text = input.value.trim();
       if (!text) { say(msg, 'Bitte einen Link oder einen Rezepttext einfügen.'); input.focus(); return; }
@@ -1032,7 +1056,9 @@
       const rest = text.replace(link, ' ').replace(/\s+/g, ' ').trim();
       if (link && rest.length < 80 && !/\n/.test(text.replace(link, ''))) { input.value = link; runLink(link); return; }
       if (!link && text.length < 40 && !/\n/.test(text)) { say(msg, 'Bitte einen Link einfügen, der mit https:// beginnt – oder einen ganzen Rezepttext.'); input.focus(); return; }
-      const d = window.RecipeImporter.fromText(text.replace(link, ' '), { url: link });
+      go.disabled = true; say(status, 'Rezept wird gelesen …');
+      let d;
+      try { d = await readRecipeText(text.replace(link, ' '), { url: link }); } finally { go.disabled = false; say(status, ''); }
       if (!d.ingredients.length && !d.steps.length) {
         say(msg, 'In diesem Text wurde kein Rezept erkannt. Stehen Zutaten (mit Mengen) oder Arbeitsschritte darin?');
         manual.hidden = false;
@@ -1057,8 +1083,9 @@
       reset(); say(status, 'Fotos werden gelesen …');
       try {
         const text = await window.RecipeOCR.recognize(files, t => say(status, t));
+        say(status, 'Rezept wird gelesen …');
+        const d = await readRecipeText(text, { ocr: true });
         say(status, '');
-        const d = window.RecipeImporter.fromText(text, { ocr: true });
         if (!d.ingredients.length && !d.steps.length) {
           say(msg, 'Auf ' + (files.length > 1 ? 'den Fotos' : 'dem Foto') + ' wurde kein Rezept erkannt. Tipp: ein Bildschirmfoto machen, wenn die Zutaten groß im Bild stehen.');
           manual.hidden = false;
@@ -1081,7 +1108,7 @@
       const pins = files.map((f, i) => ({
         id: 'foto' + i, text: 'Foto ' + (i + 1),
         makeDraft: async () => {
-          const d = window.RecipeImporter.fromText(await window.RecipeOCR.recognize([f]), { ocr: true });
+          const d = await readRecipeText(await window.RecipeOCR.recognize([f]), { ocr: true });
           if (!d.title || d.title === 'Importiertes Rezept') { d.title = 'Rezept vom Bildschirmfoto ' + (i + 1); d.titleMissing = true; }
           d.importHow = 'photo';
           return d;
@@ -1258,10 +1285,10 @@
         let d = pin.draft ? { ...pin.draft } : null; // schon fertig gelesen (z. B. aus Recipe Keeper)
         if (!d && pin.makeDraft) { try { d = await pin.makeDraft(); } catch (e) { d = null; } } // z. B. Texterkennung je Foto
         if (!d && pin.link) {
-          try { const r = window.RecipeImporter.toDraft(await S.fetchPage(pin.link)); d = r && r.draft; if (d) d.importHow = r.how; } catch (e) { d = null; }
+          try { const r = await readFetched(await S.fetchPage(pin.link)); d = r && r.draft; if (d) d.importHow = r.how; } catch (e) { d = null; }
         }
         if (!complete(d) && pin.text) {
-          const t = window.RecipeImporter.fromText(pin.text, { image: pin.image, url: pin.link || pin.url });
+          const t = await readRecipeText(pin.text, { image: pin.image, url: pin.link || pin.url });
           if (complete(t)) { d = t; d.importHow = opts.textHow || 'pin'; }
         }
         const label = (d && d.title && d.title !== 'Importiertes Rezept' ? d.title : (pin.text || pin.link || '').split('\n')[0].slice(0, 60)) || 'Ohne Text';
@@ -1799,8 +1826,21 @@
     return box;
   }
 
+  // Hinweis, wenn die KI beim Import nicht ging (Schlüssel abgelaufen oder Guthaben leer)
+  function aiProblemBox() {
+    const Y = window.RecipeSync;
+    const p = Y && Y.aiProblem && Y.aiProblem();
+    if (!p) return null;
+    const text = p.reason === 'credit'
+      ? 'Das Guthaben für die KI ist aufgebraucht. Rezepte werden solange mit den eingebauten Regeln gelesen. Zum Aufladen: console.anthropic.com öffnen → Billing → Guthaben kaufen.'
+      : p.reason === 'nokey'
+      ? 'Im Online-Speicher ist kein KI-Schlüssel eingetragen. Rezepte werden solange mit den eingebauten Regeln gelesen.'
+      : 'Der KI-Schlüssel ist abgelaufen oder ungültig. Rezepte werden solange mit den eingebauten Regeln gelesen. Neuen Schlüssel erstellen: console.anthropic.com öffnen → API Keys → Create Key, dann in Supabase unter Edge Functions → Secrets bei ANTHROPIC_API_KEY eintragen.';
+    return h('div', { class: 'notice', id: 'aiProblem' }, h('p', null, h('b', { text: 'KI-Import geht gerade nicht. ' }), text));
+  }
   function openSettings() {
     const content = h('div', { class: 'form' },
+      aiProblemBox(),
       h('p', { class: 'hint', text: 'Die Sammlungen Ofen, Pfanne, Topf, Grill und Kalt ergeben sich automatisch aus der Zubereitung.' }),
       examplesBox(),
       linksBox(),
@@ -1886,7 +1926,7 @@
   }
 
   window.RecipeToast = toast;
-  window.RecipeApp = { openImport, openEdit, openBoardImport, openDetail };
+  window.RecipeApp = { readRecipeText, readFetched, openImport, openEdit, openBoardImport, openDetail };
 
   // Für automatische Tests
   window.__app = { state, render };

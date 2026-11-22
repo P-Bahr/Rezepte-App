@@ -298,8 +298,8 @@
         review: input.review !== undefined ? !!input.review : !!(existing && existing.review),
         importBatch: existing ? clean(existing.importBatch) : clean(input.importBatch), // für "Import rückgängig"
         // Was beim Import nur geschätzt war (für die Prüf-Hinweise)
-        importInfo: existing ? (existing.importInfo || null) : (input.importHow || input.servingsGuessed || input.courseGuessed || input.unitsConverted || input.titleMissing || input.titleReplaced
-          ? { how: clean(input.importHow), servingsGuessed: !!input.servingsGuessed, courseGuessed: !!input.courseGuessed, unitsConverted: !!input.unitsConverted, titleMissing: !!input.titleMissing, titleReplaced: !!input.titleReplaced } : null),
+        importInfo: existing ? (existing.importInfo || null) : (input.importHow || input.servingsGuessed || input.courseGuessed || input.unitsConverted || input.titleMissing || input.titleReplaced || input.aiRead
+          ? { how: clean(input.importHow), servingsGuessed: !!input.servingsGuessed, courseGuessed: !!input.courseGuessed, unitsConverted: !!input.unitsConverted, titleMissing: !!input.titleMissing, titleReplaced: !!input.titleReplaced, aiRead: !!input.aiRead, aiUnsure: Array.isArray(input.aiUnsure) ? input.aiUnsure.slice(0, 8).map(clean) : undefined } : null),
         // Original des Imports und was die App damals daraus gemacht hat (für Neu-Einlesen und Lernen aus Korrekturen)
         importSource: existing ? (existing.importSource || null) : (input.importSource || null),
         importResult: existing ? (existing.importResult || null) : (input.importSource ? snap(input.importDraft || input) : null),

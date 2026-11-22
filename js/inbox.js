@@ -79,7 +79,7 @@
     const found = input.match(/https?:\/\/[^\s<>"']+/i);
     if (found) A.openImport(found[0].replace(/[).,;!?]+$/, ''), true);
     else {
-      const d = window.RecipeImporter.fromText(input);
+      const d = A.readRecipeText ? await A.readRecipeText(input, {}) : window.RecipeImporter.fromText(input);
       A.openEdit(null, { ...d, fromShare: true });
     }
     // Wenn das Fenster wieder zu ist: weitere geteilte Rezepte anbieten

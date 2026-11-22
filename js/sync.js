@@ -445,6 +445,26 @@
     if (data && data.error) throw new Error(data.error);
     return data;
   };
+  // Rezepttext von der KI auslesen lassen (über das Server-Programm; der Schlüssel liegt nur dort).
+  // Liefert das Ergebnis oder null – dann liest die App wie bisher mit ihren eigenen Regeln.
+  // Klappt es wegen des Schlüssels oder Guthabens nicht, merkt sich die App das für die Einstellungen.
+  const AI_PROBLEM = 'rezepte.kiProblem';
+  Sync.aiProblem = () => { try { return JSON.parse(localStorage.getItem(AI_PROBLEM) || 'null'); } catch (e) { return null; } };
+  Sync.aiParse = async text => {
+    if (!session || !navigator.onLine || !String(text || '').trim()) return null;
+    try {
+      const { data, error } = await client.functions.invoke('import', { body: { ai: { text: String(text).slice(0, 20000) } } });
+      let body = data;
+      if (error) { try { body = await error.context.json(); } catch (_) { body = null; } }
+      const reason = body && body.problem;
+      try {
+        if (reason) localStorage.setItem(AI_PROBLEM, JSON.stringify({ reason, at: Date.now() }));
+        else if (!error) localStorage.removeItem(AI_PROBLEM);
+      } catch (_) { /* egal */ }
+      if (error || !body || !body.ai) return null;
+      return body.ai;
+    } catch (e) { return null; }
+  };
   // ---------- Teilen-Menü: persönlicher Schlüssel + Eingangsfach ----------
   const KEY_LOCAL = 'rezepte.teilenschluessel';
   async function sha256hex(text) {

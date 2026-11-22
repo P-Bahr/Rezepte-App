@@ -16,7 +16,11 @@ const BOARD = JSON.stringify({ status: 'success', data: { board: { name: 'Rezept
   { id: '3', link: null, description: 'Bananenbrot Zutaten: 3 Bananen, 250 g Mehl, 2 Eier Zubereitung: Alles verrühren und 50 Minuten backen.' },
   { id: '4', link: 'https://blog.example/ohne-rezept', description: 'Schöne Deko-Idee' }
 ] } });
-const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutaten:\n250g Spaghetti\n200 g Tomaten\nZubereitung:\n1. Alles aufkochen.\n2. 10 Minuten köcheln.' };
+const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutaten:\n250g Spaghetti\n200 g Tomaten\nZubereitung:\n1. Alles aufkochen.\n2. 10 Minuten köcheln.', 'https://www.tiktok.com/@koch/video/2': 'Heute was leckeres gemacht 😍 250g nudeln 1 dose Tomaten 1TI salz alles in topf und 15min kochen #onepot #lecker' };
+// Nachgebaute KI: 'off' = nicht erreichbar, 'on' = liest den Text, 'key' = Schlüssel abgelaufen
+let aiMode = 'off';
+const aiCalls = [];
+const AI_ANSWER = { isRecipe: true, title: 'One-Pot-Nudeln', servings: null, servingsUnit: null, ingredients: ['250 g Nudeln', '1 Dose Tomaten', '1 TL Salz', '100 g Parmesan'], steps: ['Alles in einen Topf geben und 15 Minuten kochen.'], notes: [] };
 
 (async () => {
   const fn = await import('../supabase/functions/import/index.ts');
@@ -31,6 +35,11 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
       const results = {};
       body.check.forEach(u => { results[u] = linkState[u] || 'ok'; });
       return { status: 200, body: { results } };
+    }
+    if (body.ai) {
+      aiCalls.push(body.ai.text);
+      if (aiMode === 'on') return { status: 200, body: { ai: /nudeln/i.test(body.ai.text) ? AI_ANSWER : { isRecipe: false, title: '', servings: null, servingsUnit: null, ingredients: [], steps: [], notes: [] } } };
+      return { status: 502, body: { error: 'KI nicht erreichbar.', problem: aiMode === 'key' ? 'key' : undefined } };
     }
     calls.push(body.url);
     const c = fn.checkUrl(body.url);
@@ -318,6 +327,39 @@ const TIKTOK = { 'https://www.tiktok.com/@koch/video/1': 'One-Pot-Pasta!\nZutate
   await p.waitForTimeout(200);
   assert(!(await p.isVisible('#chipReview')) || await p.evaluate(() => document.getElementById('chipReview').getAttribute('aria-pressed') === 'true'), 'Chip verschwindet, wenn nichts mehr zu prüfen ist');
   await p.click('#btnReset').catch(() => {});
+
+  // KI liest den Beitragstext (wie Recipe Keeper); Erfundenes wird zum Prüfen markiert
+  aiMode = 'on';
+  await p.click('#btnImport'); await p.fill('#importUrl', 'https://www.tiktok.com/@koch/video/2');
+  await p.click('dialog button[type=submit]'); await p.waitForSelector('#importNotice');
+  assert(aiCalls.some(t => /250g nudeln/.test(t)), 'TikTok-Text geht an die KI');
+  assert(await p.inputValue('#fTitle') === 'One-Pot-Nudeln' && await p.inputValue('#fIngredients') === '250 g Nudeln\n1 Dose Tomaten\n1 TL Salz\n100 g Parmesan' && await p.inputValue('#fSteps') === 'Alles in einen Topf geben und 15 Minuten kochen.', 'KI: Name, Zutaten, Schritte übernommen');
+  assert(await p.inputValue('#fMethod') === 'Kochen', 'Danach die eigenen Regeln: One Pot = Kochen');
+  assert(await p.isVisible('#importNotice li:has-text("Steht so nicht im Originaltext") >> text=/Parmesan/'), 'Zutat, die nicht im Text steht: Prüf-Hinweis');
+  assert(!(await p.isVisible('#importNotice li:has-text("Nudeln,")')), 'Zutaten aus dem Text werden nicht angemeckert');
+  await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
+  // KI sagt „kein Rezept“: es bleibt bei den Regeln
+  await p.click('#btnImport'); await p.fill('#importUrl', 'https://www.tiktok.com/@koch/video/1');
+  await p.click('dialog button[type=submit]'); await p.waitForSelector('#importNotice');
+  assert(await p.inputValue('#fTitle') === 'One-Pot-Pasta', 'KI findet nichts: Regeln lesen wie bisher');
+  await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
+  // Schlüssel abgelaufen: Regeln lesen, Hinweis in den Einstellungen
+  aiMode = 'key';
+  await p.click('#btnImport'); await p.fill('#importUrl', 'Nudelauflauf\nZutaten:\n250 g Nudeln\n200 g Käse\nZubereitung:\nAlles in eine Form und 20 Minuten backen.');
+  await p.click('dialog button[type=submit]'); await p.waitForSelector('#importNotice');
+  assert(await p.inputValue('#fTitle') === 'Nudelauflauf' && await p.inputValue('#fIngredients') === '250 g Nudeln\n200 g Käse', 'KI geht nicht: Text wird trotzdem mit den Regeln gelesen');
+  await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
+  await p.click('#btnCollections');
+  assert(await p.isVisible('#aiProblem:has-text("KI-Schlüssel ist abgelaufen")'), 'Einstellungen: Hinweis „KI-Schlüssel abgelaufen“');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  aiMode = 'on';
+  await p.click('#btnImport'); await p.fill('#importUrl', 'https://www.tiktok.com/@koch/video/2');
+  await p.click('dialog button[type=submit]'); await p.waitForSelector('#importNotice');
+  await p.click('dialog >> text=Abbrechen'); await p.waitForTimeout(200);
+  await p.click('#btnCollections');
+  assert(!(await p.isVisible('#aiProblem')), 'Geht die KI wieder: Hinweis verschwindet');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  aiMode = 'off';
 
   // Kopfzeile auf dem Handy: keine seitliche Verschiebung
   assert(await p.evaluate(() => document.documentElement.scrollWidth) <= 390, 'Kopfzeile passt aufs Handy');
