@@ -412,10 +412,11 @@ const AI_ANSWER = { isRecipe: true, title: 'One-Pot-Nudeln', servings: null, ser
   assert(await p.isVisible('#bmHelp li:has-text("takeout.google.com")'), '„?“ zeigt die kurze Takeout-Anleitung');
   await p.setInputFiles('#importBookmarks', 'tests/fixtures/takeout-lesezeichen.zip');
   await p.waitForSelector('#bmInfo');
-  assert(await p.isVisible('#bmInfo:has-text("7 Lesezeichen gefunden, davon sehen 5 nach Rezept aus")'), 'Takeout-ZIP: Lesezeichen gelesen, Rezepte erkannt');
-  assert(await p.locator('.bm-row input:checked').count() === 5 && (await p.textContent('#bmGo')) === '5 importieren', 'Rezepte vorausgewählt, Bank & Paket nicht');
+  assert(await p.isVisible('#bmInfo:has-text("9 Lesezeichen gefunden, davon sehen 7 nach Rezept aus")'), 'Takeout-ZIP: Lesezeichen gelesen, Rezepte erkannt');
+  assert(await p.locator('.bm-row input:checked').count() === 7 && (await p.textContent("#bmGo")) === "7 importieren", 'Rezepte vorausgewählt, Bank & Paket nicht');
+  assert(await p.isVisible('.bm-row:has-text("Kürbissuppe, cremig")') && await p.isVisible('.bm-row:has-text("Bester Zwiebelkuchen")'), 'Auch Google „Gespeichert“ (Sammlungen) wird gelesen');
   await p.click('.bm-row:has-text("Zwiebelkuchen")');
-  assert((await p.textContent('#bmGo')) === '4 importieren', 'Abhaken zählt mit');
+  assert((await p.textContent('#bmGo')) === "6 importieren", "Abhaken zählt mit");
   await p.click('#bmAll');
   assert((await p.textContent('#bmGo')) === '0 importieren' && await p.isDisabled('#bmGo'), '„Alle abwählen“');
   await p.click('#bmAll');

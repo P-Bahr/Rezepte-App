@@ -38,19 +38,48 @@
     return out;
   }
 
+  // Google "Gespeichert" (Sammlungen): je Sammlung eine CSV-Datei (Titel, Notiz, URL, Kommentar)
+  function csvRows(text) {
+    const rows = []; let row = [], cell = '', q = false;
+    for (let i = 0; i < text.length; i++) {
+      const c = text[i];
+      if (q) { if (c === '"' && text[i + 1] === '"') { cell += '"'; i++; } else if (c === '"') q = false; else cell += c; }
+      else if (c === '"') q = true;
+      else if (c === ',') { row.push(cell); cell = ''; }
+      else if (c === '\n' || c === '\r') { if (c === '\r' && text[i + 1] === '\n') i++; row.push(cell); rows.push(row); row = []; cell = ''; }
+      else cell += c;
+    }
+    if (cell || row.length) { row.push(cell); rows.push(row); }
+    return rows;
+  }
+  function parseCsv(text, folder) {
+    const html = csvRows(String(text || '').replace(/^\uFEFF/, '')).map(r => {
+      const url = r.find(x => /^https?:\/\//i.test(x.trim()));
+      if (!url) return '';
+      const title = r.find(x => x.trim() && !/^https?:\/\//i.test(x.trim())) || url;
+      const esc = x => String(x).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+      return '<dt><a href="' + esc(url.trim()) + '">' + esc(title.trim()) + '</a>';
+    }).join('');
+    return '<h3>' + String(folder || '').replace(/</g, '') + '</h3><dl>' + html + '</dl>';
+  }
   async function read(file) {
     const name = String(file && file.name || '');
     if (/\.zip$/i.test(name) || /zip/.test(file.type || '')) {
       const JSZip = await loadZipLib();
       let zip;
       try { zip = await JSZip.loadAsync(file); } catch (e) { throw new Error('Die ZIP-Datei konnte nicht geöffnet werden.'); }
-      const files = Object.values(zip.files).filter(f => !f.dir && /\.html?$/i.test(f.name));
+      const all = Object.values(zip.files).filter(f => !f.dir);
+      const files = all.filter(f => /\.html?$/i.test(f.name));
       const pick = files.find(f => /bookmarks|lesezeichen/i.test(f.name)) || files.find(f => /chrome/i.test(f.name));
-      if (!pick) throw new Error('In der ZIP-Datei sind keine Lesezeichen. Bei Takeout bitte „Chrome“ anhaken.');
-      return parseHtml(await pick.async('string'));
+      // Google "Gespeichert"/"Saved": CSV-Dateien (eine je Sammlung)
+      const saved = all.filter(f => /\.csv$/i.test(f.name) && /(gespeichert|saved|sammlung|collection)/i.test(f.name));
+      let html = pick ? await pick.async('string') : '';
+      for (const f of saved) html += parseCsv(await f.async('string'), f.name.split('/').pop().replace(/\.csv$/i, ''));
+      if (!html) throw new Error('In der ZIP-Datei sind keine Lesezeichen. Bei Takeout bitte „Chrome“ und „Gespeichert“ anhaken.');
+      return parseHtml(html);
     }
     return parseHtml(await file.text());
   }
 
-  window.RecipeBookmarks = { read, parseHtml };
+  window.RecipeBookmarks = { read, parseHtml, parseCsv };
 })();
