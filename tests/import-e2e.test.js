@@ -434,6 +434,23 @@ const AI_ANSWER = { isRecipe: true, title: 'One-Pot-Nudeln', servings: null, ser
   assert(calls.slice(before2).includes('https://www.lecker.example/linsensuppe') && !calls.slice(before2).includes('https://www.chefkoch.de/rezepte/2/zwiebelkuchen.html'), 'Nur die ausgewählten Links werden geladen');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
 
+  // „Zu prüfen“: alle ohne Hinweis auf einmal abhaken
+  await p.evaluate(() => {
+    Store.recipes().filter(r => r.review).forEach(r => Store.setReviewed(r.id));
+    Store.saveRecipe({ title: 'Kartoffelgratin', course: 'Beilage', method: 'Backen', mainIngredient: 'Kartoffeln', ingredients: ['1 kg Kartoffeln', '200 ml Sahne', '100 g Käse'], steps: ['Kartoffeln schneiden.', 'Mit Sahne und Käse backen.'], review: true, importHow: 'page' });
+    Store.saveRecipe({ title: 'Halbes Rezept', course: 'Hauptgericht', ingredients: ['1 Ei'], steps: [], review: true, importHow: 'tiktok' });
+  });
+  await p.waitForTimeout(300);
+  if (!(await p.isVisible('#chipReview'))) await p.click('#btnFilter');
+  if ((await p.getAttribute('#chipReview', 'aria-pressed')) !== 'true') await p.click('#chipReview');
+  await p.waitForSelector('#btnReviewBulk');
+  assert((await p.textContent('#btnReviewBulk')) === 'Alle 1 als geprüft markieren', 'Zu prüfen: Knopf zählt nur Rezepte ohne Hinweis');
+  await p.click('#btnReviewBulk'); await p.waitForTimeout(300);
+  const left = await p.evaluate(() => Store.recipes().filter(r => r.review).map(r => r.title));
+  assert(left.join() === 'Halbes Rezept' && !(await p.isVisible('#btnReviewBulk')), 'Danach bleibt nur das Rezept mit Hinweis übrig');
+  await p.evaluate(() => Store.recipes().filter(r => /Kartoffelgratin|Halbes Rezept/.test(r.title)).forEach(r => Store.deleteRecipe(r.id)));
+  await p.click('#btnReset').catch(() => {});
+
   // Kopfzeile auf dem Handy: keine seitliche Verschiebung
   assert(await p.evaluate(() => document.documentElement.scrollWidth) <= 390, 'Kopfzeile passt aufs Handy');
   if (!global.__nullWatch) global.__nullWatch = [];
