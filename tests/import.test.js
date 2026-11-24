@@ -11,6 +11,7 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
 
   // ---------- Link-Prüfung ----------
   ok(fn.checkUrl('https://www.chefkoch.de/rezepte/123/x.html').url, 'Normaler Link erlaubt');
+  ok(fn.checkUrl('https://www-chefkoch-de.cdn.ampproject.org/v/s/www.chefkoch.de/rezepte/123/x.html?amp_js_v=0.1').url === 'https://www.chefkoch.de/rezepte/123/x.html', 'Google-AMP-Link wird zur eigentlichen Chefkoch-Seite');
   for (const bad of ['ftp://x.de/a', 'http://localhost/a', 'http://127.0.0.1/', 'http://192.168.1.10/', 'http://10.0.0.1', 'http://intranet/', 'http://[::1]/', 'kein link', 'http://169.254.169.254/latest'])
     ok(fn.checkUrl(bad).error, 'Gesperrt: ' + bad);
 

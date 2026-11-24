@@ -26,6 +26,11 @@ export function checkUrl(raw) {
     host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80') || host.startsWith('::ffff:');
   if (privateHost) return { error: 'Dieser Link kann nicht abgerufen werden.' };
   u.hash = '';
+  // Google-AMP-Zwischenadresse (…cdn.ampproject.org/v/s/www.chefkoch.de/…) -> eigentliche Seite
+  if (/\.cdn\.ampproject\.org$/.test(host)) {
+    const m = u.pathname.match(/^\/[a-z]\/s\/(.+)$/i);
+    if (m) return checkUrl('https://' + m[1].replace(/^amp\//, '') + u.search.replace(/[?&]amp_[^&]*/g, '').replace(/^&/, '?'));
+  }
   return { url: u.href, host };
 }
 

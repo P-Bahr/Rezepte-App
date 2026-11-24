@@ -404,6 +404,13 @@ const AI_ANSWER = { isRecipe: true, title: 'One-Pot-Nudeln', servings: null, ser
   await p.click('dialog button[type=submit]'); await p.waitForSelector('#boardGo');
   assert(await p.isVisible('dialog p:has-text("2 Links gefunden")') && (await p.textContent('#boardGo')).includes('2 Links importieren'), 'Mehrere Links: alle auf einmal importieren');
   await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+  // Sehr langer Link, der nicht klappt: Fenster bleibt so breit wie der Bildschirm
+  await p.click('#btnImport');
+  await p.fill('#importUrl', 'https://gibt-es-nicht.example/ein/sehr/langer/pfad/ohne/bindestriche/' + 'x'.repeat(120) + '\nhttps://blog.example/ohne-rezept');
+  await p.click('dialog button[type=submit]'); await p.waitForSelector('#boardGo');
+  await p.click('#boardGo'); await p.waitForSelector('#boardResult b', { timeout: 60000 });
+  assert(await p.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth && [...document.querySelectorAll('dialog[open] *')].every(e => e.getBoundingClientRect().right <= window.innerWidth + 1)), 'Langer Link in „Nicht geklappt“ bricht um, nichts ragt über den Rand');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
 
   // Lesezeichen aus Google Takeout (ZIP)
   await p.click('#btnImport'); await p.click('#tileApp');
