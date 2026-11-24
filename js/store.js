@@ -370,6 +370,12 @@
       try { save(); } catch (e) { data.recipes = before; throw e; }
     },
 
+    // Viele auf einmal als geprüft markieren
+    setReviewedMany(ids) {
+      const set = new Set(ids), now = new Date().toISOString(), before = data.recipes;
+      data.recipes = before.map(x => { if (!set.has(x.id) || !x.review) return x; const n = { ...x, review: false, updatedAt: now }; if (n.aiResult && !n.aiOutcome) n.aiOutcome = 'passt'; return n; });
+      try { save(); } catch (e) { data.recipes = before; throw e; }
+    },
     // KI-Durchlauf: neue Fassung übernehmen (alte merken, zum Prüfen markieren) oder nur als gelesen markieren
     applyAi(id, fields) {
       const now = new Date().toISOString(), before = data.recipes;

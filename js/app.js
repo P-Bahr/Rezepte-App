@@ -496,6 +496,15 @@
     }
     empty.hidden = true;
     const frag = document.createDocumentFragment();
+    // „Zu prüfen“: alle Rezepte ohne Hinweis auf einmal abhaken (KI-Neufassungen bleiben, wegen „Alte Fassung“)
+    if (state.reviewOnly) {
+      const ok = Store.recipes().filter(r => r.review && !r.aiBefore && !window.RecipeImporter.reviewHints(r).length);
+      if (ok.length) frag.append(h('div', { class: 'notice dup-notice', id: 'reviewBulk' },
+        h('p', null, h('b', { text: ok.length === 1 ? '1 Rezept' : ok.length + ' Rezepte' }), ' ohne Hinweis – die App hat nichts Auffälliges gefunden.'),
+        h('div', { class: 'row' }, h('button', { type: 'button', class: 'btn btn-primary', id: 'btnReviewBulk', onclick: () => {
+          try { Store.setReviewedMany(ok.map(r => r.id)); toast(ok.length + ' als geprüft markiert'); } catch (e) { toast(e.message); }
+        } }, 'Alle ' + ok.length + ' als geprüft markieren'))));
+    }
     // Hinweis: dasselbe Gericht mehrfach gespeichert
     const dupGroups = window.RecipeDupes.groups(Store.recipes());
     if (dupGroups.length) {

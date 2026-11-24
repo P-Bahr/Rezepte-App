@@ -557,8 +557,8 @@ dialog:focus { outline: none; }
 .titlebar-actions .btn { white-space: nowrap; }
 
 /* Hinweis „Mehrfach gespeichert“ in der Übersicht: mittig */
-#dupNotice { text-align: center; }
-#dupNotice .row { justify-content: center; }
+#dupNotice, #reviewBulk { text-align: center; }
+#dupNotice .row, #reviewBulk .row { justify-content: center; }
 
 /* Lesezeichen-Auswahl */
 .bm-row > span { display: grid; min-width: 0; }
