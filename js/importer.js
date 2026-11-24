@@ -174,6 +174,8 @@
   }
 
   function guessCourse(title, category, keywords, recipe) {
+    // Steht „Frühstück“ im Namen, ist es Frühstück (auch „Frühstücksauflauf“, „Frühstücks-Bowl“)
+    if (/frühstück/i.test(title || '')) return 'Frühstück';
     const byDish = dishCourse(title);
     if (byDish) return byDish;
     if (/^(flammkuchen|quiche)/i.test(title)) return 'Hauptgericht';
@@ -632,6 +634,7 @@
     if (JSON.stringify(d.ingredients) !== before) d.unitsConverted = true;
     if (!d.course) d.courseGuessed = !courseSure(d.title, category, keywords, d);
     d.course = d.course || guessCourse(d.title, category, keywords, d);
+    if (/frühstück/i.test(d.title || '')) { d.course = 'Frühstück'; d.courseGuessed = false; } // auch wenn die Seite „Hauptspeise“ sagt
     d.method = d.method || guessMethod(d.steps, d.title);
     d.mainIngredient = validMain(d.mainIngredient) || mainFor(d);
     if (piecesUnit(d)) d.servingsUnit = 'Stück';

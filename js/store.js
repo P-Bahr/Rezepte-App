@@ -194,6 +194,17 @@
     if (data.recipes.some(r => BROKEN.includes(r.id))) { data.recipes = data.recipes.filter(r => !BROKEN.includes(r.id)); changed = true; }
     // Einmalig (21.11., mit Zustimmung): Rezeptart, Zubereitung und Hauptzutat aller Rezepte nach den aktuellen Regeln neu einordnen
     const RECLASS = 'rezepte.neuEingeordnet';
+    // Einmalig: Rezepte mit „Frühstück“ im Namen in die Rezeptart Frühstück (danach bleibt eigene Wahl unangetastet)
+    let fruehDone = false;
+    try { fruehDone = localStorage.getItem('rezepte.fruehstueck') === '1'; } catch (e) { fruehDone = true; }
+    if (!fruehDone) {
+      data.recipes = data.recipes.map(r => {
+        if (!/frühstück/i.test(r.title || '') || r.course === 'Frühstück') return r;
+        changed = true;
+        return { ...r, course: 'Frühstück', updatedAt: now };
+      });
+      try { localStorage.setItem('rezepte.fruehstueck', '1'); } catch (e) { /* egal */ }
+    }
     let reclassDone = false;
     try { reclassDone = localStorage.getItem(RECLASS) === '2026-11-21'; } catch (e) { reclassDone = true; }
     if (I && I.withGuesses && !reclassDone) {

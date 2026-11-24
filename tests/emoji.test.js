@@ -124,5 +124,8 @@ ok(d.title === 'Overnight Oats' && d.titleReplaced && I.reviewHints({ ...d, impo
   ok(ex[1].ki.title === 'Nudeln' && ex[1].richtig.title === 'Omas Nudeln', 'Lernen: Beispiel zeigt „ki“ und „richtig“');
   ok(I.aiExamples(rs.concat(Array(9).fill(rs[0])), '', 5).length === 5, 'Lernen: höchstens 5 Beispiele');
 }
+for (const t of ['Frühstücksauflauf', 'Frühstück Bowl', 'Frühstücks-Wrap', 'Herzhaftes Frühstück'])
+  ok(I.guessCourse(t, [], [], { title: t, ingredients: ['2 Eier'], steps: ['Backen.'] }) === 'Frühstück', '„Frühstück“ im Namen -> Frühstück: ' + t);
+ok(I.withGuesses({ title: 'Frühstücksauflauf', course: 'Hauptgericht', ingredients: ['2 Eier'], steps: ['Backen.'] }).course === 'Frühstück', 'Auch wenn die Seite „Hauptgericht“ sagt');
 console.log(fail ? fail + ' Fehler' : 'Emoji-Prüfung ok');
 process.exit(fail ? 1 : 0);
