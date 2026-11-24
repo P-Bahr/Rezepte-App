@@ -561,3 +561,9 @@ dialog:focus { outline: none; }
 .bm-row > span { display: grid; min-width: 0; }
 .bm-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bm-host { color: var(--muted); font-size: 14px; }
+
+/* Hilfe aufklappen: Fragezeichen im Kreis, damit man sieht, dass man tippen kann */
+.help-summary { display: flex; align-items: center; gap: 10px; min-height: var(--touch); cursor: pointer; list-style: none; }
+.help-summary::-webkit-details-marker { display: none; }
+.help-dot { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; flex: none; border: 2px solid currentColor; border-radius: 50%; font-weight: 700; font-size: 17px; line-height: 1; }
+details[open] > .help-summary .help-dot { background: var(--sel); color: var(--sel-fg); border-color: var(--sel); }

@@ -1266,7 +1266,7 @@
           h('p', { class: 'import-choice-name', text: 'Lesezeichen (Chrome)' }),
           h('p', { class: 'hint', text: 'Rezept-Links aus deinen Lesezeichen auf einmal holen. Du wählst aus, welche.' }),
           pickBtn('importBookmarks', 'Lesezeichen-Datei auswählen', 'btn-primary'), bmFile,
-          h('details', { class: 'import-tip', id: 'bmHelp' }, h('summary', { text: '? So kommst du an die Datei' }),
+          h('details', { class: 'import-tip', id: 'bmHelp' }, h('summary', { class: 'help-summary' }, h('span', { class: 'help-dot', 'aria-hidden': 'true', text: '?' }), 'So kommst du an die Datei'),
             h('p', { class: 'hint', text: 'Am Handy (über Google):' }),
             h('ol', null,
               step(1, 'In Safari takeout.google.com öffnen und anmelden.'),
