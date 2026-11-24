@@ -556,3 +556,8 @@ dialog:focus { outline: none; }
 /* Hinweis „Mehrfach gespeichert“ in der Übersicht: mittig */
 #dupNotice { text-align: center; }
 #dupNotice .row { justify-content: center; }
+
+/* Lesezeichen-Auswahl */
+.bm-row > span { display: grid; min-width: 0; }
+.bm-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bm-host { color: var(--muted); font-size: 14px; }

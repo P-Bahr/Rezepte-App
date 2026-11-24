@@ -1057,6 +1057,15 @@
       reset();
       const text = input.value.trim();
       if (!text) { say(msg, 'Bitte einen Link oder einen Rezepttext einfügen.'); input.focus(); return; }
+      // Mehrere Links eingefügt: alle nacheinander importieren
+      const allLinks = [...new Set((text.match(/https?:\/\/[^\s<>"']+/gi) || []).map(u => u.replace(/[).,;!?]+$/, '')))];
+      if (allLinks.length >= 2 && text.replace(/https?:\/\/[^\s<>"']+/gi, ' ').replace(/[\s,;]+/g, ' ').trim().length < 40 * allLinks.length) {
+        if (!S || !S.enabled || !S.fetchPage) { say(msg, 'Der Import braucht den Online-Speicher. In dieser Vorschau ist er nicht verfügbar.'); return; }
+        openBoardImport({ pins: allLinks.map((u, i) => ({ id: 'link' + i, link: u, text: '' })) }, {
+          title: 'Links importieren', word: 'Links', batchPrefix: 'links-', info: allLinks.length + ' Links gefunden.'
+        });
+        return;
+      }
       const link = (text.match(/https?:\/\/[^\s<>"']+/i) || [''])[0].replace(/[).,;!?]+$/, '');
       const rest = text.replace(link, ' ').replace(/\s+/g, ' ').trim();
       if (link && rest.length < 80 && !/\n/.test(text.replace(link, ''))) { input.value = link; runLink(link); return; }
@@ -1167,6 +1176,22 @@
       } catch (e) { say(status, ''); say(msg, e.message || 'Die Datei konnte nicht gelesen werden.'); }
     });
 
+    // ---- Lesezeichen (Chrome-Export oder Google-Takeout-ZIP) ----
+    const bmFile = h('input', { type: 'file', id: 'importBookmarks', accept: '.zip,.html,.htm,application/zip,text/html', class: 'visually-hidden' });
+    bmFile.addEventListener('change', async () => {
+      const f = bmFile.files[0];
+      bmFile.value = '';
+      if (!f) return;
+      reset(); say(status, 'Lesezeichen werden gelesen …');
+      try {
+        const list = await window.RecipeBookmarks.read(f);
+        say(status, '');
+        if (!list.length) { say(msg, 'In der Datei wurden keine Lesezeichen gefunden.'); return; }
+        if (!S || !S.enabled || !S.fetchPage) { say(msg, 'Der Import braucht den Online-Speicher. In dieser Vorschau ist er nicht verfügbar.'); return; }
+        openBookmarkPick(list);
+      } catch (e) { say(status, ''); say(msg, e.message || 'Die Datei konnte nicht gelesen werden.'); }
+    });
+
     // ---- Bausteine der Ansichten ----
     const pickBtn = (forId, text, cls) => {
       const l = h('label', { for: forId, class: 'btn pick-btn ' + (cls || ''), role: 'button', tabindex: '0' }, text);
@@ -1193,7 +1218,7 @@
           tile('tileManual', '✍️', 'Selbst eintragen', 'Leeres Rezept', () => openEdit(null)),
           tile('tilePhotos', '📷', 'Bildschirmfotos', 'Rezept aus Video oder Bild', () => show('photos')),
           tile('tileBoard', '📌', 'Pinterest-Pinnwand', 'Bis zu 50 Pins auf einmal', () => show('board')),
-          tile('tileApp', '📦', 'Aus anderer App', 'z. B. Recipe Keeper', () => show('app')),
+          tile('tileApp', '📦', 'Aus anderer App', 'Recipe Keeper, Lesezeichen', () => show('app')),
           tile('tileShare', '📲', 'Über Teilen', 'TikTok, Instagram & Co.', openShareGuide)));
       form.addEventListener('paste', e => { // Bild einfügen -> Texterkennung
         const imgs = [...((e.clipboardData && e.clipboardData.files) || [])].filter(f => /^image\//.test(f.type));
@@ -1237,6 +1262,19 @@
             step(3, 'Hier die Datei auswählen.')),
           pickBtn('importApp', 'Export-Datei auswählen', 'btn-primary'), appFile),
         h('p', { class: 'hint', text: 'Alle Rezepte kommen auf einmal, mit Fotos, und werden als „Zu prüfen“ markiert. Doppelte werden übersprungen.' }),
+        h('div', { class: 'import-choice' },
+          h('p', { class: 'import-choice-name', text: 'Lesezeichen (Chrome)' }),
+          h('p', { class: 'hint', text: 'Rezept-Links aus deinen Lesezeichen auf einmal holen. Du wählst aus, welche.' }),
+          pickBtn('importBookmarks', 'Lesezeichen-Datei auswählen', 'btn-primary'), bmFile,
+          h('details', { class: 'import-tip', id: 'bmHelp' }, h('summary', { text: '? So kommst du an die Datei' }),
+            h('p', { class: 'hint', text: 'Am Handy (über Google):' }),
+            h('ol', null,
+              step(1, 'In Safari takeout.google.com öffnen und anmelden.'),
+              step(2, 'Oben „Auswahl aufheben“ antippen.'),
+              step(3, 'Nur „Chrome“ anhaken, ganz unten „Nächster Schritt“ → „Export erstellen“.'),
+              step(4, 'Nach ein paar Minuten kommt eine E-Mail. Dort auf „Dateien herunterladen“ tippen.'),
+              step(5, 'Hier die ZIP-Datei aus „Downloads“ auswählen – entpacken ist nicht nötig.')),
+            h('p', { class: 'hint', text: 'Am Computer: In Chrome Lesezeichen-Manager öffnen → ⋮ → „Lesezeichen exportieren“.' }))),
         msg, status);
     }
     const VIEWS = {
@@ -1258,6 +1296,47 @@
     showDialog('import', h('div', { style: 'display:contents' }, header, scroll));
     show(startView || 'home');
     if (autoRun && prefill) run();
+  }
+
+  // ---------- Lesezeichen auswählen ----------
+  function openBookmarkPick(list) {
+    const recipes = list.filter(x => x.recipe), others = list.filter(x => !x.recipe);
+    const rows = [];
+    const row = (x, i, on) => {
+      const cb = h('input', { type: 'checkbox', id: 'bm' + i, checked: on });
+      cb.addEventListener('change', count);
+      rows.push({ x, cb });
+      return h('label', { class: 'bring-row bm-row', for: 'bm' + i }, cb,
+        h('span', null, h('span', { class: 'bm-title', text: x.title.slice(0, 90) }), h('span', { class: 'bm-host', text: x.host })));
+    };
+    const go = h('button', { type: 'button', class: 'btn btn-primary', id: 'bmGo' });
+    function count() {
+      const n = rows.filter(r => r.cb.checked).length;
+      go.textContent = n + ' importieren';
+      go.disabled = !n;
+    }
+    const allBtn = h('button', { type: 'button', class: 'btn', id: 'bmAll' }, 'Alle abwählen');
+    allBtn.addEventListener('click', () => {
+      const any = rows.some(r => r.cb.checked);
+      rows.forEach(r => { r.cb.checked = !any && r.x.recipe; });
+      allBtn.textContent = any ? 'Alle Rezepte auswählen' : 'Alle abwählen';
+      count();
+    });
+    go.addEventListener('click', () => {
+      const chosen = rows.filter(r => r.cb.checked).map(r => r.x);
+      openBoardImport({ pins: chosen.map((x, i) => ({ id: 'lz' + i, link: x.url, text: '' })) }, {
+        title: 'Lesezeichen importieren', word: 'Links', batchPrefix: 'lz-', info: chosen.length + ' Lesezeichen ausgewählt.', autoStart: true
+      });
+    });
+    const box = h('div', { class: 'form' },
+      h('p', { id: 'bmInfo', text: list.length + ' Lesezeichen gefunden, davon sehen ' + recipes.length + ' nach Rezept aus. Abhaken, was nicht rein soll.' }),
+      h('div', { class: 'pick-actions' }, allBtn),
+      h('div', { class: 'bring-list' }, recipes.map((x, i) => row(x, i, true))),
+      others.length ? h('details', { class: 'import-tip' }, h('summary', { text: 'Andere Lesezeichen (' + others.length + ')' }),
+        h('div', { class: 'bring-list' }, others.map((x, i) => row(x, recipes.length + i, false)))) : null);
+    count();
+    showDialog('bookmarks', h('div', { style: 'display:contents' }, head('Lesezeichen', closeDialog),
+      h('div', { class: 'dlg-scroll' }, box), h('div', { class: 'dlg-foot' }, go)));
   }
 
   // ---------- Pinnwand-Import: alle Pins nacheinander ----------

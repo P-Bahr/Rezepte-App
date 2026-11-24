@@ -398,6 +398,34 @@ const AI_ANSWER = { isRecipe: true, title: 'One-Pot-Nudeln', servings: null, ser
   await p.evaluate(() => { Store.deleteRecipe('old1'); Store.deleteRecipe('old2'); });
   aiMode = 'off';
 
+  // Viele Links auf einmal einfügen
+  await p.click('#btnImport');
+  await p.fill('#importUrl', 'https://www.lecker.example/linsensuppe\nhttps://blog.example/ohne-rezept');
+  await p.click('dialog button[type=submit]'); await p.waitForSelector('#boardGo');
+  assert(await p.isVisible('dialog p:has-text("2 Links gefunden")') && (await p.textContent('#boardGo')).includes('2 Links importieren'), 'Mehrere Links: alle auf einmal importieren');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+
+  // Lesezeichen aus Google Takeout (ZIP)
+  await p.click('#btnImport'); await p.click('#tileApp');
+  assert(!(await p.isVisible('#bmHelp ol')), 'Anleitung ist hinter „?“ eingeklappt');
+  await p.click('#bmHelp summary');
+  assert(await p.isVisible('#bmHelp li:has-text("takeout.google.com")'), '„?“ zeigt die kurze Takeout-Anleitung');
+  await p.setInputFiles('#importBookmarks', 'tests/fixtures/takeout-lesezeichen.zip');
+  await p.waitForSelector('#bmInfo');
+  assert(await p.isVisible('#bmInfo:has-text("7 Lesezeichen gefunden, davon sehen 5 nach Rezept aus")'), 'Takeout-ZIP: Lesezeichen gelesen, Rezepte erkannt');
+  assert(await p.locator('.bm-row input:checked').count() === 5 && (await p.textContent('#bmGo')) === '5 importieren', 'Rezepte vorausgewählt, Bank & Paket nicht');
+  await p.click('.bm-row:has-text("Zwiebelkuchen")');
+  assert((await p.textContent('#bmGo')) === '4 importieren', 'Abhaken zählt mit');
+  await p.click('#bmAll');
+  assert((await p.textContent('#bmGo')) === '0 importieren' && await p.isDisabled('#bmGo'), '„Alle abwählen“');
+  await p.click('#bmAll');
+  await p.click('.bm-row:has-text("Zwiebelkuchen")'); await p.click('.bm-row:has-text("Apfelkuchen")'); await p.click('.bm-row:has-text("Über mich")');
+  const before2 = calls.length;
+  await p.click('#bmGo');
+  await p.waitForSelector('#boardResult b', { timeout: 60000 });
+  assert(calls.slice(before2).includes('https://www.lecker.example/linsensuppe') && !calls.slice(before2).includes('https://www.chefkoch.de/rezepte/2/zwiebelkuchen.html'), 'Nur die ausgewählten Links werden geladen');
+  await p.click('dialog .icon-btn[aria-label=Schließen]'); await p.waitForTimeout(200);
+
   // Kopfzeile auf dem Handy: keine seitliche Verschiebung
   assert(await p.evaluate(() => document.documentElement.scrollWidth) <= 390, 'Kopfzeile passt aufs Handy');
   if (!global.__nullWatch) global.__nullWatch = [];
