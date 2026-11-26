@@ -105,9 +105,18 @@ export function extractMicrodata(html) {
   const ing = vals('recipeIngredient').concat(vals('ingredients'));
   const steps = vals('recipeInstructions');
   if (!ing.length && !steps.length) return null;
+  // Rezeptname: nicht der Name der Autorin (itemprop="author" > itemprop="name" steht oft zuerst).
+  // Bevorzugt der Name, der auch im Seitentitel oder in der Hauptüberschrift steht.
+  const low = x => String(x || '').toLowerCase();
+  const pageTitle = low(decodeEntities(((html.match(/<meta[^>]+property=["']og:title["'][^>]*content=["']([^"']*)["']/i) || [])[1]) || ((html.match(/<title[^>]*>([\s\S]*?)<\/title>/i) || [])[1]) || ''));
+  const h1 = decodeEntities(((html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i) || [])[1] || '').replace(/<[^>]+>/g, ' ')).replace(/\s+/g, ' ').trim();
+  const authors = [];
+  { const re = /itemprop=["']author["'][\s\S]{0,400}?itemprop=["']name["'][^>]*?(?:content=["']([^"']*)["'][^>]*>|>([^<]*)<)/gi; let a; while ((a = re.exec(html))) authors.push(low(decodeEntities(a[1] || a[2] || '').trim())); }
+  const names = vals('name').filter(n => !authors.includes(low(n)));
+  const name = names.find(n => n.length > 2 && pageTitle.includes(low(n))) || names[0] || (h1 && !authors.includes(low(h1)) ? h1 : '');
   return {
     '@type': 'Recipe',
-    name: vals('name')[0] || '',
+    name,
     recipeIngredient: ing,
     recipeInstructions: steps.map(x => x.replace(/^\d{1,2}[.)]\s*/, '')),
     recipeYield: vals('recipeYield')[0] || '',

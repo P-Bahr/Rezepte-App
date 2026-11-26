@@ -370,5 +370,14 @@ const ok = (c, m) => { if (!c) { fail++; console.log('FEHLER', m); } else consol
   ok(JSON.stringify(d.steps) === JSON.stringify(['Kartoffeln weich kochen, durchpressen.', 'Eigelbe nacheinander mit Holzlöffel unterheben, würzen.', 'Knobi, Käse, Petersilie verrühren.', 'Formen und von beiden Seiten backen.']), 'Foto: Zubereitung ohne Überschrift erkannt und in Schritte geteilt: ' + JSON.stringify(d.steps));
   ok(!d.notes, 'Foto: Begleittext landet nicht in den Notizen');
 
+  // Microdata mit Autorin vor dem Rezeptnamen (ichkoche.de)
+  {
+    const html = '<html><head><title>Tomatensauce mit Penne | ichkoche.de</title></head><body><div itemscope itemtype="https://schema.org/Recipe"><div itemprop="author" itemscope itemtype="https://schema.org/Person"><span itemprop="name">Anneliese Kainer</span></div><h1 itemprop="name">Tomatensauce mit Penne</h1><li itemprop="recipeIngredient">6 Tomaten</li><li itemprop="recipeIngredient">300 g Penne</li><div itemprop="recipeInstructions">Alles kochen.</div></div></body></html>';
+    const md = fn.extractMicrodata(html);
+    ok(md && md.name === 'Tomatensauce mit Penne', 'Microdata: Rezeptname statt Name der Autorin (' + (md && md.name) + ')');
+    const md2 = fn.extractMicrodata(html.replace('<title>Tomatensauce mit Penne | ichkoche.de</title>', ''));
+    ok(md2 && md2.name === 'Tomatensauce mit Penne', 'Microdata ohne Seitentitel: Autorin wird trotzdem übersprungen (' + (md2 && md2.name) + ')');
+  }
+
   if (fail) { console.log(fail + ' Fehler'); process.exit(1); } else console.log('Alle Import-Prüfungen ok');
 })();
