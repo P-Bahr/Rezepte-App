@@ -37,7 +37,16 @@
     [/\bkokosblutenzucker\b/, 'brauner Zucker'],
     [/\bvanilleschote\b/, '1 Päckchen Bourbon-Vanillezucker oder 1 TL Vanilleextrakt'],
     [/\bchorizo\b/, 'scharfe Salami mit etwas geräuchertem Paprikapulver'],
-    [/\bharissa\b/, 'Tomatenmark mit Chiliflocken und etwas Kreuzkümmel']
+    [/\bharissa\b/, 'Tomatenmark mit Chiliflocken und etwas Kreuzkümmel'],
+    // Fitness-Zutaten aus TikTok & Co.
+    [/\b(whey|protein ?pulver|eiweiss ?pulver|proteinpulver|eiweisspulver|casein)/, 'gleiche Menge Mehl oder gemahlene Haferflocken, dazu 1 EL Zucker'],
+    [/\bflavou?r ?(powder|pulver|drops)/, '1 Päckchen Vanillezucker oder 1 TL Puddingpulver, nach Geschmack etwas Zucker'],
+    [/\bskyr\b/, 'Magerquark oder griechischer Joghurt'],
+    [/\b(erythrit|xucker|xylit|stevia|susstoff|sukrin)/, 'Zucker – etwa ⅔ der Menge'],
+    [/\b(mandelmilch|mandeldrink|hafermilch|haferdrink|sojamilch|sojadrink)\b/, 'normale Milch, gleiche Menge'],
+    [/\b(schlagsahne light|sahne light|cremefine|rama cremefine)/, 'normale Schlagsahne oder Kochsahne'],
+    [/\bproteinpudding\b/, 'Vanillepudding'],
+    [/\b(zero sirup|sirup zero|zero ?sauce)/, 'etwas Honig oder Ahornsirup']
   ];
 
   function alternativeFor(line) {
