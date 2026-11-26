@@ -432,8 +432,10 @@
     showDialog('share-guide', h('div', { style: 'display:contents' }, head('Teilen einrichten', closeDialog), h('div', { class: 'dlg-scroll' }, content)));
   }
 
-  function placeholder(title) {
-    return h('div', { class: 'ph', 'aria-hidden': 'true', text: (title.trim()[0] || '?').toUpperCase() });
+  // Ohne Foto: passendes Essens-Symbol auf zarter Farbe
+  function placeholder(recipe) {
+    const L = window.RecipeLook;
+    return h('div', { class: 'ph', 'aria-hidden': 'true', 'data-tint': L ? L.tint(recipe) : 0, text: L ? L.emoji(recipe) : (String(recipe.title || '').trim()[0] || '?').toUpperCase() });
   }
 
   // Zeigt eigenes Foto (Bildspeicher) oder Bild-Adresse; sonst Anfangsbuchstabe
@@ -450,8 +452,8 @@
   function imageBox(cls, recipe) {
     const box = h('div', { class: cls });
     const img = h('img', { alt: '', loading: 'lazy', referrerpolicy: 'no-referrer' });
-    const fail = () => { if (img.isConnected) { img.remove(); box.append(placeholder(recipe.title)); } };
-    if (setImage(img, recipe, fail)) box.append(img); else box.append(placeholder(recipe.title));
+    const fail = () => { if (img.isConnected) { img.remove(); box.append(placeholder(recipe)); } };
+    if (setImage(img, recipe, fail)) box.append(img); else box.append(placeholder(recipe));
     return box;
   }
 
@@ -2005,9 +2007,25 @@
     draw(aiRunning ? 'Läuft gerade …' : '');
     return box;
   }
+  // Farbe der App wählen
+  function colorBox() {
+    const L = window.RecipeLook;
+    if (!L) return null;
+    const row = h('div', { class: 'swatches', role: 'group', 'aria-label': 'Farbe' });
+    function draw() {
+      row.textContent = '';
+      const cur = L.get();
+      L.COLORS.forEach(c => row.append(h('button', { type: 'button', class: 'swatch', 'data-color': c.id, 'aria-pressed': c.id === cur ? 'true' : 'false', onclick: () => { L.set(c.id); draw(); render(); } },
+        h('span', { class: 'swatch-dot', 'aria-hidden': 'true' }), h('span', { class: 'swatch-name', text: c.name }))));
+    }
+    draw();
+    return h('div', { class: 'field examples' }, h('span', { class: 'label', text: 'Farbe' }), row,
+      h('p', { class: 'hint', text: 'Färbt die Knöpfe, die ausgewählten Filter und die Flächen hinter den Symbolen. Gilt nur für dieses Gerät.' }));
+  }
   function openSettings() {
     const content = h('div', { class: 'form' },
       aiProblemBox(),
+      colorBox(),
       aiRereadBox(),
       h('p', { class: 'hint', text: 'Die Sammlungen Ofen, Pfanne, Topf, Grill und Kalt ergeben sich automatisch aus der Zubereitung.' }),
       examplesBox(),
