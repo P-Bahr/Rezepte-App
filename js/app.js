@@ -649,6 +649,49 @@
   document.addEventListener('touchend', () => endSwipe(false));
   document.addEventListener('touchcancel', () => endSwipe(true));
 
+  // Wischen überall im Fenster: nach links, nach rechts oder von oben nach unten = zurück.
+  // Nicht beim Bearbeiten (sonst gingen Eingaben verloren) und nicht in Eingabefeldern oder seitlich scrollenden Leisten.
+  let pan = null;
+  const NO_PAN = 'input, textarea, select, .chips, .swatches, [contenteditable], .explain';
+  function goBack() {
+    const back = dlg.querySelector('#importBack');
+    if (back && !back.hidden) { back.click(); return; }
+    if (state.mode === 'detail') closeDetail(); else closeDialog();
+  }
+  document.addEventListener('touchstart', e => {
+    pan = null;
+    if (!dlg.open || state.mode === 'edit' || e.touches.length !== 1 || swipe) return;
+    const t = e.touches[0];
+    if (!dlg.contains(e.target) || (e.target.closest && e.target.closest(NO_PAN))) return;
+    const sc = dlg.querySelector('.dlg-scroll');
+    pan = { x: t.clientX, y: t.clientY, dx: 0, dy: 0, dir: '', atTop: !sc || sc.scrollTop <= 0 || !sc.contains(e.target) };
+  }, { passive: true });
+  document.addEventListener('touchmove', e => {
+    if (!pan) return;
+    const t = e.touches[0];
+    pan.dx = t.clientX - pan.x; pan.dy = t.clientY - pan.y;
+    if (!pan.dir && Math.max(Math.abs(pan.dx), Math.abs(pan.dy)) > 12) {
+      pan.dir = Math.abs(pan.dx) > Math.abs(pan.dy) * 1.5 ? 'x' : (pan.dy > 0 && pan.atTop ? 'y' : 'none');
+    }
+    if (pan.dir === 'x') { dlg.style.transition = 'none'; dlg.style.transform = 'translateX(' + pan.dx * 0.6 + 'px)'; dlg.style.opacity = String(1 - Math.min(.4, Math.abs(pan.dx) / 800)); }
+    else if (pan.dir === 'y') { dlg.style.transition = 'none'; dlg.style.transform = 'translateY(' + Math.max(0, pan.dy) * 0.6 + 'px)'; }
+  }, { passive: true });
+  const endPan = cancelled => {
+    if (!pan) return;
+    const p = pan; pan = null;
+    const done = !cancelled && ((p.dir === 'x' && Math.abs(p.dx) >= 90) || (p.dir === 'y' && p.dy >= 110));
+    if (!p.dir || p.dir === 'none') return;
+    if (!done) { dlg.style.transition = 'transform .15s ease, opacity .15s ease'; dlg.style.transform = ''; dlg.style.opacity = ''; return; }
+    const out = p.dir === 'x' ? 'translateX(' + (p.dx > 0 ? '' : '-') + '100%)' : 'translateY(100%)';
+    const isSub = !!(dlg.querySelector('#importBack') && !dlg.querySelector('#importBack').hidden);
+    if (isSub) { dlg.style.transition = 'none'; dlg.style.transform = ''; dlg.style.opacity = ''; goBack(); return; }
+    dlg.style.transition = 'transform .18s ease-out, opacity .18s ease-out';
+    dlg.style.transform = out; dlg.style.opacity = '0';
+    setTimeout(() => { goBack(); dlg.style.transition = 'none'; dlg.style.transform = ''; dlg.style.opacity = ''; requestAnimationFrame(() => { dlg.style.transition = ''; }); }, 180);
+  };
+  document.addEventListener('touchend', () => endPan(false));
+  document.addEventListener('touchcancel', () => endPan(true));
+
   window.addEventListener('hashchange', syncFromHash);
   function syncFromHash() {
     const id = hashId();
