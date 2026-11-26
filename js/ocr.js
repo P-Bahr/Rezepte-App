@@ -94,9 +94,15 @@
   async function recognize(files, onStatus) {
     const say = t => { if (onStatus) onStatus(t); };
     say('Texterkennung wird vorbereitet …');
-    let current = 0;
+    // Jedes Foto wird dreimal gelesen (verschiedene Aufbereitungen): ein durchgehender Fortschritt von 0 bis 100 %
+    let current = 0, pass = 0, shown = 0;
+    const PASSES = 3;
     progressCb = m => {
-      if (m.status === 'recognizing text') say('Text wird erkannt' + (files.length > 1 ? ' (Foto ' + (current + 1) + ' von ' + files.length + ')' : '') + ' … ' + Math.round((m.progress || 0) * 100) + ' %');
+      if (m.status === 'recognizing text') {
+        const pct = Math.min(99, Math.floor(((current * PASSES + pass + (m.progress || 0)) / (files.length * PASSES)) * 100));
+        shown = Math.max(shown, pct); // nie rückwärts
+        say('Text wird erkannt' + (files.length > 1 ? ' (Foto ' + (current + 1) + ' von ' + files.length + ')' : '') + ' … ' + shown + ' %');
+      }
       else if (/loading|initializ/i.test(m.status || '')) say('Texterkennung wird geladen (nur beim ersten Mal) …');
     };
     const w = await worker();
@@ -105,7 +111,9 @@
       const v = await prepare(files[current]);
       // Jede Aufbereitung lesen und Zeile für Zeile die sicherste nehmen
       const all = [];
-      for (const variant of [v.gray, v.white, v.light]) {
+      const variants = [v.gray, v.white, v.light];
+      for (pass = 0; pass < variants.length; pass++) {
+        const variant = variants[pass];
         const data = (await w.recognize(variant, {}, { blocks: true })).data;
         const W = variant.width;
         for (const bl of data.blocks || []) for (const pa of bl.paragraphs || []) for (const li of pa.lines || []) {
